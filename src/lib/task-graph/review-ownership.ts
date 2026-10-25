@@ -1,3 +1,4 @@
+import { candidateReviewFallback } from './candidate-integration';
 import { bindPhaseReplyIdentity } from './conversation-reply-identity';
 import { graphRunCanStartTx, requireGraphRunActiveTx } from './run-control';
 import type { Prisma } from '@prisma/client';
@@ -6,6 +7,7 @@ import { prisma } from '../prisma';
 import { executionProgress, initialExecutionProgress, metadataWithProgress, type GraphReviewBinding } from './execution-progress';
 
 export async function graphReviewClaimKey(nodeId: string, phase: 'architecture' | 'acceptance', fallbackClaimKey: string) {
+  fallbackClaimKey = await candidateReviewFallback(nodeId, fallbackClaimKey);
   const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId } });
   const bindings = jobs.map(job => { const binding = executionProgress(job.dispatchMetadata)?.review; return binding?.phase === phase && binding.candidateCommit === job.commit ? binding : undefined; })
     .filter((binding): binding is GraphReviewBinding => binding !== undefined);

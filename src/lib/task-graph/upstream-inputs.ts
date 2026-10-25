@@ -12,10 +12,10 @@ import { withRepositoryLock } from './repository-lock';
 import { materializeUpstream } from './upstream-source';
 import { selfCheckExecution, verificationInputs, isCompletedNodeStatus, type GraphDefinition } from './domain';
 import { isRecord } from './implementation-result';
+import { replacementInputs, recordCandidateInputs } from './input-candidates';
 
-type Input = { repository: string; commit: string; sourcePath: string; executions: string[]; resultsDirectories: string[];
-  projectEnvPath: string | null; pythonExecutable: string | null; dependencyPaths: string[]; quality: string[] };
-export type TaskInputManifest = { version: 1; executionId: string; primaryRepository: string; inputs: Input[]; ticketInputs?: { executionId: string; commit: string | null }[]; hash: string };
+import { parseInputManifest, type TaskInput, type TaskInputManifest } from './input-manifest';
+export type { TaskInputManifest } from './input-manifest';
 export type PreparedInputs = { manifest: TaskInputManifest; readOnlyPaths: string[]; env: Record<string, string>; instructions: string };
 
 function closure(graph: GraphDefinition, key: string) {
@@ -40,7 +40,7 @@ async function hydrate(manifest: TaskInputManifest): Promise<PreparedInputs> {
   }
   return { manifest, readOnlyPaths: Array.from(new Set(readOnlyPaths)),
     env: { TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify([manifest]), AP_PROJECT_REPOSITORY: manifest.primaryRepository },
-    instructions: `\n本轮固定输入清单 ${manifest.hash}：${JSON.stringify(manifest)}\n清单含已完成前置及整票责任人本轮可用的同票集成源码；同票 integrated 不表示验收通过。输入源码和环境只读；跨仓调用使用对应 sourcePath 和 pythonExecutable。默认环境只归主仓，不能拼接多仓 PYTHONPATH。源码副本无 .git，Git 历史操作走平台。归档仅列已绑定交付版本的路径，缺少路径不等于从未验证；不能把旧报告冒充当前版本证据。输入不可用报告平台输入/环境阻塞，不要求用户重复发图。` };
+    instructions: `\n本轮固定输入清单 ${manifest.hash}：${JSON.stringify(manifest)}\n清单含已完成前置及整票责任人本轮可用的同票集成源码；同票 integrated 不表示验收通过。replacement 是用户授权后由平台登记的补充候选，candidate_unverified 不代表已验收或汇合；正式入口和独立验收必须消费清单中的新 commit/sourcePath，不继承旧版通过证据。输入源码和环境只读；跨仓调用使用对应 sourcePath 和 pythonExecutable。默认环境只归主仓，不能拼接多仓 PYTHONPATH。源码副本无 .git，Git 历史操作走平台。归档仅列已绑定交付版本的路径，缺少路径不等于从未验证；不能把旧报告冒充当前版本证据。输入不可用报告平台输入/环境阻塞，不要求用户重复发图。` };
 }
 
 /** Resolve approved dependency relations once per execution claim, then replay the same recorded input. */
@@ -53,7 +53,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
   await prepareExtraRepositories(planned.extraRepositories);
   const eventKey = `execution:${execution.id}:inputs:${execution.claimToken || 'legacy'}`;
   const existing = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: eventKey } } });
-  if (existing) return hydrate(parseManifest(existing.payload));
+  if (existing) return hydrate(parseInputManifest(existing.payload));
   const required = closure(graph, node.key);
   const canonical = (repository: string) => realpath(repository).catch(() => repository);
   const primaryRepository = await canonical(execution.repository);
@@ -70,7 +70,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
   const policy = planned.consumeUpstream || 'direct';
   const selected = candidates.filter(job => job.nodeKey === node.key || (policy !== 'none' && (Array.isArray(policy) ? policy.includes(`${job.nodeKey}/${job.key}`) : planned.dependsOn.includes(job.nodeKey))));
   const repositories = Array.from(new Set(selected.map(job => job.repository).filter(repo => repo !== primaryRepository))).sort();
-  const inputs: Input[] = [];
+  const inputs: TaskInput[] = [];
   for (const repository of repositories) {
     const jobs = candidates.filter(job => job.repository === repository);
     let commit: string | undefined;
@@ -106,9 +106,14 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
       projectEnvPath: project?.directory || null, pythonExecutable: project ? path.join(project.directory, 'bin', 'python') : null,
       dependencyPaths: graphDependencyPaths(repository), quality: jobs.map(job => job.quality) });
   }
-  const content = { version: 1 as const, executionId, primaryRepository, inputs, ...(ticketInputs ? { ticketInputs } : {}) };
+  const replacements = await replacementInputs(execution, inputs);
+  const content = { version: 1 as const, executionId, primaryRepository, inputs: replacements.inputs, ...(ticketInputs ? { ticketInputs } : {}) };
   const manifest: TaskInputManifest = { ...content, hash: createHash('sha256').update(JSON.stringify(content)).digest('hex') };
   const event = await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
+    const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId } });
+    if (current.claimToken !== execution.claimToken) throw new Error('固定输入准备期间 claim 改变');
+    await recordCandidateInputs(tx, current, replacements.bindings);
     const previous = await tx.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'task_inputs_prepared', idempotencyKey: { not: eventKey },
       payload: { path: ['executionId'], equals: executionId } }, orderBy: { createdAt: 'desc' } });
     const recorded = await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: eventKey } },
@@ -118,25 +123,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
       payload: { executionId, previousHash: String(previous.payload.hash), currentHash: manifest.hash } }], skipDuplicates: true });
     return recorded;
   });
-  return hydrate(parseManifest(event.payload));
-}
-
-function parseManifest(value: unknown): TaskInputManifest {
-  // Payloads originate only in this module; compare the immutable digest before using any stored paths.
-  if (!isRecord(value) || value.version !== 1 || typeof value.executionId !== 'string' || typeof value.primaryRepository !== 'string' ||
-      !Array.isArray(value.inputs) || typeof value.hash !== 'string') throw new Error('固定输入清单无效');
-  const inputs: Input[] = value.inputs.map(input => {
-    if (!isRecord(input) || typeof input.repository !== 'string' || typeof input.commit !== 'string' || typeof input.sourcePath !== 'string' ||
-      !Array.isArray(input.executions) || !input.executions.every(x => typeof x === 'string') || !Array.isArray(input.resultsDirectories) || !input.resultsDirectories.every(x => typeof x === 'string') ||
-      !Array.isArray(input.dependencyPaths) || !input.dependencyPaths.every(x => typeof x === 'string') || !Array.isArray(input.quality) || !input.quality.every(x => typeof x === 'string') ||
-      !(input.projectEnvPath === null || typeof input.projectEnvPath === 'string') || !(input.pythonExecutable === null || typeof input.pythonExecutable === 'string')) throw new Error('固定输入条目无效');
-    return { repository: input.repository, commit: input.commit, sourcePath: input.sourcePath, executions: input.executions, resultsDirectories: input.resultsDirectories,
-      projectEnvPath: input.projectEnvPath, pythonExecutable: input.pythonExecutable, dependencyPaths: input.dependencyPaths, quality: input.quality };
-  });
-  const manifest: TaskInputManifest = { version: 1, executionId: value.executionId, primaryRepository: value.primaryRepository, inputs, ...(Array.isArray(value.ticketInputs) ? { ticketInputs: value.ticketInputs.map(item => { if (!isRecord(item) || typeof item.executionId !== 'string' || typeof item.commit !== 'string') throw new Error('整票输入提交无效'); return { executionId: item.executionId, commit: item.commit }; }) } : {}), hash: value.hash };
-  const { hash, ...content } = manifest;
-  if (createHash('sha256').update(JSON.stringify(content)).digest('hex') !== hash) throw new Error('固定输入清单摘要不一致');
-  return manifest;
+  return hydrate(parseInputManifest(event.payload));
 }
 
 /** Readonly QA and all native roles receive the same claim-pinned manifests. */

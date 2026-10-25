@@ -1,3 +1,4 @@
+import { assertCandidateInputsIntegrated } from './candidate-integration';
 import { implementationQuality } from './implementation-quality';
 import { graphRunCanStartTx, graphRunBusinessStatus } from './run-control';
 import { observeGraphWriter, type GraphWriter } from './writer-ownership';
@@ -283,6 +284,7 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
     if (node.status !== 'verifying' || node.executions.some((job) => job.status !== 'integrated')) {
       throw new Error('All executions must be integrated before unverified delivery');
     }
+    await assertCandidateInputsIntegrated(tx, node.id);
     const changed = await tx.taskGraphNode.updateMany({ where: { id: node.id, status: 'verifying' },
       data: { status: 'delivered_unverified', evidence: { summary: '按已批准的仅实施模式交付；未执行独立架构审查或测试验收。' } } });
     if (changed.count === 1) await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id,
@@ -341,6 +343,7 @@ export async function submitNodeVerification(args: {
       throw new Error('Required verification evidence is missing');
     }
     const allPassed = results.every(item => item.passed) && checks.every((check) => results.some((item) => item.name === check && item.passed));
+    if (allPassed) await assertCandidateInputsIntegrated(tx, node.id);
     let status = allPassed ? (node.acceptance === 'human' ? 'awaiting_human' : 'passed') : 'attention';
     if (args.review && (args.review.outcome !== 'classified' || args.review.decision)) {
       status = await applyReviewFailureTx(tx, node.id, { phase: args.review.phase, claimKey: args.review.claimKey, identity: args.review.taskRunId,
@@ -393,6 +396,7 @@ export async function approveHumanNode(args: {
           !evidence || typeof evidence !== 'object' || Array.isArray(evidence) || !jobs.length || jobs.some(job => job.status !== 'integrated' || !job.commit) ||
           !isDeepStrictEqual(evidence.inputs, verificationInputs(jobs))) throw new Error('Formal quality record does not match current input commits');
     }
+    if (args.approved) await assertCandidateInputsIntegrated(tx, node.id);
     const updated = await tx.taskGraphNode.update({
       where: { id: node.id }, data: { status: args.approved ? 'passed' : 'attention',
         passedAt: args.approved ? new Date() : undefined },

@@ -1,3 +1,4 @@
+import { observeExecutionWriter } from './phase-worker';
 import { observeTaskRunExit } from './task-run-exit-proof';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { continuationWorkFingerprint } from './continuation-work';
@@ -19,11 +20,14 @@ export async function scheduleGraphRepair(runId: string, nodeKey: string, decisi
   const proposed = classifyReview({ ...decision, approved: false }, graphReviewChecks(observedNode.run.snapshot as unknown as GraphDefinition, nodeKey, observedNode.executions));
   if (observedNode.status !== 'attention' || !proposed || proposed.approved || proposed.failureKind !== 'in_scope_defect') return false;
   const observed = observedNode.executions.filter(job => proposed.executionIds.includes(job.id));
+  const writers = await observeWriterSnapshot(expectedReview
+    ? { jobs: observedNode.executions, taskRunIds: [expectedReview.taskRunId], scope: 'execution', observeExecution: observeExecutionWriter }
+    : { jobs: observedNode.executions, scope: 'review-model' });
+  if (!writers.exited) throw new Error('Pending review repair: reviewer, phase or implementation writer has not proven exit');
   const inputs = new Map(await Promise.all(observed.map(async job => [job.id, job.commit ? {
     commit: job.commit, tree: await graphGit(job.repository, 'rev-parse', '--verify', `${job.commit}^{tree}`),
     work: await continuationWorkFingerprint(job.id, job.commit),
   } : null] as const)));
-  const writers = await observeWriterSnapshot({ jobs: observedNode.executions, scope: 'review-model' });
   const exits = new Map(await Promise.all(observed.map(async job => [job.id, job.taskRunId ? await observeTaskRunExit(job.taskRunId) : undefined] as const)));
   return prisma.$transaction(async tx => {
     if (!await graphRunCanStartTx(tx, runId)) return false;
