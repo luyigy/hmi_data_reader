@@ -24,6 +24,20 @@ GitNexus results should support engineering decisions, not replace understanding
 
 ## 任务图工作流
 
+### 2026-10-25 双通路与 M06 修复的手动规划例外
+
+用户在 Feishu DM 08a216 明确要求本轮使用 Matt `to-tickets` 的纵向 Slice 方法，
+将票写在 `docs/specs/manual-chat-task-graph/`，按
+`docs/558_PLAN_20261025_双通路与M06纵向切片.md` 和最新 HANDOVER 手动接续。
+本包不发布到 GitHub/Gitee 或其他 Issue tracker，不提审或启动自动任务路线。
+此例外优先于下方新工作默认任务图规则；不改变其他任务的执行方式。
+用户随后于同日明确要求开始 S01，完成后写交接，由新 Session 手动接续 S02。
+S01 局部实施、测试、追加提交与交接已授权；本轮不启动 S02，不恢复 M06。
+实施进度及后续授权在 PLAN/HANDOVER 正文记录。
+PLAN/HANDOVER 保持 `next_action: none`，旧自动化保持关闭，不操作 cursor/pending。
+用户未明确启用任务图时，手动主对话由聊天通路负责消息与卡片生命周期，
+不得由任务图调度器接管；共用展示组件不代表共用调度归属。
+
 ### 本分支的手动交接例外
 
 用户于 2026-10-23 在 Feishu DM 08a216 明确要求本次环境与阻塞修复改为手动执行，
