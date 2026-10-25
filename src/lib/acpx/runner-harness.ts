@@ -1,3 +1,4 @@
+import { recordResourceMountPlan, recordResourceSession, ResourceApplicationError } from '../task-resources/mount-plan';
 import { assertResourceUseActive, withResourceProcessGuard } from '../task-resources/process-guard';
 import { resourceRequestInstructions, submitRunnerResourceRequest } from '../task-resources/runner-protocol';
 import { resourcesForRun, markResourceRunEffective } from '../task-resources/runtime';
@@ -141,7 +142,8 @@ export const executeViaLocalHarness = async (
     throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
   }
   const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
-  const resourceAccess = await resourcesForRun({ ...request, participants: [participant] }, taskRunId, participantId);
+  const inputs = request.taskId.startsWith('task-graph-') ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only') : null;
+  const resourceAccess = await resourcesForRun({ ...request, participants: [participant] }, taskRunId, participantId, inputs?.manifests);
   task.description += (participant.harnessType === 'codex' ? resourceRequestInstructions : '') + resourceAccess.instructions;
   if (request.taskId.startsWith('task-graph-') && request.workingDirectory && !existsSync(request.workingDirectory)) {
     throw new Error('任务工作区已清理或不可用。历史回复和提交仍保留；继续实施请创建后续任务工作区。');
@@ -165,7 +167,6 @@ export const executeViaLocalHarness = async (
   const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
-  const inputs = graphRuntime ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only') : null;
   extraWritableRoots.push(...resourceAccess.write);
   if (inputs) { task.description += inputs.instructions; extraWritableRoots.push(...inputs.writablePaths); }
   const outputWorkspaces = request.taskId.startsWith('task-graph-review-') || request.taskId.startsWith('task-graph-architecture-')
@@ -176,6 +177,7 @@ export const executeViaLocalHarness = async (
   const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
     ...resourceAccess.read,
+    ...(resourceAccess.protectedPaths || []),
     ...(graphRuntime && !('workflowPermissionSnapshot' in permissionConfig) ? [] : resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig)),
     ...(request.extraReadOnlyPaths || []),
     ...(output?.readOnlyPaths || []),
@@ -231,16 +233,27 @@ export const executeViaLocalHarness = async (
     if (serviceSignal?.aborted) abort();
     onSpawn?.({ pid: control.pid, sandboxIdentity: control.identity });
   };
-  const sandbox: HarnessSandbox | undefined = request.graphExecution
+  const sandbox: HarnessSandbox | undefined = (request.graphExecution || resourceAccess.approvalIds.length > 0)
     && participant.executionBackend === 'platform_local' && participant.harnessType === 'codex' && workspaceRoot
-    ? { run: (input, use) => withSandbox(input, use, {
-        onSpawn: registerManagedSpawn,
-      }) }
+    ? { run: async (input, use) => {
+        let exitCode: number | null = null;
+        try {
+          return await withSandbox({ ...input, requiredWritableRoots: resourceAccess.write }, async managed => {
+            managed.child.once('exit', code => { exitCode = code; });
+            return use(managed);
+          }, { onSpawn: registerManagedSpawn });
+        } catch (error) {
+          if (exitCode === 73 && resourceAccess.write.length) throw new ResourceApplicationError(
+            `补充目录实际写入检查失败：${error instanceof Error ? error.message : String(error)}`, resourceAccess.write);
+          throw error;
+        }
+      } }
     : undefined;
 
   return withTaskProjectCapabilities({ taskId: request.taskId, taskRunId, workspace: workspaceRoot || request.workingDirectory || process.cwd(), ...('workflowPermissionSnapshot' in permissionConfig ? { allowedReadOnlyRoots: extraReadOnlyPaths } : {}) }, async capabilities => {
   extraReadOnlyPaths.push(...capabilities.readOnlyPaths);
   task.description += capabilities.instructions;
+  if (resourceAccess.approvalIds.length) await recordResourceMountPlan(taskRunId, participantId, resourceAccess.write, extraReadOnlyPaths, [workspaceRoot, ...extraWritableRoots].filter((root): root is string => !!root));
   return withGraphTaskServices(graphRuntime && !request.graphConversation ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
@@ -251,8 +264,11 @@ export const executeViaLocalHarness = async (
   const onSessionStarted = (session: import('@/lib/harness/types').HarnessSessionStarted) => {
     metadataWrites = metadataWrites.then(async () => {
       try {
+        const expectedNative = participant.resumeSessionId || participant.resumeThreadId;
+        if (resourceAccess.approvalIds.length && expectedNative && expectedNative !== (session.threadId || session.sessionId)) throw new Error('资源接续返回不同的原生 Session');
         await assertResourceUseActive(taskRunId, resourceAccess.approvalIds);
         await markResourceRunEffective(request, taskRunId, session.threadId || session.sessionId);
+        if (resourceAccess.approvalIds.length) await recordResourceSession(taskRunId, participantId, session.threadId || session.sessionId);
         await persistPlatformLocalSessionMetadata(
           taskRunId, participantId, session.sessionKind, session.sessionId, session.threadId,
         );

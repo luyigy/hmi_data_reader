@@ -1,3 +1,4 @@
+import { ResourceApplicationError } from '../src/lib/task-resources/mount-plan';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -35,7 +36,7 @@ async function main() {
   // Redirect only host configuration lookup. Resource pinning, preflight, coordination and the ledger remain real.
   const platformModule: typeof import('../src/lib/platform-repository') = require('../src/lib/platform-repository');
   const originalPlatform = platformModule.platformRepository; platformModule.platformRepository = () => platform;
-  const keys = ['MISSING', 'UNPROBED', 'FALSE_REPORT', 'TRANSIENT', 'EXHAUST', 'PREFLIGHT_MISSING', 'PREFLIGHT_TRANSIENT', 'CHECK_MISSING', 'CHECK_TRANSIENT', 'PERMISSION', 'ENGINEERING'];
+  const keys = ['RESOURCE_APPLICATION', 'MISSING', 'UNPROBED', 'FALSE_REPORT', 'TRANSIENT', 'EXHAUST', 'PREFLIGHT_MISSING', 'PREFLIGHT_TRANSIENT', 'CHECK_MISSING', 'CHECK_TRANSIENT', 'PERMISSION', 'ENGINEERING'];
   const repositories = new Map<string, string>(), resources = new Map<string, string>();
   const grants: Record<string, string[]> = {}, registrations: Record<string, unknown> = {};
   for (const key of keys) {
@@ -84,6 +85,7 @@ async function main() {
   const execute: typeof adapter.execute = async args => {
     const { task, context } = args, key = task.name.split(' · ')[0], count = (starts.get(key) || 0) + 1;
     starts.set(key, count);
+    if (key === 'RESOURCE_APPLICATION') throw new ResourceApplicationError('approved mount remained read-only', [resources.get(key)!]);
     if (count > 1) assert.equal('sessionId' in args ? args.sessionId : undefined, `native-${key}`, 'Continue the original Agent session');
     const before = git(context.workingDirectory, 'rev-parse', 'HEAD'); candidates.set(key, [...(candidates.get(key) || []), before]);
     const child = spawn(process.execPath, ['-e', 'process.exit(0)'], { env: { ...process.env, ...context.taskEnvironment }, stdio: 'ignore' });
@@ -112,7 +114,12 @@ async function main() {
   const outcomes = async (executionId: string) => prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: 'execution_outcome', payload: { path: ['executionId'], equals: executionId } }, orderBy: { createdAt: 'asc' } });
   try {
     await until(list => ['FALSE_REPORT', 'TRANSIENT', 'PREFLIGHT_TRANSIENT', 'CHECK_TRANSIENT', 'ENGINEERING'].every(key => list.find(job => job.node.key === key)?.node.status === 'passed') &&
-      ['MISSING', 'UNPROBED', 'PREFLIGHT_MISSING', 'CHECK_MISSING', 'PERMISSION', 'EXHAUST'].every(key => list.find(job => job.node.key === key)?.status === 'attention'));
+      ['RESOURCE_APPLICATION', 'MISSING', 'UNPROBED', 'PREFLIGHT_MISSING', 'CHECK_MISSING', 'PERMISSION', 'EXHAUST'].every(key => list.find(job => job.node.key === key)?.status === 'attention'));
+    const resourceFailed = (await jobs()).find(job => job.node.key === 'RESOURCE_APPLICATION')!;
+    assert.equal(starts.get('RESOURCE_APPLICATION'), 1);
+    assert.equal(executionProgress(resourceFailed.dispatchMetadata)?.lastFailure?.code, 'resource_application_failed');
+    for (let n = 0; n < 3; n++) assert.equal((await admitNode(resourceFailed.nodeId, { source: 'conditions', id: `resource-recheck-${n}` })).kind, 'deferred');
+    assert.equal(starts.get('RESOURCE_APPLICATION'), 1, 'A failed applied grant cannot automatically relaunch');
     const unprobed = (await jobs()).find(job => job.node.key === 'UNPROBED')!;
     assert.equal(starts.get('UNPROBED'), 1, 'A successful platform probe cannot dismiss an explicit missing capability report');
     assert.equal(executionProgress(unprobed.dispatchMetadata)?.lastFailure?.blockerCause, 'missing_capability');
