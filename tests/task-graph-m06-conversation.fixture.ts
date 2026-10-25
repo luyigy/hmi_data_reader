@@ -16,6 +16,7 @@ import { requestResourceAccess, decideResourceAccess } from '../src/lib/task-res
 import { getHarnessAdapter } from '../src/lib/harness';
 import { prepareSandboxEnvironment } from '../src/lib/sandbox-manager/environment';
 import { renderBubblewrap } from '../src/lib/sandbox-manager/bubblewrap';
+import { currentWaitCause } from '../src/lib/task-graph/waiting-cause';
 
 export async function m06ConversationRegression() {
   const root = mkdtempSync(path.join(tmpdir(), 'm06-conversation-'));
@@ -53,6 +54,8 @@ export async function m06ConversationRegression() {
   await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
   await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { childTaskId: task.id, taskRunId: failedStartup.id, status: 'attention',
     claimToken: 'm06-owner', worktreePath: cwd, commit, dispatchMetadata: { progress } } });
+  await prisma.taskGraphEvent.create({ data: { runId: graph.id, nodeId: job.nodeId, kind: 'execution_outcome', idempotencyKey: 'm06-wait',
+    payload: { executionId: job.id, claimToken: 'm06-owner', progress, outcome: { kind: 'waiting_for_user', failure: progress.lastFailure } } } });
   const room = await prisma.liveRoom.create({ data: { title: 'M06', sourceTaskId: task.id } });
   const binding = await prisma.feishuConversationBinding.create({ data: { liveRoomId: room.id, scopeKey: task.id, appId: 'test', chatId: 'm06-chat', chatType: 'group', rootMessageId: 'm06-root' } });
   const grant = await requestResourceAccess({ launch: { taskId: task.id, taskName: 'M06', taskSessionId: session.id, orchestrationMode: 'single',
@@ -105,6 +108,9 @@ export async function m06ConversationRegression() {
       const work = await startConversationFollowups(1);
       assert.equal(work.length, 1, `Attempt ${n + 1} must start a conversation despite the business write hold`);
       await Promise.all(work.map(item => item.promise));
+      const waiting = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+      assert.deepEqual(await currentWaitCause(waiting, executionProgress(waiting.dispatchMetadata)!), progress.lastFailure,
+        'Read-only startup retries must preserve the known permission hold');
       const turn = await prisma.taskRun.findFirstOrThrow({ where: { taskId: task.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
       assert.notEqual(turn.id, original.id); runIds.push(turn.id);
       assert.equal(turn.taskSessionId, session.id);
@@ -144,6 +150,20 @@ export async function m06ConversationRegression() {
       await prisma.taskGraphEvent.updateMany({ where: { runId: graph.id, kind: 'conversation_followup_reserved' }, data: { createdAt: new Date(Date.now() - 20_000) } });
     }
     const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    const currentProgress = executionProgress(current.dispatchMetadata)!;
+    assert.deepEqual(await currentWaitCause(current, currentProgress), progress.lastFailure,
+      'Multiple completed read-only conversations must retain the waiting cause');
+    assert.equal(await currentWaitCause(current, { ...currentProgress, revision: currentProgress.revision + 1 }), null,
+      'An unexplained revision gap must not reuse an old waiting cause');
+    assert.equal(await currentWaitCause({ ...current, claimToken: 'another-owner' }, currentProgress), null);
+    assert.equal(await currentWaitCause(current, { ...currentProgress, candidateCommit: 'changed' }), null);
+    assert.equal(await currentWaitCause(current, { ...currentProgress, phase: 'acceptance' }), null);
+    assert.equal(await currentWaitCause(current, { ...currentProgress, taskRunId: original.id }), null);
+    await prisma.taskGraphEvent.create({ data: { runId: graph.id, nodeId: job.nodeId, kind: 'execution_outcome', idempotencyKey: 'm06-recheck',
+      payload: { executionId: job.id, claimToken: 'm06-owner', progress: currentProgress,
+        outcome: { kind: 'admission_deferred', failure: progress.lastFailure } } } });
+    assert.deepEqual(await currentWaitCause(current, currentProgress), progress.lastFailure,
+      'A newer exact wait outcome takes precedence over the previous conversation reservation');
     assert.equal(current.status, 'attention'); assert.equal(current.commit, commit); assert.equal(current.taskRunId, failedStartup.id);
     assert.deepEqual(executionProgress(current.dispatchMetadata)?.lastFailure, progress.lastFailure);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: { in: ['execution_conditions_ready', 'implementation_recovery_scheduled', 'verification_passed'] } } }), 0);
