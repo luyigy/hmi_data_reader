@@ -30,7 +30,7 @@ async function main() {
   const adapter = getHarnessAdapter('codex')!; const saved = { execute: adapter.execute, resume: adapter.resume };
   const calls: { task: string; session: string | null; directory: string; readOnly: boolean; prompt: string }[] = [];
   const native = 'original-reader-native-session';
-  let legacyRunId: string | null = null; let legacyTurns = 0; let materialInputId: string | undefined;
+  let legacyRunId: string | null = null; let legacyTurns = 0;
   let readerTurns = 0; let releaseMold: () => void = () => {}; const moldRunning = new Promise<void>(resolve => { releaseMold = resolve; });
   async function run(args: HarnessExecuteArgs | HarnessResumeArgs) {
     const resume = 'sessionId' in args ? args.sessionId : null;
@@ -45,9 +45,11 @@ async function main() {
         if (inputs.some(input => input.content === '尺寸材料是42，只检查不要继续')) return { success: true, output: '尺寸材料已收到，先核对。', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
         const input = inputs.find(input => input.content.includes('尺寸材料'));
         if (!input && !inputs.some(input => input.content.includes('继续实施'))) return { success: true, output: '仍在等待材料确认。', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
-        return { success: true, output: 'TASK_GRAPH_CONVERSATION ' + JSON.stringify({ action: 'resume_implementation', inputIds: [materialInputId || input.id], note: '材料已提供' }), sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
+        return { success: true, output: 'TASK_GRAPH_CONVERSATION ' + JSON.stringify({ action: 'resume_implementation', inputIds: [input.id], note: '材料已提供' }), sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
       }
       if (execution.key === 'peer') return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"permission_required","note":"需要额外授权，不得因兄弟材料恢复而放行"}', sessionId: 'peer-native', sessionKind: 'codex_thread', executionTime: 1 };
+      const currentInputs = prompt.split('\n').filter(line => line.startsWith('{"id":')).map(line => JSON.parse(line)).filter(input => !input.history);
+      if (currentInputs.some(input => input.content === '现在进度如何？' || input.content.includes('只检查不要继续'))) return { success: true, output: '材料已记住，仅解释，等待下一条消息。', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
       legacyTurns++;
       if (legacyTurns === 1) return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"需要尺寸材料"}', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
       assert.equal(resume, 'legacy-native', 'Legacy material handoff preserves the original conversation lineage');
@@ -64,7 +66,7 @@ async function main() {
       if (readerTurns === 1) { await moldRunning; writeFileSync(path.join(args.context.workingDirectory, 'half'), 'saved');
         return { success: true, output: '使用哪个尺寸？\nTASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"请告诉我尺寸"}', sessionId: native, sessionKind: 'codex_thread', executionTime: 1 }; }
       assert.equal(resume, native, 'Ordinary answer resumes the original native session');
-      if (readerTurns === 2) { assert(calls.some(call => call.readOnly && call.session === native && call.prompt.includes('尺寸使用42')));
+      if (readerTurns === 2) { assert(!calls.some(call => call.readOnly)); assert.match(prompt, /尺寸使用42/);
         await receiveGraphTaskMessage({ taskId: args.task.id, actorId: human.id, actorOrigin: 'platform', sourceId: 'late-correction', content: '颜色使用蓝色' });
         return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"working","note":"尺寸42已记入，正在核对新颜色。"}', sessionId: native, sessionKind: 'codex_thread', executionTime: 1 };
       } else assert.match(prompt, /颜色使用蓝色/, 'A correction queued before sealing must run before integration');
@@ -98,7 +100,7 @@ async function main() {
     assert.equal((await conversationInputs(reader.id)).length, 1);
     await until(async () => (await prisma.taskGraphNode.count({ where: { runId: graph.id, key: 'NEXT', status: 'delivered_unverified' } })) === 1);
     const after = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: reader.id } });
-    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_reserved' } }), 1, 'Explicit continuation is interpreted in a read-only turn before authorized handoff');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_reserved' } }), 0, 'Ordinary continuation goes directly to the original implementer');
     assert.equal(executionProgress(after.dispatchMetadata)!.formatAttempts, 0, 'A normal successful answer needs no result recovery');
     assert.equal(readerTurns, 3); assert.equal(after.worktreePath, reader.worktreePath);
     assert.equal(executionProgress(after.dispatchMetadata)!.platformAttempts, 0); assert.equal(executionProgress(after.dispatchMetadata)!.repairAttempts, 0);
@@ -106,15 +108,15 @@ async function main() {
     console.log(JSON.stringify({ event: 'normal-material-continuation', executionId: reader.id, before: { status: reader.status, taskRunId: reader.taskRunId, claim: reader.claimToken, progress: before }, after: { status: after.status, taskRunId: after.taskRunId, claim: after.claimToken, progress: executionProgress(after.dispatchMetadata) }, nativeTurns: calls.filter(call => call.task === reader.childTaskId), inputReceipts: await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_input_bound' } }) }));
     const evidence = JSON.stringify(after.evidence); const commit = after.commit;
     await receiveGraphTaskMessage({ ...answer, sourceId: 'followup-1', content: '完成了哪些？' });
-    await until(async () => calls.filter(call => call.task === reader.childTaskId && call.readOnly).length === 2);
+    await until(async () => calls.filter(call => call.task === reader.childTaskId && call.readOnly).length === 1);
     const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal);
     const unchanged = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: reader.id } });
     assert.equal(unchanged.commit, commit); assert.equal(JSON.stringify(unchanged.evidence), evidence);
-    assert.equal(calls.filter(call => call.task === reader.childTaskId).length, 5);
+    assert.equal(calls.filter(call => call.task === reader.childTaskId).length, 4);
     await receiveGraphTaskMessage({ ...answer, sourceId: 'followup-2', content: '上一条答复能再解释一下吗？' });
-    await until(async () => calls.filter(call => call.task === reader.childTaskId && call.readOnly).length === 3);
+    await until(async () => calls.filter(call => call.task === reader.childTaskId && call.readOnly).length === 2);
     const done = new AbortController(); done.abort(); await startTaskGraphCoordinator(done.signal);
-    const followups = calls.filter(call => call.task === reader.childTaskId && call.readOnly).slice(1);
+    const followups = calls.filter(call => call.task === reader.childTaskId && call.readOnly);
     assert.equal(followups[0].session, native);
     assert.equal(followups[1].session, native, 'Second followup remains in the original native session');
     writeFileSync(path.join(followups[1].directory, 'source'), 'dirty fixed artifact');
@@ -163,32 +165,24 @@ async function main() {
       executionId: legacyJob.id, claimToken: legacyJob.claimToken, taskRunId: legacyJob.taskRunId, checkpointCommit: legacyProgress.candidateCommit,
       result: { blockerKind: 'missing_business_material', note: '需要尺寸材料' } } } });
     await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'untrusted-material', actorId: 'not-owner', actorOrigin: 'platform', content: '尺寸材料是42' });
-    await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'owner-status', actorId: owner.id, actorOrigin: 'platform', content: '现在进度如何？' });
     await followupUntil(1);
-    assert.equal(calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length, 1);
-    const denied = new AbortController(); denied.abort(); await startTaskGraphCoordinator(denied.signal);
-    assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status, 'attention', 'An unrelated owner status question cannot authorize another user material handoff');
-    await followupUntil(2);
-    await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'legacy-answer', actorId: owner.id, actorOrigin: 'platform', content: '尺寸材料是42，只检查不要继续' });
-    materialInputId = (await conversationInputs(legacyJob.id))[0].id;
-    await followupUntil(3);
-    assert.equal(calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length, 3);
+    assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status, 'attention', 'An unauthenticated message cannot admit implementation even if its read-only reply emits a legacy token');
+    const ownerMessage = { taskId: legacyJob.childTaskId!, actorId: owner.id, actorOrigin: 'platform' as const };
+    await receiveGraphTaskMessage({ ...ownerMessage, sourceId: 'owner-status', content: '现在进度如何？' });
+    await until(async () => calls.some(call => call.task === legacyJob.childTaskId && !call.readOnly && call.prompt.includes('现在进度如何？')) && (await conversationInputs(legacyJob.id)).length === 0);
+    const answered = new AbortController(); answered.abort(); await startTaskGraphCoordinator(answered.signal);
+    await receiveGraphTaskMessage({ ...ownerMessage, sourceId: 'legacy-answer', content: '尺寸材料是42，只检查不要继续' });
+    await until(async () => calls.some(call => call.task === legacyJob.childTaskId && !call.readOnly && call.prompt.includes('只检查不要继续')) && (await conversationInputs(legacyJob.id)).length === 0);
     const checked = new AbortController(); checked.abort(); await startTaskGraphCoordinator(checked.signal);
-    assert.equal((await conversationInputs(legacyJob.id)).length, 0, 'The earlier material was already processed by a normal conversation turn');
-    await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'continue-earlier-material', actorId: owner.id, actorOrigin: 'platform', content: '按刚才的尺寸继续实施' });
-    await followupUntil(4);
-    assert.equal(calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length, 4);
-    const materialFollowup = calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly)[3];
-    assert.ok(materialFollowup.prompt.includes(materialInputId!), 'Read-only conversation can cite the earlier material event id');
-    assert.match(materialFollowup.prompt, /尺寸材料是42，只检查不要继续/, 'Earlier material content remains available after its turn completed');
-    const continuation = new AbortController(); continuation.abort(); await startTaskGraphCoordinator(continuation.signal);
-    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: legacy.id, kind: 'node_admitted' } }), 1,
-      'An authorized continuation can cite material from an earlier turn of the same execution');
+    assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status, 'attention');
+    assert.equal(calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length, 1, 'Authenticated ordinary messages do not require read-only transit');
+    await receiveGraphTaskMessage({ ...ownerMessage, sourceId: 'continue-earlier-material', content: '按刚才的尺寸继续实施' });
     await until(async () => (await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status === 'integrated');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: legacy.id, kind: 'conversation_turn_scheduled' } }), 3);
     const peer = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: legacy.id }, key: 'peer' } });
     assert.equal(peer.status, 'attention'); assert.equal(executionProgress(peer.dispatchMetadata)!.lastFailure!.code, 'permission_required');
     assert.equal(legacyTurns, 2); assert.equal(executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).dispatchMetadata)!.repairAttempts, 0);
-    console.log('Two repositories run concurrently; explicit human continuation hands back the same execution/native session; waiting spends no budget; verified delivery unlocks downstream; completed followup protects fixed evidence.');
+    console.log('Two repositories run concurrently; ordinary messages resume the same execution/native session; waiting spends no budget; verified delivery unlocks downstream; completed followup protects fixed evidence.');
   } finally { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); adapter.execute = saved.execute; adapter.resume = saved.resume;
     if (legacyRunId) await prisma.taskGraphRun.delete({ where: { id: legacyRunId } }); await prisma.taskGraphRun.delete({ where: { id: graph.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
 }

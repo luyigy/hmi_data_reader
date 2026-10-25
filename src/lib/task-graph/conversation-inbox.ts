@@ -1,3 +1,4 @@
+import { implementationConversationInputs } from './conversation-routing';
 import { bindConversationReplyIdentity } from './conversation-reply-identity';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
@@ -216,7 +217,7 @@ export async function conversationInputs(executionId: string, implementationOnly
   return prisma.$transaction(async tx => {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
     const inputs = await pendingConversationInputs(tx, job.node.runId, executionId);
-    return implementationOnly ? inputs.filter(isImplementationInput) : inputs;
+    return implementationOnly ? implementationConversationInputs(tx, job, inputs) : inputs;
   });
 }
 

@@ -112,6 +112,41 @@ async function main() {
       assert.equal(current.status, 'ready'); assert.equal(current.worktreePath, workspace);
       assert.equal((await conversationInputs(job.id)).length, inputs.length, 'Admission alone does not consume input');
     });
+    for (const code of ['permission_required', 'scope_change', 'resource_application_failed', 'agent_capability_missing']) {
+      await check(`ordinary conversation cannot approve ${code}`, async () => {
+        await reset({ state: 'waiting_decision', lastFailure: { code, detail: 'approval still required' } });
+        const inputs = await conversationInputs(job.id);
+        const result = await admitNode(job.nodeId, { source: 'conversation', id: `unapproved-${code}`, executionIds: [job.id], inputIds: inputs.map(input => input.id) });
+        assert.equal(result.kind, 'deferred'); assert.equal('reason' in result && result.reason, 'human_input_required');
+        assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).status, 'attention');
+      });
+    }
+    await check('ordinary conversation cannot start acceptance', async () => {
+      await reset({ phase: 'acceptance', state: 'exhausted', lastFailure: undefined });
+      const result = await admitNode(job.nodeId, { source: 'conversation', id: 'not-a-review-approval', executionIds: [job.id], inputIds: (await conversationInputs(job.id)).map(input => input.id) });
+      assert.equal(result.kind, 'deferred'); assert.equal('reason' in result && result.reason, 'implementation_phase_required');
+    });
+    await check('ordinary input cannot start a second live writer', async () => {
+      await reset({ lastFailure: undefined, worker: await createGraphWriter(), workerReleasedAt: undefined });
+      const result = await admitNode(job.nodeId, { source: 'conversation', id: 'live-input', executionIds: [job.id], inputIds: (await conversationInputs(job.id)).map(input => input.id) });
+      assert.equal(result.kind, 'deferred'); assert.equal('reason' in result && result.reason, 'writer_not_exited');
+    });
+    await check('repeated ordinary admission creates one schedule', async () => {
+      await reset({ revision: saved.revision + 20, lastFailure: undefined });
+      const wake = { source: 'conversation' as const, id: 'concurrent-input', executionIds: [job.id], inputIds: (await conversationInputs(job.id)).map(input => input.id) };
+      const results = await Promise.all([admitNode(job.nodeId, wake), admitNode(job.nodeId, wake)]);
+      assert.equal(results.filter(result => result.kind === 'admitted').length, 1);
+      assert.equal(results.filter(result => result.kind === 'already_scheduled').length, 1);
+    });
+    await check('ordinary input cannot resume an explicitly paused graph', async () => {
+      await reset({ lastFailure: undefined });
+      const inputIds = (await conversationInputs(job.id)).map(input => input.id);
+      await prisma.taskGraphRun.update({ where: { id: run.id }, data: { status: 'paused' } });
+      try {
+        const result = await admitNode(job.nodeId, { source: 'conversation', id: 'paused-input', executionIds: [job.id], inputIds });
+        assert.equal(result.kind, 'deferred'); assert.equal('reason' in result && result.reason, 'run_paused_or_complete');
+      } finally { await prisma.taskGraphRun.update({ where: { id: run.id }, data: { status: 'running' } }); }
+    });
     await check('conversation wake without user input is not authorization', async () => {
       await reset({ lastFailure: undefined });
       const result = await admitNode(job.nodeId, { source: 'conversation', id: 'empty-user-wake', executionIds: [job.id], inputIds: [] });

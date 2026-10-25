@@ -9,7 +9,7 @@ import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
-import { receiveGraphTaskMessage } from '../src/lib/task-graph/conversation-inbox';
+import { receiveGraphTaskMessage, deliverConversationSteering } from '../src/lib/task-graph/conversation-inbox';
 import { getHarnessAdapter } from '../src/lib/harness';
 import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/types';
 
@@ -26,7 +26,7 @@ async function main() {
   const require = createRequire(__filename), feishu = require('../src/lib/task-graph/feishu');
   feishu.postGraphParentProgress = async () => {}; feishu.postGraphChildProgress = async () => {};
   const adapter = getHarnessAdapter('codex')!, saved = { execute: adapter.execute, resume: adapter.resume };
-  let turns = 0, originalDirectory = '', testOutput = '';
+  let turns = 0, originalDirectory = '', testOutput = '', steeringCount = 0;
   const native = 'normal-ticket-original-native';
   const execute = async (args: HarnessExecuteArgs | HarnessResumeArgs) => {
     turns++;
@@ -43,12 +43,23 @@ async function main() {
     assert.equal(directory, originalDirectory);
     const prompt = 'continuationMessage' in args ? args.continuationMessage : args.task.description || '';
     if (turns === 2) {
-      assert.match(prompt, /先读取代码，记住目标是42，等我补充/);
+      assert.match(prompt, /当前值是多少？记住目标是42，只解释，先别改/);
       assert.equal(readFileSync(path.join(directory, 'value'), 'utf8'), '1');
       return { success: true, output: '当前值是1，已记住目标42，等你补充。', sessionId: native, sessionKind: 'codex_thread', executionTime: 1 };
     }
+    if (turns >= 4) {
+      assert.match(prompt, /再解释一次/);
+      if (turns === 4) return { success: false, error: 'Selected model is at capacity. Please try again.', executionTime: 1 };
+      assert.equal(turns, 5, 'A recovered input is processed once');
+      return { success: true, output: '值已改为42，本轮仅解释。', sessionId: native, sessionKind: 'codex_thread', executionTime: 1 };
+    }
     assert.equal(turns, 3, 'No turn may be dispatched without fresh input');
     assert.match(prompt, /按上一轮目标修改并测试/);
+    const detach = args.context.streamCallbacks?.onSteeringReady?.(async (_id, text) => {
+      assert.match(text, /运行中补充：保持目标42/); steeringCount++; return 'accepted';
+    });
+    await receiveGraphTaskMessage({ taskId: args.task.id, actorId: human.id, actorOrigin: 'platform', sourceId: 'active-steering', content: '运行中补充：保持目标42' });
+    await deliverConversationSteering(); await deliverConversationSteering(); detach?.();
     writeFileSync(path.join(directory, 'value'), '42');
     testOutput = execFileSync(process.execPath, ['-e', "require('assert/strict').equal(require('fs').readFileSync('value','utf8'),'42');console.log('value behavior passed')"], { cwd: directory, encoding: 'utf8' }).trim();
     return { success: true, output: '已按上一轮目标改为42，行为测试通过，等待你核对。', sessionId: native, sessionKind: 'codex_thread', executionTime: 1 };
@@ -75,10 +86,14 @@ async function main() {
     const first = await job();
     const firstRun = await prisma.taskRun.findUniqueOrThrow({ where: { id: first.taskRunId! } });
     const input = { taskId: first.childTaskId!, actorId: human.id, actorOrigin: 'platform' as const };
-    const roundOne = { ...input, sourceId: 'first-user-round', content: '先读取代码，记住目标是42，等我补充' };
+    const roundOne = { ...input, sourceId: 'first-user-round', content: '当前值是多少？记住目标是42，只解释，先别改' };
     await Promise.all([receiveGraphTaskMessage(roundOne), receiveGraphTaskMessage(roundOne)]);
     await waitForTurn(2);
     assert.equal(turns, 2, 'An ordinary answer must wait for the next user message');
+    const answerOnly = await job();
+    assert.equal(executionProgress(answerOnly.dispatchMetadata)!.candidateCommit, executionProgress(first.dispatchMetadata)!.candidateCommit, 'An unchanged answer cannot manufacture a new candidate');
+    assert.equal(answerOnly.commit, null);
+    assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: first.nodeId } })).status, 'attention');
     for (let n = 0; n < 4; n++) await runTaskGraphCycle();
     await drain(); assert.equal(turns, 2, 'Condition polling must not re-dispatch an answered conversation');
     await receiveGraphTaskMessage({ ...input, sourceId: 'second-user-round', content: '按上一轮目标修改并测试' });
@@ -90,11 +105,22 @@ async function main() {
     assert.equal(progress.state, 'waiting_for_user'); assert.equal(progress.waitingKind, 'answered');
     assert.equal(last.commit, null, 'Conversational work is not an accepted delivery');
     assert.equal(testOutput, 'value behavior passed');
+    assert.equal(steeringCount, 1, 'Running input steers the current turn exactly once without another card or admission');
     assert.equal(readFileSync(path.join(originalDirectory, 'value'), 'utf8'), '42');
     const runs = await prisma.taskRun.findMany({ where: { taskId: first.childTaskId! } });
+    assert.equal(new Set(runs.map(run => JSON.parse(run.controlMetadata || '{}').graphReplyIdentity)).size, 3, 'Each user round has its own stable reply identity, without a preliminary read-only card');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_turn_scheduled' } }), 2);
     assert.equal(runs.length, 3); assert.ok(runs.every(run => run.taskSessionId === firstRun.taskSessionId));
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_input_bound' } }), 2);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_reserved' } }), 0);
+    await receiveGraphTaskMessage({ ...input, sourceId: 'retry-user-round', content: '再解释一次，不要修改' });
+    await waitForTurn(5);
+    const attempts = await prisma.taskRun.findMany({ where: { taskId: first.childTaskId! }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    assert.equal(attempts.length, 5, 'A transient native failure creates one recovery attempt without a read-only turn');
+    assert.equal(attempts[3].status, 'failed'); assert.equal(attempts[4].status, 'completed');
+    assert.equal(JSON.parse(attempts[3].controlMetadata!).graphReplyIdentity, JSON.parse(attempts[4].controlMetadata!).graphReplyIdentity, 'Native recovery preserves the original user card identity');
+    assert.notEqual(JSON.parse(attempts[2].controlMetadata!).graphReplyIdentity, JSON.parse(attempts[3].controlMetadata!).graphReplyIdentity);
+    assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } })).commit, null);
     console.log(JSON.stringify({ fixture: true, turns, sameSession: true, sameWorktree: true, inputReceipts: 2, testOutput, candidate: progress.candidateCommit, accepted: false }));
   } finally {
     await drain(); adapter.execute = saved.execute; adapter.resume = saved.resume;

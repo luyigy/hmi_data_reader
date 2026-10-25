@@ -1,3 +1,5 @@
+import { implementationConversationInputs } from './conversation-routing';
+import { admitNode } from './preparation-recovery';
 import { deliverConversationDeferredCard } from './conversation-deferred-card';
 import { graphGit } from './git-command';
 import { graphRunCanStartTx, requireGraphNodeActiveTx } from './run-control';
@@ -9,15 +11,14 @@ import { prisma } from '../prisma';
 import { executeAcpxTaskRun } from '../acpx/runner';
 import { executionProgress, metadataWithProgress } from './execution-progress';
 import { observeExecutionWriter } from './phase-worker';
-import { createGraphWriter, parseGraphWriter, observeGraphWriter, observeTaskRunWriter } from './writer-ownership';
-import { bindConversationInputs, conversationInputsByIds, conversationPrompt, conversationHistoryPrompt, pendingConversationInputs, pendingConversationNodes, handoffConversationMaterials } from './conversation-inbox';
+import { createGraphWriter, parseGraphWriter, observeGraphWriter } from './writer-ownership';
+import { bindConversationInputs, conversationInputsByIds, conversationPrompt, conversationHistoryPrompt, pendingConversationInputs, pendingConversationNodes } from './conversation-inbox';
 import { conversationContinuation } from './conversation-continuation';
 import { conversationTargetKey } from './conversation-target';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 import { ensureReadOnlyWorkspace } from './readonly-workspace';
 import { releaseGraphReviewWorker } from './phase-worker';
 import { syncGraphConversationMaterials } from './conversation-materials';
-import { postGraphChildProgress } from './feishu';
 
 function parseReservation(raw: Prisma.JsonValue) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || typeof raw.executionId !== 'string' ||
@@ -87,7 +88,9 @@ export async function reserveConversationFollowup(nodeId: string) {
     for (const job of node.executions) {
       const progress = executionProgress(job.dispatchMetadata);
       if (job.status === 'claimed' || job.status === 'ready') continue;
-      const available = (await pendingConversationInputs(tx, node.runId, job.id)).filter(input => input.target?.kind !== 'unresolved');
+      const pendingInputs = await pendingConversationInputs(tx, node.runId, job.id);
+      const direct = job.status === 'attention' ? await implementationConversationInputs(tx, job, pendingInputs, true) : [];
+      const available = pendingInputs.filter(input => input.target?.kind !== 'unresolved' && !direct.some(item => item.id === input.id));
       if (!available.length || !job.childTaskId) continue;
       const previous = await tx.taskGraphEvent.findMany({ where: { runId: node.runId, kind: 'conversation_followup_reserved',
         payload: { path: ['executionId'], equals: job.id } }, orderBy: { createdAt: 'desc' } });
@@ -120,6 +123,18 @@ export async function startConversationFollowups(capacity: number) {
   const started: { executionId: string; promise: Promise<void> }[] = [];
   for (const nodeId of nodeIds) {
     if (started.length >= capacity) break;
+    const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+    for (const job of node.executions) {
+      if (started.length >= capacity) break;
+      if (job.status !== 'attention') continue;
+      const inputs = await implementationConversationInputs(prisma, job, await pendingConversationInputs(prisma, node.runId, job.id));
+      if (!inputs.length) continue;
+      const promise = admitNode(nodeId, { source: 'conversation', id: `conversation:${job.id}:${inputs[0].id}`,
+        executionIds: [job.id], inputIds: inputs.map(input => input.id) }).then(() => undefined)
+        .catch(error => console.error('[TaskGraph] conversation admission deferred:', { executionId: job.id, error }));
+      started.push({ executionId: job.id, promise });
+    }
+    if (started.length >= capacity || node.executions.some(job => started.some(work => work.executionId === job.id))) continue;
     const reservation = await reserveConversationFollowup(nodeId);
     if (!reservation) continue;
     const work = (async () => {
@@ -133,7 +148,7 @@ export async function startConversationFollowups(capacity: number) {
       if (!directory) throw new Error('Original conversation workspace unavailable; preserve pending input');
       if (target?.kind === 'session' && target.role === 'implementer' && job.status === 'integrated' && candidate &&
         (await graphGit(directory, 'rev-parse', 'HEAD') !== candidate || await graphGit(directory, 'status', '--porcelain', '--untracked-files=all'))) throw new Error('Fixed conversation workspace identity changed');
-      const prompt = `你负责原任务，继续在这个话题与用户正常交流。结合前几轮图片、说明和纠正核对事实；旧的缺材料判断可以被新证据纠正，不能当成不可改变的要求。先直接回答用户。仅当本轮用户明确要求恢复实施时，简短说明接下来做什么，再附加一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["本任务当前或历史材料消息id"],"note":"继续实施的依据"}。询问原因、补充信息、否定恢复均只回答，不输出恢复动作。“现在能否恢复执行”等可行性询问也只评估并回答，即使条件具备也不等于用户要求立即执行。材料可以引用本任务前几轮已处理的消息，不要求用户重发。平台根据本轮用户身份核验接续权限，并在原会话交回实施。准备接续不代表材料已通过独立验收。当前阶段保护固定成果，源码只读；平台确认 writer 退出并完成交接后，实施轮次才能写入。不能通过聊天扩大范围、放宽权限、重置预算或宣布任务通过。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}${await conversationHistoryPrompt(job.id, pending)}`;
+      const prompt = `你负责原任务，在原会话回答用户。当前是固定成果、角色或授权边界下的只读问答，不进行实施、不发布验收结论。普通消息不能批准资源、扩大范围或重置预算；说明当前边界即可，不要求用户输出恢复口令。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}${await conversationHistoryPrompt(job.id, pending)}`;
       const materialPrompt = (session.participant.role === 'implementer' ? prompt : `你在原独立复核会话中回答用户。保持原复核角色与固定候选，不进行实施、不通过聊天发布验收结论。\n${conversationPrompt(pending)}`) + '\n' + await syncGraphConversationMaterials(job.childTaskId!);
       const result = await executeAcpxTaskRun({ graphConversation: { executionId: job.id, reservationId: event.id, inputIds: pending.map(input => input.id) },
         taskId: task.id, taskSessionId: session.taskSessionId, taskName: task.name,
@@ -141,39 +156,6 @@ export async function startConversationFollowups(capacity: number) {
         workingDirectory: directory, extraReadOnlyPaths: session.extraReadOnlyPaths, permissionConfig: taskGraphAgentReviewPermissionConfig });
       await releaseGraphReviewWorker(job.nodeId, parseReservation(event.payload).worker.nonce);
       if (result.status !== 'completed') throw new Error(`原会话本轮执行失败：${result.summary || result.status}`);
-      if (session.participant.role !== 'implementer') return;
-      const matches = Array.from((result.participants[0]?.summary || result.summary || '').matchAll(/^TASK_GRAPH_CONVERSATION\s+(\{[^\n]+\})\s*$/gm));
-      if (result.status === 'completed' && matches.length === 1) {
-        let action: unknown;
-        try { action = JSON.parse(matches[0][1]); }
-        catch {
-          await postGraphChildProgress(task.id, `conversation:invalid-action:${event.id}`, '原执行者本轮已经答复，但恢复建议格式无效，平台未执行恢复；原消息与交付状态保留。');
-          return;
-        }
-        const before = executionProgress(job.dispatchMetadata);
-        if (action && typeof action === 'object' && 'action' in action && action.action === 'resume_implementation' && 'inputIds' in action && Array.isArray(action.inputIds) && action.inputIds.length > 0 && action.inputIds.every((id): id is string => typeof id === 'string') &&
-          before && ['waiting_decision', 'waiting_for_user', 'exhausted'].includes(before.state)) {
-          const ids = Array.from(new Set(action.inputIds));
-          const cited = ids.length <= 50 ? await prisma.taskGraphEvent.count({ where: {
-            id: { in: ids }, runId: event.runId, nodeId: job.nodeId, kind: 'conversation_input',
-            payload: { path: ['executionId'], equals: job.id },
-          } }) : 0;
-          if (cited !== ids.length) {
-            await postGraphChildProgress(task.id, `conversation:material-reference-declined:${event.id}`,
-              '接续建议引用的材料无法在本任务会话中核实。平台保留本轮输入和原进度，尚未安排恢复。');
-            return;
-          }
-          const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
-          const progress = executionProgress(current.dispatchMetadata);
-          if (progress?.revision === before.revision + 2 && progress.state === before.state && progress.candidateCommit === before.candidateCommit &&
-            progress.lastFailure?.code === before.lastFailure?.code) {
-            const result = await handoffConversationMaterials({ executionId: job.id, reservationId: event.id, expectedRevision: progress.revision });
-            if (result.kind !== 'admitted' && result.kind !== 'already_scheduled') await postGraphChildProgress(task.id, `conversation:handoff-declined:${event.id}`,
-              `本轮答复已保留，实施尚未接续：${result.reason}。`);
-          } else await postGraphChildProgress(task.id, `conversation:handoff-declined:${event.id}`,
-            '恢复建议对应的任务版本或阶段已改变，平台未启动旧版本的实施；原答复和消息保留。');
-        }
-      }
     })().catch(async error => {
       const reason = error instanceof Error ? error.message : String(error);
       await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: reservation.event.runId, idempotencyKey: `${reservation.event.id}:deferred` } }, update: {},

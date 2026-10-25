@@ -550,7 +550,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
     const inbox = storedRun ? [] : await conversationInputs(execution.id, true);
-    const inputPrompt = conversationPrompt(inbox) + (inbox.length ? '\n' + await syncGraphConversationMaterials(task.id) : '');
+    const inputPrompt = (inbox.length ? '\n直接按本轮用户内容回答或工作；用户要求只解释、先别改时遵循该限制。接收消息不代表批准资源、扩大范围或完成交付，不需要 TASK_GRAPH_CONVERSATION 恢复口令。\n' : '') + conversationPrompt(inbox) + (inbox.length ? '\n' + await syncGraphConversationMaterials(task.id) : '');
     const plannedNode = definition.nodes.find(node => node.key === nodeKey)!;
     const ownsQuality = definition.deliveryContract === 'agent_owned_v1' && selfCheckExecution(plannedNode) === execution.key;
     const qualityChecks = ownsQuality ? graphReviewChecks(definition, nodeKey, await prisma.taskGraphExecution.findMany({ where: { nodeId: execution.nodeId } })).filter(check => check.id !== 'architecture:scope') : [];

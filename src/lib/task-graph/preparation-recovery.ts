@@ -1,6 +1,6 @@
+import { conversationImplementationHold, implementationConversationInputs } from './conversation-routing';
 import { validateResourceAdmission, preserveResourceReviewRuntime } from '../task-resources/graph-admission';
 import { updateResourceApplication } from '../task-resources/access';
-import { isImplementationInput } from './conversation-target';
 import { approvedRuntimeUpgrade } from './approved-runtime-upgrade';
 import { lstat } from 'node:fs/promises';
 import path from 'node:path';
@@ -70,6 +70,7 @@ async function approvedScopeChange(job: TaskGraphExecution) {
 }
 
 function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeApproved = false, conversationFinished = false): string | undefined {
+  if (wake.source === 'conversation') { const hold = conversationImplementationHold(progress); if (hold) return hold; }
   if (wake.source === 'conditions' && progress.lastFailure?.code === 'resource_application_failed') return 'resource_application_unresolved';
   if (wake.source === 'conditions' && progress.lastFailure?.code === 'agent_capability_missing') return 'agent_capability_unresolved';
   if (progress.state === 'ownership_attention' || progress.lastFailure?.code === 'ownership_mismatch') return 'ownership_unresolved';
@@ -250,7 +251,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       if (cause.requiresUserDecision || ['permission_required', 'scope_change'].includes(cause.code)) { lastReason = 'human_input_required'; continue; }
     }
     if (wake.source === 'conversation') {
-      const inputs = (await pendingConversationInputs(prisma, node.runId, job.id)).filter(isImplementationInput);
+      const inputs = await implementationConversationInputs(prisma, job, await pendingConversationInputs(prisma, node.runId, job.id));
       if (!inputs.length || inputs.map(input => input.id).join() !== wake.inputIds.join() || !job.childTaskId ||
           !(await Promise.all(inputs.map(input => authorizedConversationInput(input, job.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) {
         lastReason = 'input_not_authorized'; continue;
@@ -331,10 +332,12 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
           bound.expectedRevision !== entry.progress.revision || bound.candidateCommit !== entry.job.commit) throw new PreparationRejected('Stale prepared review identity');
     }
     if (prepared && wake.source === 'operator' && wake.preparedEventId) await assertPreparationTx(tx, node.runId, node.key, wake.preparedEventId, prepared);
+    const conversationEpochs = new Map<string, string>();
     if (wake.source === 'conversation') {
       const owner = await tx.task.findUniqueOrThrow({ where: { id: current.run.parentTaskId }, select: { ownerUserId: true } });
       if (owner.ownerUserId !== node.run.parentTask.ownerUserId) return { kind: 'deferred', reason: 'input_owner_changed' };
-      const inputs = (await Promise.all(observations.map(entry => pendingConversationInputs(tx, node.runId, entry.job.id)))).flat().filter(isImplementationInput);
+      const inputs = (await Promise.all(observations.map(async entry => implementationConversationInputs(tx, entry.job, await pendingConversationInputs(tx, node.runId, entry.job.id))))).flat();
+      for (const input of inputs) conversationEpochs.set(input.executionId, `conversation:${input.executionId}:${input.rootInputId}`);
       if (inputs.map(input => input.id).join() !== wake.inputIds.join() ||
           !(await Promise.all(inputs.map(input => authorizedConversationInput(input, observations.find(entry => entry.job.id === input.executionId)!.job.childTaskId!, owner.ownerUserId, tx)))).every(Boolean)) return { kind: 'deferred', reason: 'input_identity_changed' };
     }
@@ -355,7 +358,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       const { job, progress, exit, review } = entry;
       const phase: ExecutionPhase = progress.phase;
       await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
-        outcomeId: `admit:${wake.source}:${wake.id}:${progress.revision}`, outcome: { kind: 'admitted', requestId: wake.id,
+        outcomeId: `admit:${wake.source}:${wake.id}:${progress.revision}`, outcome: { kind: 'admitted', requestId: conversationEpochs.get(job.id) || wake.id,
           stage: review ? { kind: 'review', phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: `admit:${wake.id}` }
             : { kind: 'implementation', phase } } }, exit, job);
       await tx.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId, kind: 'execution_conditions_ready',
