@@ -67,7 +67,8 @@ async function findGrants(launch: ResourceLaunch, db: DB) {
     if (payload.hostIdentity !== host || payload.ownerKey !== current.ownerKey || JSON.stringify(resourcePrincipal(payload.launch)) !== principal) continue;
     if (payload.scope === 'task' ? payload.launch.taskId !== launch.taskId : !current.projectPath || payload.projectPath !== current.projectPath || !current.ownerKey.startsWith('user:')) continue;
     await verifyResourceDirectories(payload.resources);
-    await assertGraphWrites(launch, payload.resources, db);
+    await assertGraphWrites(launch, launch.graphConversation && launch.permissionConfig?.sandboxMode === 'read-only'
+      ? payload.resources.map(resource => ({ ...resource, access: 'read' as const })) : payload.resources, db);
     approvals.push(approval);
   }
   return approvals;
@@ -77,7 +78,8 @@ export async function resolveResourceAccess(launch: ResourceLaunch): Promise<{ a
   return prisma.$transaction(async tx => {
     const approvals = await findGrants(launch, tx);
     const resources = new Map<string, ResourceDirectory>();
-    for (const approval of approvals) for (const resource of approval.payload.resources) {
+    for (const approval of approvals) for (const approved of approval.payload.resources) {
+      const resource = launch.graphConversation && launch.permissionConfig?.sandboxMode === 'read-only' ? { ...approved, access: 'read' as const } : approved;
       if (!resources.has(resource.canonicalPath) || resource.access === 'write') resources.set(resource.canonicalPath, resource);
     }
     return { approvalIds: approvals.map(approval => approval.id), resources: Array.from(resources.values()) };

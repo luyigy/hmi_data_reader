@@ -1,3 +1,4 @@
+import { conversationReplyOwner } from './conversation-reply-identity';
 import { deliverRunReplyImages } from './reply-images';
 import { queueGraphNotification } from './notifications';
 import { redactSensitiveText } from '../redact-sensitive';
@@ -43,12 +44,17 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     if (!lock.locked) return false;
     const cursor = await tx.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } });
     if (cursor.bindingId !== binding.id) throw new Error(`Reply target changed for ${run.id}; reconcile the original card`);
+    const replyOwner = await conversationReplyOwner(tx, run, binding.id);
+    if (replyOwner?.superseded) {
+      await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded', ...(replyOwner.messageId ? { messageId: replyOwner.messageId } : {}) } });
+      return false;
+    }
     const newest = await tx.taskRunFeishuRelay.findFirstOrThrow({ where: { bindingId: binding.id },
       orderBy: [{ taskRun: { createdAt: 'desc' } }, { taskRunId: 'desc' }] });
     const older = newest.taskRunId !== run.id;
-    const sharedCard = cursor.messageId && await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, taskRunId: { not: run.id }, messageId: cursor.messageId }, select: { taskRunId: true } });
+    const sharedCard = !replyOwner && cursor.messageId && await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, taskRunId: { not: run.id }, messageId: cursor.messageId }, select: { taskRunId: true } });
     // Older runs may finalize their own card, but must never overwrite a shared legacy card.
-    if (older && (!cursor.messageId || sharedCard)) {
+    if (older && !replyOwner && (!cursor.messageId || sharedCard)) {
       await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded' } });
       return false;
     }
@@ -81,7 +87,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     card.header.title.content = `${run.task.name} · ${card.header.title.content}`;
     const messageId = await deliverProgressCard({ bindingId: binding.id, runId: execution?.node.runId,
       childTaskId: execution?.childTaskId || undefined, chatId: binding.chatId, rootMessageId, card,
-      taskRunId: run.id, messageId: sharedCard ? null : cursor.messageId, firstRun: cursor });
+      taskRunId: run.id, replyIdentity: replyOwner?.identity, messageId: replyOwner?.messageId || (sharedCard ? null : cursor.messageId), firstRun: cursor });
     if (!messageId) throw new Error('Reply card send returned no message id');
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
       data: { messageId, deliveredSequence: sequence, lastStatus: older && !['running', 'pending', 'waiting_for_input'].includes(run.status) ? 'superseded' : run.status } });

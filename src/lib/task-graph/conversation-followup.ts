@@ -11,7 +11,7 @@ import { observeExecutionWriter } from './phase-worker';
 import { createGraphWriter, parseGraphWriter, observeGraphWriter, observeTaskRunWriter } from './writer-ownership';
 import { bindConversationInputs, conversationInputsByIds, conversationPrompt, conversationHistoryPrompt, pendingConversationInputs, pendingConversationNodes, handoffConversationMaterials } from './conversation-inbox';
 import { conversationContinuation } from './conversation-continuation';
-import { conversationTargetKey, isImplementationInput } from './conversation-target';
+import { conversationTargetKey } from './conversation-target';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 import { ensureReadOnlyWorkspace } from './readonly-workspace';
 import { releaseGraphReviewWorker } from './phase-worker';
@@ -86,16 +86,20 @@ export async function reserveConversationFollowup(nodeId: string) {
     for (const job of node.executions) {
       const progress = executionProgress(job.dispatchMetadata);
       if (job.status === 'claimed' || job.status === 'ready') continue;
-      const available = (await pendingConversationInputs(tx, node.runId, job.id)).filter(input => input.target?.kind !== 'unresolved' &&
-        !(progress?.state === 'waiting_for_user' && progress.phase === 'implement' && isImplementationInput(input)));
-      const pending = available.filter(input => conversationTargetKey(input.target) === conversationTargetKey(available[0]?.target));
-      if (!pending.length || !job.childTaskId) continue;
+      const available = (await pendingConversationInputs(tx, node.runId, job.id)).filter(input => input.target?.kind !== 'unresolved');
+      if (!available.length || !job.childTaskId) continue;
       const previous = await tx.taskGraphEvent.findMany({ where: { runId: node.runId, kind: 'conversation_followup_reserved',
         payload: { path: ['executionId'], equals: job.id } }, orderBy: { createdAt: 'desc' } });
-      const batchIdentity = createHash('sha256').update(JSON.stringify({ inputs: Array.from(new Set(pending.map(input => input.rootInputId))).sort(), candidate: progress?.candidateCommit,
-        state: progress?.state, failure: progress?.lastFailure })).digest('hex');
-      const attempts = previous.filter(event => event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload) && event.payload.batchIdentity === batchIdentity);
-      if (attempts.length >= 2 || attempts[0] && Date.now() - attempts[0].createdAt.getTime() < 15_000) return null;
+      const batches = Array.from(new Set(available.map(input => input.rootInputId))).map(rootInputId => {
+        const pending = available.filter(input => input.rootInputId === rootInputId);
+        const batchIdentity = createHash('sha256').update(JSON.stringify({ inputs: [rootInputId], candidate: progress?.candidateCommit,
+          state: progress?.state, failure: progress?.lastFailure })).digest('hex');
+        const attempts = previous.filter(event => event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload) && event.payload.batchIdentity === batchIdentity);
+        return { pending, batchIdentity, attempts };
+      });
+      const batch = batches.find(batch => batch.attempts.length < 4 && (!batch.attempts[0] || Date.now() - batch.attempts[0].createdAt.getTime() >= 15_000));
+      if (!batch) continue;
+      const { pending, batchIdentity, attempts } = batch;
       const event = await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId: node.id,
         kind: 'conversation_followup_reserved', idempotencyKey: `conversation-followup:${job.id}:${batchIdentity}:${attempts.length}`,
         payload: { executionId: job.id, expectedRevision: progress?.revision, inputIds: pending.map(input => input.id), worker, batchIdentity, attempt: attempts.length + 1 } } });
@@ -128,7 +132,7 @@ export async function startConversationFollowups(capacity: number) {
       if (!directory) throw new Error('Original conversation workspace unavailable; preserve pending input');
       if (target?.kind === 'session' && target.role === 'implementer' && job.status === 'integrated' && candidate &&
         (await graphGit(directory, 'rev-parse', 'HEAD') !== candidate || await graphGit(directory, 'status', '--porcelain', '--untracked-files=all'))) throw new Error('Fixed conversation workspace identity changed');
-      const prompt = `你负责原任务，继续在这个话题与用户正常交流。结合前几轮图片、说明和纠正核对事实；旧的缺材料判断可以被新证据纠正，不能当成不可改变的要求。先直接回答用户。需要接回实施时，简短说明接下来做什么，再附加一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["本任务当前或历史材料消息id"],"note":"继续实施的依据"}。材料可以引用本任务前几轮已处理的消息，不要求用户重发。平台根据本轮用户身份核验接续权限，并在原会话交回实施。准备接续不代表材料已通过独立验收。当前阶段保护固定成果，源码只读；平台确认 writer 退出并完成交接后，实施轮次才能写入。不能通过聊天扩大范围、放宽权限、重置预算或宣布任务通过。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}${await conversationHistoryPrompt(job.id, pending)}`;
+      const prompt = `你负责原任务，继续在这个话题与用户正常交流。结合前几轮图片、说明和纠正核对事实；旧的缺材料判断可以被新证据纠正，不能当成不可改变的要求。先直接回答用户。仅当本轮用户明确要求恢复实施时，简短说明接下来做什么，再附加一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["本任务当前或历史材料消息id"],"note":"继续实施的依据"}。询问原因、补充信息、否定恢复均只回答，不输出恢复动作。材料可以引用本任务前几轮已处理的消息，不要求用户重发。平台根据本轮用户身份核验接续权限，并在原会话交回实施。准备接续不代表材料已通过独立验收。当前阶段保护固定成果，源码只读；平台确认 writer 退出并完成交接后，实施轮次才能写入。不能通过聊天扩大范围、放宽权限、重置预算或宣布任务通过。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}${await conversationHistoryPrompt(job.id, pending)}`;
       const materialPrompt = (session.participant.role === 'implementer' ? prompt : `你在原独立复核会话中回答用户。保持原复核角色与固定候选，不进行实施、不通过聊天发布验收结论。\n${conversationPrompt(pending)}`) + '\n' + await syncGraphConversationMaterials(job.childTaskId!);
       const result = await executeAcpxTaskRun({ graphConversation: { executionId: job.id, reservationId: event.id, inputIds: pending.map(input => input.id) },
         taskId: task.id, taskSessionId: session.taskSessionId, taskName: task.name,
@@ -174,8 +178,9 @@ export async function startConversationFollowups(capacity: number) {
       await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: reservation.event.runId, idempotencyKey: `${reservation.event.id}:deferred` } }, update: {},
         create: { runId: reservation.event.runId, nodeId: reservation.job.nodeId, kind: 'conversation_followup_deferred', idempotencyKey: `${reservation.event.id}:deferred`,
           payload: { executionId: reservation.job.id, reason, fingerprint: createHash('sha256').update(reason).digest('hex'), inputIds: reservation.pending.map(input => input.id) } } });
-      if (reservation.job.childTaskId) await postGraphChildProgress(reservation.job.childTaskId, `conversation:deferred:${reservation.event.id}`,
-        `本轮会话处理未完成：${reason.slice(0, 300)}。消息和原工作保留；同批输入最多尝试两次，间隔至少15秒，未恢复时由平台核对上述原因。`)
+      const bound = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: reservation.event.runId, idempotencyKey: `conversation-followup:${reservation.event.id}:run` } } });
+      if (!bound && reservation.job.childTaskId) await postGraphChildProgress(reservation.job.childTaskId, `conversation:deferred:${reservation.pending[0].rootInputId}`,
+        `本轮会话处理未完成：${reason.slice(0, 300)}。消息和原工作保留；同批输入最多尝试四次，间隔至少15秒，未恢复时由平台核对上述原因。`)
         .catch(notificationError => console.error('[TaskGraph] conversation defer notification:', notificationError));
     }).finally(async () => {
       await releaseGraphReviewWorker(reservation.job.nodeId, parseReservation(reservation.event.payload).worker.nonce);

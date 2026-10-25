@@ -35,7 +35,7 @@ async function main() {
   // Redirect only host configuration lookup. Resource pinning, preflight, coordination and the ledger remain real.
   const platformModule: typeof import('../src/lib/platform-repository') = require('../src/lib/platform-repository');
   const originalPlatform = platformModule.platformRepository; platformModule.platformRepository = () => platform;
-  const keys = ['MISSING', 'FALSE_REPORT', 'TRANSIENT', 'EXHAUST', 'PREFLIGHT_MISSING', 'PREFLIGHT_TRANSIENT', 'CHECK_MISSING', 'CHECK_TRANSIENT', 'PERMISSION', 'ENGINEERING'];
+  const keys = ['MISSING', 'UNPROBED', 'FALSE_REPORT', 'TRANSIENT', 'EXHAUST', 'PREFLIGHT_MISSING', 'PREFLIGHT_TRANSIENT', 'CHECK_MISSING', 'CHECK_TRANSIENT', 'PERMISSION', 'ENGINEERING'];
   const repositories = new Map<string, string>(), resources = new Map<string, string>();
   const grants: Record<string, string[]> = {}, registrations: Record<string, unknown> = {};
   for (const key of keys) {
@@ -93,8 +93,8 @@ async function main() {
     if (count === 1 && ['MISSING', 'CHECK_MISSING'].includes(key)) await removeResource(key);
     const result = key === 'PERMISSION' ? { status: 'blocked', blockerKind: 'permission_required', note: 'explicit permission needed' }
       : key === 'ENGINEERING' && count === 1 ? { status: 'blocked', blockerKind: 'missing_business_material', note: 'investigate approved inputs' }
-      : count === 1 && ['MISSING', 'FALSE_REPORT', 'TRANSIENT', 'EXHAUST'].includes(key)
-        ? { status: 'blocked', blockerKind: 'environment_failed', note: `Agent environment report: ${key}`, blockerCause: key === 'MISSING' ? 'missing_capability' : 'transient' }
+      : count === 1 && ['MISSING', 'UNPROBED', 'FALSE_REPORT', 'TRANSIENT', 'EXHAUST'].includes(key)
+        ? { status: 'blocked', blockerKind: 'environment_failed', note: `Agent environment report: ${key}`, blockerCause: ['MISSING', 'UNPROBED'].includes(key) ? 'missing_capability' : 'transient' }
         : { status: 'delivered', note: 'recovered', evidence: ['candidate'] };
     return { success: true, executionTime: 1, output: `TASK_GRAPH_IMPLEMENTATION ${JSON.stringify(result)}`, sessionId: `native-${key}`, sessionKind: 'codex_thread' };
   };
@@ -112,7 +112,13 @@ async function main() {
   const outcomes = async (executionId: string) => prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: 'execution_outcome', payload: { path: ['executionId'], equals: executionId } }, orderBy: { createdAt: 'asc' } });
   try {
     await until(list => ['FALSE_REPORT', 'TRANSIENT', 'PREFLIGHT_TRANSIENT', 'CHECK_TRANSIENT', 'ENGINEERING'].every(key => list.find(job => job.node.key === key)?.node.status === 'passed') &&
-      ['MISSING', 'PREFLIGHT_MISSING', 'CHECK_MISSING', 'PERMISSION', 'EXHAUST'].every(key => list.find(job => job.node.key === key)?.status === 'attention'));
+      ['MISSING', 'UNPROBED', 'PREFLIGHT_MISSING', 'CHECK_MISSING', 'PERMISSION', 'EXHAUST'].every(key => list.find(job => job.node.key === key)?.status === 'attention'));
+    const unprobed = (await jobs()).find(job => job.node.key === 'UNPROBED')!;
+    assert.equal(starts.get('UNPROBED'), 1, 'A successful platform probe cannot dismiss an explicit missing capability report');
+    assert.equal(executionProgress(unprobed.dispatchMetadata)?.lastFailure?.blockerCause, 'missing_capability');
+    assert.match(executionProgress(unprobed.dispatchMetadata)?.lastFailure?.detail || '', /Agent environment report: UNPROBED/);
+    await admitNode(unprobed.nodeId, { source: 'conditions', id: 'probe-still-green' });
+    assert.equal((await jobs()).find(job => job.id === unprobed.id)?.status, 'attention', 'The same successful probe is not capability resolution');
     const before = await jobs(), missing = before.find(job => job.node.key === 'MISSING')!, saved = executionProgress(missing.dispatchMetadata)!;
     assert.equal(starts.get('MISSING'), 1); assert.equal(saved.state, 'waiting_decision'); assert.equal(saved.platformAttempts, 0);
     assert.equal(saved.lastFailure?.code, 'environment_failed'); assert.equal(saved.lastFailure?.blockerCause, 'missing_capability');

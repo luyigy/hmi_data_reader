@@ -73,6 +73,13 @@ export async function pauseGraphImplementation(args: {
     const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId } });
     try {
       await inspectImplementationConditions(current, progress, run.snapshot as unknown as GraphDefinition, args.runId);
+      if (args.result.status === 'blocked' && args.result.blockerCause === 'missing_capability') return applyExecutionOutcome({
+        executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,
+        outcomeId: `${args.claimToken}:${progress.revision}:agent-capability-blocked`,
+        outcome: { kind: 'decision_required', failure: { code: 'agent_capability_missing', detail: args.result.note,
+          blockerCause: 'missing_capability', blockedPhase: 'implementation', owner: 'platform', requiresUserDecision: false,
+          action: '核实 Agent 报告的具体能力并记录解决证据；平台预检通过不代表该能力已具备。' } },
+      });
     } catch (error) {
       const preparation = error instanceof RuntimePreparationError ? error : null;
       return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,

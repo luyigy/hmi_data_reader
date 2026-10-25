@@ -11,13 +11,13 @@ export async function deliverProgressCard(args: {
   bindingId: string; runId?: string; childTaskId?: string; chatId: string; rootMessageId: string | null;
   card: Parameters<typeof sendFeishuInteractiveMessage>[0]['card']; messageId?: string | null;
   firstRun?: { taskRunId: string; createdAt: Date };
-  taskRunId?: string;
+  taskRunId?: string; replyIdentity?: string;
 }) {
   if (args.messageId) {
     await updateFeishuTaskEntryCard(args.messageId, args.card);
     return args.messageId;
   }
-  const identity = `progress-card:${args.bindingId}${args.taskRunId ? ':' + args.taskRunId : ''}`;
+  const identity = `progress-card:${args.bindingId}${args.replyIdentity ? ':' + args.replyIdentity : args.taskRunId ? ':' + args.taskRunId : ''}`;
   const send = (uuid: string) => sendFeishuInteractiveMessage({ receiveId: args.chatId, card: args.card,
     ...(args.rootMessageId ? { threadRootMessageId: args.rootMessageId } : {}), uuid });
   const legacyUuid = args.taskRunId ? hash(identity).slice(0, 48) : args.firstRun && hash(`graph-reply:${args.firstRun.taskRunId}:${args.bindingId}`).slice(0, 48);

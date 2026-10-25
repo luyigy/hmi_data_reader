@@ -77,7 +77,7 @@ function runSession(suites, debugSuite = false) {
     workspaceRoot: root,
     networkAccess: 'restricted',
     env: { AP_TASK_SANDBOX: '1', AP_PROJECT_REPOSITORY: root, PATH: process.env.PATH, HOME: '/tmp', LANG: 'C.UTF-8' },
-    readOnlyPaths: [extracted, nodeModules, '/etc/passwd', '/etc/nsswitch.conf', ...declaredProjectPaths()],
+    readOnlyPaths: [extracted, nodeModules, '/etc/passwd', '/etc/nsswitch.conf', '/etc/machine-id', ...declaredProjectPaths().filter(directory => directory !== root && !root.startsWith(directory + path.sep))],
   };
   const configPath = path.join(evidenceDir, 'launch-config.json');
   writeFileSync(configPath, JSON.stringify(launchConfig, null, 2));

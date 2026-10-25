@@ -17,5 +17,13 @@ function agentReply(response: string) {
 }
 
 export function buildRunReplyCard(...[run, history, requests, output]: Parameters<typeof buildReplyCard>) {
-  return buildReplyCard(run, history, requests, output, agentReply);
+  const card = buildReplyCard(run, history, requests, output, agentReply);
+  if (run.replyKind === 'conversation' && run.status === 'failed') {
+    const beforeStart = run.participants.length > 0 && run.participants.every(participant => {
+      try { return participant.executionBackend === 'platform_local' && !JSON.parse(participant.controlMetadata || '{}').spawnedAt; }
+      catch { return false; }
+    });
+    card.header.title.content = card.header.title.content.replace('执行失败', beforeStart ? '启动前失败' : '会话执行失败');
+  }
+  return card;
 }

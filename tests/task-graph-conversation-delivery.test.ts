@@ -28,7 +28,7 @@ async function main() {
     const [chunk] = await once(processWriter.stdout, 'data'); const writer = parseGraphWriter(JSON.parse(chunk.toString())); assert.ok(writer);
     const session = await prisma.taskSession.create({ data: { taskId: childTask.id } });
     const taskRun = await prisma.taskRun.create({ data: { taskId: childTask.id, taskSessionId: session.id, status: 'running', controlMetadata: JSON.stringify({ graphWriter: writer }),
-      participants: { create: { gatewayNameSnapshot: 'local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer', runner: 'codex', status: 'running' } } } });
+      participants: { create: { gatewayNameSnapshot: 'local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer', runner: 'codex', status: 'running', controlMetadata: JSON.stringify({ lastSessionId: 'delivery-native', lastSessionKind: 'codex_thread' }) } } } });
     await prisma.taskSession.update({ where: { id: session.id }, data: { activeRunId: taskRun.id } });
     await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed' } });
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'claimed', claimToken: 'owner', taskRunId: taskRun.id, childTaskId: childTask.id,
@@ -70,7 +70,7 @@ async function main() {
     const failedRecovery = await conversationInputs(job.id);
     assert.ok(failedRecovery.some(input => input.content.includes('Explain progress')), 'Binding before failed native startup does not lose the human input');
     const raceRun = await prisma.taskRun.create({ data: { taskId: childTask.id, taskSessionId: session.id, status: 'running', controlMetadata: JSON.stringify({ graphWriter: writer }),
-      participants: { create: { gatewayNameSnapshot: 'local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer', runner: 'codex', status: 'running' } } } });
+      participants: { create: { gatewayNameSnapshot: 'local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer', runner: 'codex', status: 'running', controlMetadata: JSON.stringify({ lastSessionId: 'delivery-native', lastSessionKind: 'codex_thread' }) } } } });
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { taskRunId: raceRun.id } });
     await receiveGraphTaskMessage({ taskId: childTask.id, actorId: 'user', sourceId: 'completion-race', content: 'normal completion race' });
     const raceInput = (await conversationInputs(job.id)).find(input => input.sourceId === 'completion-race')!;

@@ -49,7 +49,7 @@ try {
   for (const file of suites) {
     const suiteUrl = new URL(url);
     // Graph delivery holds a topic lock while persisting send receipts on an independent connection.
-    if (['task-graph-feishu-relay', 'task-graph-feishu-dm-relay', 'task-graph-card-closure'].includes(file)) suiteUrl.searchParams.set('connection_limit', '3');
+    if (['task-graph-conversation-target', 'task-graph-feishu-relay', 'task-graph-feishu-dm-relay', 'task-graph-card-closure'].includes(file)) suiteUrl.searchParams.set('connection_limit', '3');
     // Keep the publication regression sensitive to queries escaping its transaction.
     if (file === 'task-graph-review-publication') suiteUrl.searchParams.set('connection_limit', '1');
     execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register', `tests/${file}.test.ts`], {
