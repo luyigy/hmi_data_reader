@@ -3,7 +3,9 @@ import { buildRunReplyCard as buildReplyCard } from '../task-run-reply-card';
 
 function agentReply(response: string) {
   const control = /^TASK_GRAPH_(?:IMPLEMENTATION|CONVERSATION|REVIEW)\s+(\{[^\n]+\})\s*$/gm;
-  const parts = [response.replace(control, '').trim()];
+  const answer = response.replace(control, '').trim();
+  if (answer) return answer;
+  const parts: string[] = [];
   for (const block of Array.from(response.matchAll(control))) {
     try {
       const value: unknown = JSON.parse(block[1]);
