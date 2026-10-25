@@ -1,3 +1,4 @@
+import { writableProbeCommand } from './writable-probe';
 import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import type { PreparedSandboxEnvironment } from './environment';
@@ -42,6 +43,7 @@ export function renderBubblewrap(plan: PreparedSandboxEnvironment) {
     ...readOnlyMounts.flatMap((source) => [...parentDirs(source), '--ro-bind', source, source]),
     ...plan.runtimeOutputs.flatMap(({ source, target, readOnly }) => [...parentDirs(target), readOnly ? '--ro-bind' : '--bind', source, target]),
     '--chdir', plan.cwd,
+    ...writableProbeCommand(plan.requiredWritableRoots),
     plan.invocation,
     ...plan.commandArgs,
   ];

@@ -1,3 +1,4 @@
+import { resourceWorkspaceRegression } from './task-resource-workspace.fixture';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -100,6 +101,7 @@ async function main() {
     assert.equal(requests[1].native, native); assert.equal(requests[1].cwd, requests[0].cwd); assert.equal(requests[1].role, requests[0].role);
     assert.equal(await readFile(join(output, 'result.txt'), 'utf8'), 'mounted and continued');
     assert(published.includes(id));
+    await resourceWorkspaceRegression();
     console.log('task-resource-runtime passed: real read/write sandbox, native-session continuity, writer exit proof and approval replay dedupe');
   } finally {
     await drainResourceApprovals();

@@ -140,7 +140,7 @@ function parseManifest(value: unknown): TaskInputManifest {
 }
 
 /** Readonly QA and all native roles receive the same claim-pinned manifests. */
-export async function graphInputsForTask(taskId: string, forceReadOnly = false): Promise<{ paths: string[]; writablePaths: string[]; instructions: string; env: Record<string, string> }> {
+export async function graphInputsForTask(taskId: string, forceReadOnly = false): Promise<{ paths: string[]; writablePaths: string[]; instructions: string; env: Record<string, string>; manifests: TaskInputManifest[] }> {
   const jobId = /^task-graph-discussion-(.+)$/.exec(taskId)?.[1];
   const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
   const jobs = await prisma.taskGraphExecution.findMany({ where: jobId ? { id: jobId } : nodeId ? { nodeId } : { childTaskId: taskId }, orderBy: { key: 'asc' } });
@@ -157,7 +157,7 @@ export async function graphInputsForTask(taskId: string, forceReadOnly = false):
     const payload = event.payload;
     return isRecord(payload) && jobs.some(job => job.id === payload.executionId && job.commit === payload.commit) && typeof payload.resultsDirectory === 'string' && existsSync(payload.resultsDirectory) ? [payload.resultsDirectory] : [];
   });
-  return { paths: Array.from(new Set([...prepared.flatMap(item => item.readOnlyPaths), ...reportPaths, ...extra.paths])), writablePaths: extra.writablePaths, instructions: prepared.map(item => item.instructions).join('\n') + extra.instructions,
+  return { manifests: prepared.map(item => item.manifest), paths: Array.from(new Set([...prepared.flatMap(item => item.readOnlyPaths), ...reportPaths, ...extra.paths])), writablePaths: extra.writablePaths, instructions: prepared.map(item => item.instructions).join('\n') + extra.instructions,
     env: prepared.length ? { ...extra.env, TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(prepared.map(item => item.manifest)), AP_PROJECT_REPOSITORY: jobs.at(-1)!.repository } : {} };
 }
 

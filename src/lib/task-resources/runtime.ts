@@ -1,5 +1,7 @@
+import { prepareResourceWorkspaces } from './graph-workspace';
+import type { TaskInputManifest } from '../task-graph/upstream-inputs';
 import { realpath } from 'node:fs/promises';
-import { reserveResourceWriters } from './writer-boundary';
+import { observeResourceWriters, reserveResourceWriters } from './writer-boundary';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { getContinuationSession } from '../acpx/session-tracking';
@@ -76,11 +78,12 @@ export async function reserveResourceContinuation(tx: Prisma.TransactionClient, 
   await updateResourceApplication(approval.id, { ...approval.payload.application, state: 'scheduled', runId }, tx);
 }
 
-export async function resourcesForRun(request: AcpxRunRequest, taskRunId: string, participantId: string) {
+export async function resourcesForRun(request: AcpxRunRequest, taskRunId: string, participantId: string, manifests: TaskInputManifest[] = []) {
   const resolved = request.participants[0]?.harnessType === 'codex' ? await resolveResourceAccess(request) : { approvalIds: [], resources: [] };
   const permission = request.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG;
   const read = resolved.resources.filter(item => item.access === 'read').map(item => item.canonicalPath);
-  const write = resolved.resources.filter(item => item.access === 'write').map(item => item.canonicalPath);
+  const mapped = await prepareResourceWorkspaces(request, resolved.resources, manifests);
+  const write = mapped.write;
   if (permission.sandboxMode === 'read-only' && write.length) throw new Error('只读角色不能继承源码写入授权');
   const workspace = permission.writableRoots[0] || request.workingDirectory;
   const existingRead = await Promise.all((request.extraReadOnlyPaths || []).map(p => realpath(p).catch(() => p)));
@@ -88,25 +91,28 @@ export async function resourcesForRun(request: AcpxRunRequest, taskRunId: string
   for (const root of read) if (existingWrite.some(w => directoryContains(root, w))) throw new Error('只读资源会覆盖当前可写工作区，需调整目录范围');
   for (const root of write) if (read.some(r => directoryContains(root, r) || directoryContains(r, root)) || existingRead.some(r => directoryContains(r, root))) throw new Error('补充目录读写范围重叠，需明确独立目录');
   {
+    const proofs = existingWrite.length || write.length ? await observeResourceWriters(taskRunId, existingWrite, write) : [];
     await prisma.$transaction(async tx => {
-      if (existingWrite.length || write.length) await reserveResourceWriters(tx, taskRunId, participantId, existingWrite, write);
+      if (existingWrite.length || write.length) await reserveResourceWriters(tx, taskRunId, participantId, existingWrite, write, proofs);
+      const authorizations = [];
       for (const id of resolved.approvalIds.slice().sort()) {
         const approval = await lockResourceApproval(tx, id);
         if (approval.status !== 'approved') throw new Error('资源授权已撤销，禁止挂载');
         await verifyResourceDirectories(approval.payload.resources);
+        authorizations.push({ approvalId: id, revision: approval.payload.revision, source: approval.payload.source, approvedClaim: approval.payload.launch.graphExecution?.claimToken, currentClaim: request.graphExecution?.claimToken, taskSessionId: request.taskSessionId, expectedNativeSessionId: request.participants[0]?.resumeSessionId || request.participants[0]?.resumeThreadId });
       }
       await tx.$queryRaw`SELECT id FROM "TaskRun" WHERE id = ${taskRunId} FOR UPDATE`;
       const run = await tx.taskRun.findUniqueOrThrow({ where: { id: taskRunId } });
       const participant = await tx.taskRunParticipant.findUniqueOrThrow({ where: { id: participantId } });
-      const resources = { approvalIds: resolved.approvalIds, readOnlyRoots: read, writableRoots: write };
+      const resources = { approvalIds: resolved.approvalIds, readOnlyRoots: read, writableRoots: write, mappings: mapped.mappings, authorizations };
       const metadata = JSON.parse(run.controlMetadata || '{}');
       const used = { ...resources, approvalIds: Array.from(new Set([...(metadata.resources?.approvalIds || []), ...resolved.approvalIds])) };
       await tx.taskRun.update({ where: { id: run.id }, data: { controlMetadata: JSON.stringify({ ...metadata, resources: used }) } });
       await tx.taskRunParticipant.update({ where: { id: participant.id }, data: { controlMetadata: JSON.stringify({ ...JSON.parse(participant.controlMetadata || '{}'), resources }) } });
     });
   }
-  return { read, write, approvalIds: resolved.approvalIds,
-    instructions: resolved.resources.length ? '\n本轮补充授权目录：\n' + resolved.resources.map(item => `${item.access === 'write' ? '读写' : '只读'} ${item.canonicalPath}`).join('\n') : '' };
+  return { read, write, protectedPaths: mapped.protectedPaths, approvalIds: resolved.approvalIds,
+    instructions: mapped.instructions + (resolved.resources.length ? '\n本轮补充授权目录：\n' + resolved.resources.map(item => { const mapping = mapped.mappings.find(entry => entry.repository === item.canonicalPath); return mapping ? `读写 ${mapping.checkout}（授权来源 ${item.canonicalPath}，原目录只读）` : `${item.access === 'write' ? '读写' : '只读'} ${item.canonicalPath}`; }).join('\n') : '') };
 }
 
 export async function markResourceRunEffective(request: AcpxRunRequest, taskRunId: string, nativeSessionId: string) {

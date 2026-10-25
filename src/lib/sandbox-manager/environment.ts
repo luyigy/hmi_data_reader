@@ -12,6 +12,7 @@ export type SandboxEnvironmentInput = {
   cwd: string;
   workspaceRoot: string;
   writableRoots?: string[];
+  requiredWritableRoots?: string[];
   outputPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   sandboxMode?: string;
@@ -97,6 +98,7 @@ export function prepareSandboxEnvironment(args: SandboxEnvironmentInput) {
     networkAccess: args.networkAccess,
     sandboxMode: args.sandboxMode,
     writableMounts: allWritableMounts,
+    requiredWritableRoots: (args.requiredWritableRoots || []).map(root => realpathSync(root)),
     automaticReadOnlyMounts,
     explicitReadOnlyMounts: explicitReadOnlyPaths ?? configPaths.flatMap(symlinkTargets),
     runtimeOutputs,
