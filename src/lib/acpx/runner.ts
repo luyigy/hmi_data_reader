@@ -1,3 +1,4 @@
+import { attachScheduledResourceContinuation, reserveResourceContinuation, resourceContinuationExit } from '../task-resources/runtime';
 import type { Prisma } from '@prisma/client';
 import { createGraphWriter, releaseTaskRunWriter } from '../task-graph/writer-ownership';
 import { bindGraphReviewTaskRun } from '../task-graph/review-ownership';
@@ -20,6 +21,7 @@ export class AcpxRunStartupError extends Error {
 }
 
 export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
+  request = await attachScheduledResourceContinuation(request);
   const graphChild = await prisma.taskGraphExecution.findUnique({ where: { childTaskId: request.taskId }, select: { id: true } });
   if ([request.graphExecution, request.graphReview, request.graphConversation].filter(Boolean).length > 1) throw new Error('TaskRun has multiple graph authorities');
   if (request.graphConversation && request.permissionConfig?.sandboxMode !== 'read-only') throw new Error('Conversation followup must protect fixed source and delivery evidence');
@@ -28,7 +30,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   }
   const reviewTask = /^task-graph-(review|architecture)-(.+)$/.exec(request.taskId);
   if (reviewTask && await prisma.taskGraphNode.count({ where: { id: reviewTask[2] } }) &&
-    (request.graphReview?.nodeId !== reviewTask[2] || request.graphReview.phase !== (reviewTask[1] === 'review' ? 'acceptance' : 'architecture'))) {
+    !request.graphConversation && (request.graphReview?.nodeId !== reviewTask[2] || request.graphReview.phase !== (reviewTask[1] === 'review' ? 'acceptance' : 'architecture'))) {
     throw new Error('Graph review turns require the current graphReview stage authority');
   }
   const taskSession =
@@ -41,13 +43,12 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
           },
         });
 
-  if (!taskSession) {
+  if (!taskSession || taskSession.taskId !== request.taskId) {
     throw new Error(`Task session not found for task "${request.taskId}"`);
   }
 
-  const graphTask = request.taskId.startsWith('task-graph-') && !request.taskId.startsWith('task-graph-discussion-');
   const supportedWriter = request.participants.length > 0 && request.participants.every(participant => participant.executionBackend === 'platform_local' && ['codex', 'kimi-code'].includes(participant.harnessType));
-  const graphWriter = graphTask && supportedWriter ? await createGraphWriter() : undefined;
+  const graphWriter = supportedWriter ? await createGraphWriter() : undefined;
   if (request.graphExecution && request.graphReview) throw new Error('A TaskRun cannot bind implementation and review simultaneously');
   const createRun = (tx: Pick<Prisma.TransactionClient, 'taskRun'>) => tx.taskRun.create({
     data: {
@@ -60,7 +61,9 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       watchdogConfig: stringifyJson(request.watchdogConfig ?? null),
       controlMetadata: stringifyJson({
         ...(graphWriter ? { graphWriter } : {}),
+        workingDirectory: request.workingDirectory || process.cwd(),
         ...(request.graphReview ? { graphReview: request.graphReview } : {}),
+        ...(request.graphConversation ? { graphConversation: request.graphConversation } : {}),
         permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
         permissionSupport: request.participants.map((participant) => ({
           participantKey: `${participant.executionBackend}:${participant.harnessType}:${participant.role}`,
@@ -101,6 +104,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
             controlMetadata: stringifyJson({
               ...capabilities,
               continuationKey: getParticipantContinuationKey(participant),
+              resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
               permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
               permissionSupport: getLocalHarnessPermissionSupport(
                 participant.harnessType,
@@ -116,8 +120,18 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     },
   });
 
+  request = { ...request, taskSessionId: taskSession.id };
   const graphExecution = request.graphExecution;
-  const taskRun = graphExecution || request.graphReview || request.graphConversation ? await prisma.$transaction(async tx => {
+  const conversationExecutions = graphExecution ? [graphExecution.executionId] : request.graphConversation ? [request.graphConversation.executionId]
+    : request.graphReview ? (await prisma.taskGraphExecution.findMany({ where: { nodeId: request.graphReview.nodeId }, select: { id: true } })).map(job => job.id) : [];
+  const resourceExit = await resourceContinuationExit(request);
+  const taskRun = await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${request.taskId} FOR UPDATE`;
+    if (request.resourceContinuation && (await tx.task.findUniqueOrThrow({ where: { id: request.taskId } })).currentTaskSessionId !== taskSession.id) throw new Error('原任务 Session 已改变');
+    await tx.$queryRaw`SELECT id FROM "TaskSession" WHERE id = ${taskSession.id} FOR UPDATE`;
+    if (!graphExecution && !request.graphReview && !request.graphConversation && await tx.taskRun.count({
+      where: { taskSessionId: taskSession.id, status: { in: ['pending', 'running', 'waiting_for_input'] } },
+    })) throw new Error('Session already has an active run');
     const created = await createRun(tx);
     if (graphExecution) {
       await bindExecutionTaskRun(tx, graphExecution, created.id);
@@ -125,20 +139,22 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     }
     if (request.graphConversation) await bindReadOnlyConversation(tx, request.graphConversation, created.id);
     if (request.graphReview) await bindGraphReviewTaskRun(tx, request.graphReview, created.id);
+    await reserveResourceContinuation(tx, request, created.id, resourceExit);
     return created;
-  }) : await createRun(prisma);
+  });
 
-  if (graphExecution) {
+  if (conversationExecutions.length) {
     const external = request.streamCallbacks?.onSteeringReady;
     request = { ...request, streamCallbacks: { ...request.streamCallbacks, onSteeringReady: steer => {
-      const unregister = registerConversationSteering(graphExecution.executionId, taskRun.id, steer);
+      const unregister = conversationExecutions.map(id => registerConversationSteering(id, taskRun.id, steer));
       const detach = external?.(steer);
-      return () => { unregister(); detach?.(); };
+      return () => { unregister.forEach(detach => detach()); detach?.(); };
     } } };
   }
 
   const participantResults: Array<Awaited<ReturnType<typeof executeParticipant>>> = [];
   try {
+    await request.streamCallbacks?.onRunStarted?.(taskRun.id);
     await setTaskSessionActiveRun(taskSession.id, taskRun.id);
 
     await publishTaskRunEvent({
@@ -151,6 +167,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
           taskSessionId: taskSession.id,
           orchestrationMode: request.orchestrationMode,
           workingDirectory: request.workingDirectory ?? null,
+          extraReadOnlyPaths: request.extraReadOnlyPaths || [],
           permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
           permissionSupport: request.participants.map((participant) => ({
             executionBackend: participant.executionBackend,

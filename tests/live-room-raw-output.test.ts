@@ -34,12 +34,10 @@ async function main() {
     return new Response(JSON.stringify({ code: 0 }));
   };
   const body = (card: any) => card.elements[0].content as string;
-  const detail = (card: any) => {
-    const panel = card.elements.find((element: any) => element.tag === 'collapsible_panel');
+  const detail = (card: any, title = '思考过程') => {
+    const panel = card.elements.find((element: any) => element.tag === 'collapsible_panel' && element.header.title.content === title);
     assert.equal(panel.expanded, false);
-    assert.match(panel.header.title.content, /系统信息/);
-    assert.equal(panel.elements[0].text.tag, 'plain_text');
-    return panel.elements[0].text.content as string;
+    return panel.elements[0].content as string;
   };
   const note = (card: any) => card.elements.find((element: any) => element.tag === 'note').elements[0].content as string;
   const args = { room: { id: 'room' }, participant: {
@@ -68,19 +66,19 @@ async function main() {
   assert.equal(body(cards.get('card-1')), '正在检查中文😀。');
   assert.equal(cards.get('card-1').header.title.content, 'Antigravity · 执行中...');
   assert.equal(cards.get('card-1').header.template, 'blue');
-  assert.match(detail(cards.get('card-1')), /run_command.*REDACTED/);
-  assert.equal(detail(cards.get('card-1')).match(/run_command/g)?.length, 1, 'ACTIVE/DONE represent one tool call');
-  assert.match(detail(cards.get('card-1')), /Read/);
+  assert.match(detail(cards.get('card-1'), '工具调用'), /run_command.*REDACTED/);
+  assert.equal(detail(cards.get('card-1'), '工具调用').match(/run_command/g)?.length, 1, 'ACTIVE/DONE represent one tool call');
+  assert.match(detail(cards.get('card-1'), '工具调用'), /Read/);
   emit({ event: 'result', result: { response: '**最终答案**：完成。', usage: { input_tokens: 120, output_tokens: 30, total_tokens: 150 }, duration_seconds: 2.89 } }, false);
   await progress.dispose('must not duplicate final answer', true);
   const final = cards.get('card-1');
   assert.equal(sent.length, 1, 'finalize edits same card');
   assert.deepEqual(final.header, {
-    template: 'blue', title: { tag: 'plain_text', content: 'Antigravity · 执行完成' },
+    template: 'green', title: { tag: 'plain_text', content: 'Antigravity · 执行完成' },
   });
   assert.equal(body(final), '**最终答案**：完成。');
   assert.match(detail(final), /正在检查中文😀/);
-  assert.match(note(final), /本轮耗时.*输入 120 tokens.*输出 30 tokens.*总计 150 tokens.*2.89秒/);
+  assert.match(note(final), /耗时.*输入 120 tokens.*输出 30 tokens.*总计 150 tokens.*2.89秒/);
   assert.doesNotMatch(JSON.stringify(final), /hidden|secret tool payload|sk-secret123|step_update|text_delta|must not duplicate/);
   assert.ok(sent.every(message => message.threadRootMessageId === 'root'));
 
@@ -91,8 +89,8 @@ async function main() {
   long.streamCallbacks.onStdoutChunk!(JSON.stringify({ event: 'result', result: { response: longText } }));
   await long.dispose('', true);
   assert.equal(sent.length, 2, 'long reply still creates only one card');
-  assert.match(body(cards.get('card-2')), /预览已截断/);
-  assert.match(detail(cards.get('card-2')), /long_output_tool/, 'long text does not erase tool history');
+  assert.match(body(cards.get('card-2')), /前文超出卡片容量/);
+  assert.match(detail(cards.get('card-2'), '工具调用'), /long_output_tool/, 'long text does not erase tool history');
   assert.doesNotMatch(body(cards.get('card-2')), /[\uD800-\uDBFF]\n/);
   assert.match(note(cards.get('card-2')), /Token 用量未提供/);
 
@@ -109,7 +107,7 @@ async function main() {
   await empty.dispose('permission denied', false);
   assert.equal(body(Array.from(cards.values()).at(-1)), 'permission denied');
   assert.deepEqual(Array.from(cards.values()).at(-1).header, {
-    template: 'blue', title: { tag: 'plain_text', content: 'Antigravity · 执行失败' },
+    template: 'red', title: { tag: 'plain_text', content: 'Antigravity · 执行失败' },
   });
 
   const restarted = await attachLiveRoomProgress(args);
@@ -165,6 +163,19 @@ async function main() {
     globalThis.setInterval = originalInterval;
     globalThis.clearInterval = originalClearInterval;
   }
+
+  const codex = await attachLiveRoomProgress({ ...args, participant: { id: 'codex', displayName: '执行者 · Codex', harnessType: 'codex' } });
+  codex.streamCallbacks.onStdoutChunk!('先检查原图。');
+  await codex.progressTracker!.flush();
+  const codexCard = Array.from(cards.keys()).at(-1)!;
+  assert.equal(body(cards.get(codexCard)), '先检查原图。', 'Decoded Codex speech is visible while running');
+  codex.streamCallbacks.onToolEvent!({ toolName: 'Read', preview: 'original.png', emoji: '📄' });
+  codex.streamCallbacks.onStdoutChunk!('图上的数值是42。');
+  await codex.dispose('已经核对完成。', true);
+  assert.equal(body(cards.get(codexCard)), '已经核对完成。');
+  assert.match(detail(cards.get(codexCard)), /先检查原图。\n\n图上的数值是42。/);
+  assert.match(cards.get(codexCard).header.title.content, /执行者 · Codex/);
+  assert.match(JSON.stringify(cards.get(codexCard)), /Read.*original.png/);
 
   let missingIdSends = 0;
   Object.assign(api, { sendFeishuInteractiveMessage: async () => { missingIdSends++; return undefined; } });

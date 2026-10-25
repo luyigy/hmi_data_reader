@@ -4,6 +4,7 @@ import { updateFeishuApprovalCardResolved } from '@/lib/feishu-api';
 import { applyWorkflowPolicyCard } from '@/lib/feishu-workflow-policy';
 import { prisma } from '@/lib/prisma';
 import { handleFeishuUserAdminCardCallback } from '@/lib/feishu-user-admin-card';
+import { handleResourceApprovalAction } from '@/lib/task-resources/cards';
 
 export async function handleFeishuInteractionCardAction(args: {
   cmd: string;
@@ -15,6 +16,7 @@ export async function handleFeishuInteractionCardAction(args: {
   actorName: string;
   prefix: string;
 }) {
+  if (args.cmd.startsWith('resource-approval:')) return handleResourceApprovalAction(args);
   if (args.cmd === 'feishu-user-admin') return handleFeishuUserAdminCardCallback({
     value: args.value || {},
     formValue: args.formValue, actorOpenId: args.openId, chatId: args.chatId,

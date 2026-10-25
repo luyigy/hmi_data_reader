@@ -158,6 +158,29 @@ model TaskRunFeishuRelay {
   updatedAt         DateTime @updatedAt
 }
 
+// One durable reply card per inbound message, recipient and Feishu binding.
+model FeishuTurnCard {
+  id                String   @id
+  sourceMessageId   String
+  memberId          String
+  bindingId         String
+  targetJson        String
+  ownerJson         String
+  taskRunId         String?
+  messageId         String?
+  cardJson          String?
+  terminal          Boolean  @default(false)
+  revision          Int      @default(0)
+  deliveredRevision Int      @default(-1)
+  pending           Boolean  @default(true)
+  sendStartedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([sourceMessageId, memberId, bindingId])
+  @@index([pending, updatedAt])
+}
+
 model TaskRunParticipant {
   id                      String                  @id @default(cuid())
   taskRunId               String

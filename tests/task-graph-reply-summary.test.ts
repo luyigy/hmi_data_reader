@@ -23,7 +23,7 @@ const conversation = { ...base, replyKind: 'conversation', summary: answer, grap
 const reply = buildRunReplyCard(conversation, []);
 assert.match(JSON.stringify(reply.body.elements[0]), /补 1 张可以.*你这张是伯乐三段.*请补一张白色五段/);
 assert.doesNotMatch(JSON.stringify(reply.body.elements[0]), /旧阻塞|请确认这项请求|TASK_GRAPH_/);
-assert.match(reply.header.title.content, /本轮已答复/);
+assert.match(reply.header.title.content, /执行完成/);
 assert.doesNotMatch(JSON.stringify(reply), /旧阻塞|任务交付状态/);
 const streaming = buildRunReplyCard({ ...conversation, status: 'running' }, [], [], [{ content: '正在核对你补充的图片。' }]);
 assert.match(JSON.stringify(streaming.body.elements[0]), /正在核对你补充的图片/);
@@ -33,7 +33,7 @@ assert.match(JSON.stringify(failedChat.body.elements[0]), /本轮连接失败/);
 assert.match(failedChat.header.title.content, /执行失败/);
 const deliveredChat = buildRunReplyCard({ ...conversation, graphStatus: 'passed' }, []);
 assert.match(JSON.stringify(deliveredChat.body.elements[0]), /你这张是伯乐三段/);
-assert.match(deliveredChat.header.title.content, /本轮已答复/);
+assert.match(deliveredChat.header.title.content, /执行完成/);
 const handoffChat = buildRunReplyCard({ ...conversation, summary: answer + '\nTASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["input"]}' }, []);
 assert.doesNotMatch(JSON.stringify(handoffChat.body.elements[0]), /TASK_GRAPH_CONVERSATION/);
 const controlOnly = buildRunReplyCard({ ...conversation, summary: 'TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["earlier-image"],"note":"用户已澄清段数，可接着核对控制器和字段。"}' }, []);
@@ -57,10 +57,14 @@ for (let count = 1; count <= progressChunks.length; count++) {
   assert.ok(visibleText(activeCard).includes(progressChunks[count - 1].content.trim()), 'Each incremental update shows the latest Agent words');
 }
 const finishedStream = buildRunReplyCard({ ...base, summary: finalReview }, [], [], [...progressChunks, { content: finalReview }]);
-for (const chunk of progressChunks) assert.ok(visibleText(finishedStream).includes(chunk.content.trim()), 'Finalizing must retain every streamed progress message');
+for (const chunk of progressChunks) {
+  assert.ok(JSON.stringify(finishedStream).includes(chunk.content.trim()), 'Collapsed history retains progress');
+  assert.ok(!visibleText(finishedStream).includes(chunk.content.trim()), 'Final body excludes progress');
+}
 assert.equal(visibleText(finishedStream).split('原有通过项保留，尚缺独立样本。').length - 1, 1, 'Final note must not be duplicated');
 const summaryOnlyFinal = buildRunReplyCard({ ...base, summary: '处理完了，请确认图片来源。' }, [], [], progressChunks);
-assert.ok(visibleText(summaryOnlyFinal).includes(progressChunks[0].content.trim()));
+assert.ok(!visibleText(summaryOnlyFinal).includes(progressChunks[0].content.trim()));
+assert.ok(JSON.stringify(summaryOnlyFinal).includes(progressChunks[0].content.trim()));
 assert.match(visibleText(summaryOnlyFinal), /处理完了，请确认图片来源/);
 const longProgress = [{ content: '早期过程'.repeat(6000) }, { content: '\n\n最新进度：正在核对第四张图。' }];
 const advancing = buildRunReplyCard({ ...base, status: 'running', summary: null }, [], [], longProgress);
@@ -71,11 +75,15 @@ const noNewlines = [
   { sequence: 9, content: '已经找到原始证据。' },
   { sequence: 14, content: finalReview },
 ];
-const separated = visibleText(buildRunReplyCard({ ...base, summary: finalReview }, [], [], noNewlines));
-assert.match(separated, /先核对版本。\n\n已经找到原始证据。/);
+const separatedCard = buildRunReplyCard({ ...base, summary: finalReview }, [], [], noNewlines);
+const separated = visibleText(separatedCard);
+assert.match(JSON.stringify(separatedCard), /先核对版本。\\n\\n已经找到原始证据。/);
+assert.doesNotMatch(separated, /先核对版本/);
 assert.doesNotMatch(separated, /TASK_GRAPH_REVIEW|approved/);
 assert.equal(separated.split('原有通过项保留，尚缺独立样本。').length - 1, 1);
 const tokens = [{ sequence: 1, content: '正在核' }, { sequence: 2, content: '对图片。' }, { sequence: 3, content: finalReview }];
-const tokenReply = visibleText(buildRunReplyCard({ ...base, summary: finalReview }, [], [], tokens));
-assert.match(tokenReply, /正在核对图片。/);
+const tokenCard = buildRunReplyCard({ ...base, summary: finalReview }, [], [], tokens);
+const tokenReply = visibleText(tokenCard);
+assert.match(JSON.stringify(tokenCard), /正在核对图片。/);
+assert.doesNotMatch(tokenReply, /正在核对图片。/);
 assert.doesNotMatch(tokenReply, /TASK_GRAPH_REVIEW|approved/);

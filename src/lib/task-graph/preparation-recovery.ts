@@ -1,5 +1,8 @@
+import { validateResourceAdmission, preserveResourceReviewRuntime } from '../task-resources/graph-admission';
+import { updateResourceApplication } from '../task-resources/access';
+import { isImplementationInput } from './conversation-target';
 import { approvedRuntimeUpgrade } from './approved-runtime-upgrade';
-import { readFile, lstat } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { resolveReviewWorkspaces } from './review-workspaces';
 import { prepareAcceptanceRuntime } from './acceptance-runtime';
@@ -32,6 +35,7 @@ import { assertPreparationTx } from './preparation-contract';
 import { observeTaskRunWriter } from './writer-ownership';
 
 export type AdmissionWake =
+  | { source: 'resource_approval'; id: string; executionIds: string[] }
   | { source: 'conditions'; id: string; executionIds?: string[]; version?: string }
   | { source: 'operator'; id: string; preparedEventId?: string }
   | { source: 'conversation'; id: string; executionIds: string[]; inputIds: string[] }
@@ -212,6 +216,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
     ]);
     if (turn && finished) finishedConversations.add(job.id);
   }
+  if (wake.source === 'resource_approval') await validateResourceAdmission(wake.id, nodeId, wake.executionIds);
   const wholeReview = node.executions.every(job => { const p = executionProgress(job.dispatchMetadata); return p && ['architecture', 'acceptance'].includes(p.phase); });
   const candidates = node.executions.filter(job => (job.status === 'attention' || job.status === 'integrated' && executionProgress(job.dispatchMetadata) && node.status === 'attention') &&
     (wholeReview || !('executionIds' in wake) || !wake.executionIds || wake.executionIds.includes(job.id)));
@@ -243,7 +248,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       if (cause.requiresUserDecision || ['permission_required', 'scope_change'].includes(cause.code)) { lastReason = 'human_input_required'; continue; }
     }
     if (wake.source === 'conversation') {
-      const inputs = await pendingConversationInputs(prisma, node.runId, job.id);
+      const inputs = (await pendingConversationInputs(prisma, node.runId, job.id)).filter(isImplementationInput);
       if (!inputs.length || inputs.map(input => input.id).join() !== wake.inputIds.join() || !job.childTaskId ||
           !(await Promise.all(inputs.map(input => authorizedConversationInput(input, job.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) {
         lastReason = 'input_not_authorized'; continue;
@@ -277,9 +282,15 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
         conditions = { inputHash: preparationHash(inputs.map(input => input.manifest.hash)), runtimeIdentity: runtime.identity };
       } else conditions = await inspectImplementationConditions(job, progress, node.run.snapshot as unknown as GraphDefinition, node.runId);
       const identity = preparationHash({ executionId: job.id, candidate: progress.candidateCommit, scope: node.run.snapshotHash,
-        ...conditions, failure: progress.lastFailure?.code, conditions: await executionConditionsVersion() });
+        ...conditions });
       const conditionKey = `conditions-ready:${job.id}:${identity}`;
-      if (wake.source === 'conditions' && await prisma.taskGraphEvent.count({ where: { runId: node.runId, idempotencyKey: conditionKey } })) { lastReason = 'conditions_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); if (review) break; continue; }
+      if (wake.source === 'conditions' && await prisma.taskGraphEvent.count({ where: { runId: node.runId,
+        kind: 'execution_conditions_ready', OR: [{ idempotencyKey: conditionKey }, { AND: [
+          { payload: { path: ['executionId'], equals: job.id } },
+          { payload: { path: ['candidateCommit'], equals: progress.candidateCommit || '' } },
+          { payload: { path: ['inputHash'], equals: conditions.inputHash } },
+          { payload: { path: ['runtimeIdentity'], equals: conditions.runtimeIdentity } },
+        ] }] } })) { lastReason = 'conditions_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); if (review) break; continue; }
       if (wake.source === 'conditions' && !review && progress.continuation && progress.continuation.unchangedTurns >= (progress.lastFailure?.code === 'invalid_result' ? executionRetryLimits.formatAttempts : maxUnchangedWorkTurns) &&
           progress.continuation.fingerprint === await continuationWorkFingerprint(job.id, progress.candidateCommit!) && !await approvedRuntimeUpgrade(job)) {
         lastReason = 'work_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); continue;
@@ -304,6 +315,10 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
         current.executions.map(job => job.id).sort().join() !== node.executions.map(job => job.id).sort().join()) return { kind: 'deferred', reason: 'node_identity_changed' };
     const dependencies = await tx.taskGraphNode.findMany({ where: { runId: node.runId, key: { in: current.dependsOn } } });
     if (dependencies.length !== current.dependsOn.length || !dependencies.every(item => isCompletedNodeStatus(item.status))) return { kind: 'deferred', reason: 'upstream_not_accepted' };
+    if (wake.source === 'resource_approval') {
+      const approval = await validateResourceAdmission(wake.id, nodeId, wake.executionIds, tx);
+      await preserveResourceReviewRuntime(tx, approval, `admit:${wake.id}`);
+    }
     for (const entry of observations) if (!await writerSnapshotMatches(tx, entry.proof)) return { kind: 'deferred', reason: 'writer_or_candidate_changed' };
     if (preparedReview) {
       const original = await tx.taskGraphEvent.findUniqueOrThrow({ where: { id: preparedReview.id } });
@@ -317,7 +332,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
     if (wake.source === 'conversation') {
       const owner = await tx.task.findUniqueOrThrow({ where: { id: current.run.parentTaskId }, select: { ownerUserId: true } });
       if (owner.ownerUserId !== node.run.parentTask.ownerUserId) return { kind: 'deferred', reason: 'input_owner_changed' };
-      const inputs = (await Promise.all(observations.map(entry => pendingConversationInputs(tx, node.runId, entry.job.id)))).flat();
+      const inputs = (await Promise.all(observations.map(entry => pendingConversationInputs(tx, node.runId, entry.job.id)))).flat().filter(isImplementationInput);
       if (inputs.map(input => input.id).join() !== wake.inputIds.join() ||
           !(await Promise.all(inputs.map(input => authorizedConversationInput(input, observations.find(entry => entry.job.id === input.executionId)!.job.childTaskId!, owner.ownerUserId, tx)))).every(Boolean)) return { kind: 'deferred', reason: 'input_identity_changed' };
     }
@@ -359,6 +374,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       payload: { source: wake.source, wakeId: wake.id, executions: observations.map(({ job, progress }) => ({ id: job.id, revision: progress.revision,
         checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId,
         previousClaimToken: job.claimToken, previousCommit: job.commit, previousEvidence: job.evidence, previousDispatch: job.dispatchMetadata })) } } });
+    if (wake.source === 'resource_approval') await updateResourceApplication(wake.id, { state: 'scheduled', eventId: event.id }, tx);
     const requests = await tx.taskGraphEvent.findMany({ where: { nodeId, kind: 'conversation_review_recovery_requested' }, select: { id: true } });
     for (const request of requests) {
       const key = `conversation:review-recovery:${request.id}:started`;
@@ -388,12 +404,14 @@ export async function reconcileExecutionConditions(executionId: string) {
   }
   const preparations = await prisma.taskGraphEvent.findMany({ where: { nodeId: job.nodeId, kind: { in: ['platform_preparation_registered', 'platform_review_preparation'] } }, select: { id: true, kind: true } });
   for (const receipt of preparations) if (!await prisma.taskGraphEvent.count({ where: { runId: job.node.runId, idempotencyKey: `${receipt.kind === 'platform_review_preparation' ? 'review-preparation-consumed' : 'preparation-consumed'}:${receipt.id}` } })) return false;
-  const changes = await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId,
-    kind: { in: ['run_user_resumed', 'node_verified', 'delivered_unverified', 'project_capability_scope_approved'] } },
-    select: { id: true, nodeId: true, kind: true, payload: true, createdAt: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
   const dependencies = await prisma.taskGraphNode.findMany({ where: { runId: job.node.runId, key: { in: job.node.dependsOn } },
     select: { id: true, status: true, updatedAt: true } });
-  const version = preparationHash({ environment: await executionConditionsVersion(), changes, dependencies });
+  const changes = await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId, OR: [
+    { kind: 'run_user_resumed' },
+    { kind: { in: ['node_verified', 'delivered_unverified'] }, nodeId: { in: dependencies.map(node => node.id) } },
+    { kind: 'project_capability_scope_approved', payload: { path: ['executionId'], equals: job.id } },
+  ] }, select: { id: true }, orderBy: { id: 'asc' } });
+  const version = preparationHash({ upstreamMaxBytes: process.env.TASK_GRAPH_UPSTREAM_MAX_BYTES || '268435456', changes, dependencies });
   const unavailable = await prisma.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId, kind: 'execution_conditions_unavailable',
     payload: { path: ['executionId'], equals: job.id } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   const last = unavailable?.payload;
@@ -517,11 +535,4 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
   });
   if (registered.kind === 'registered') await admitNode(before.id, { source: 'prepared_review', id: registered.eventId });
   return registered;
-}
-
-async function executionConditionsVersion() {
-  // Operational facts bound retries; they never grant resources or replace a source pin.
-  return { code: await graphGit(platformRepository(), 'rev-parse', 'HEAD'),
-    build: await readFile(path.join(platformRepository(), '.next/BUILD_ID'), 'utf8').then(value => value.trim(), () => 'development'),
-    upstreamMaxBytes: process.env.TASK_GRAPH_UPSTREAM_MAX_BYTES || '268435456' };
 }

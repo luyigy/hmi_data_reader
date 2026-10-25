@@ -1,20 +1,21 @@
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { createStreamWriteBuffer } from '@/lib/acpx/stream-write-buffer';
-import { FeishuProgressTracker, type FeishuProgressTarget } from '@/lib/feishu-progress';
+import { FeishuProgressTracker, type FeishuProgressTarget, type ProgressCardPublisher } from '@/lib/feishu-progress';
 import { PROGRESS_HEARTBEAT_MS, redactHarnessOutput, sanitizePreview } from '@/lib/acpx/harness-events';
 
-export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayName, onHeartbeat }: {
+export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayName, onHeartbeat, publisher, onRunStarted }: {
   progressTarget: FeishuProgressTarget | null;
   displayName: string;
   onHeartbeat?: () => Promise<void>;
+  publisher?: ProgressCardPublisher;
+  onRunStarted?: HarnessStreamCallbacks['onRunStarted'];
 }) => {
-  const progressTracker = progressTarget ? new FeishuProgressTracker(progressTarget, process.cwd(), displayName) : null;
+  const progressTracker = progressTarget ? new FeishuProgressTracker(progressTarget, process.cwd(), displayName, publisher) : null;
   let tail = '';
   let text = '';
   let response = '';
   let details = '';
   let usage = '';
-  const tools: string[] = [];
   const toolSteps = new Set<string>();
   const preview = (value: unknown) => sanitizePreview(value, { workspaceRoot: process.cwd() });
   const appendDetails = (value: string) => {
@@ -47,8 +48,7 @@ export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayNa
         const key = step.step_index == null ? null : `${step.step_index}:${toolName}`;
         if (!key || !toolSteps.has(key)) {
           if (key) toolSteps.add(key);
-          tools.push(`🛠️ ${preview(toolName)}：${preview(step.tool_info?.parameters ?? step.arguments ?? '')}`);
-          if (tools.length > 5) tools.shift();
+          progressTracker?.onToolEvent(toolName, preview(step.tool_info?.parameters ?? step.arguments ?? ''), '🛠️');
         }
       }
     }
@@ -73,7 +73,7 @@ export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayNa
   };
   const update = () => progressTracker?.setReplyContent(
     redactHarnessOutput(response || text || `${preview(displayName)} 正在处理信息…`),
-    redactHarnessOutput([tools.length ? `最近工具调用：\n${tools.join('\n')}` : '', details ? `最近过程文本：\n${details}` : ''].filter(Boolean).join('\n\n')),
+    redactHarnessOutput(details),
     usage,
   );
   // Show the same reply card before the CLI emits its first complete event.
@@ -99,6 +99,7 @@ export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayNa
     tail = tail.slice(end);
   };
   const streamCallbacks: HarnessStreamCallbacks = {
+    onRunStarted,
     onStdoutChunk: chunk => enqueue(chunk),
     // Diagnostics stay in persisted run events, never become chat messages.
   };
@@ -114,7 +115,7 @@ export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayNa
       }
       if (!response && !text) response = success ? '执行完成，未返回回答文本。' : '执行失败，请查看任务室运行记录。';
       await update();
-      await progressTracker?.finalize(summary, success);
+      await progressTracker?.finalize(response || text || summary, success);
     },
   };
 };

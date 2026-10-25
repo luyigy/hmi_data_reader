@@ -106,7 +106,7 @@ async function main() {
     await prisma.taskRun.update({ where: { id: implementation.id }, data: { status: 'completed', summary: '修复已提交。' } });
     assert.equal(await relayTaskGraphRunReply(implementation.id), true, 'An older run can still finalize its own card');
     assert.equal(updates.at(-1)?.id, implementCursor.messageId);
-    assert.match(rendered.at(-1)?.header.title.content || '', /实施者.*本轮已结束/);
+    assert.match(rendered.at(-1)?.header.title.content || '', /实施者.*执行完成/);
     assert.match(JSON.stringify(rendered.at(-1)?.body.elements[0]), /修复已提交/);
     assert.equal(await relayTaskGraphRunReply(implementation.id), false);
     await prisma.taskGraphNode.update({ where: { id: late.job.nodeId }, data: { status: 'passed' } });
@@ -229,7 +229,7 @@ async function main() {
     await relayTaskGraphRunReply(chatRun.id, true);
     assert.match(JSON.stringify(rendered.at(-1)?.body.elements[0]), /你这张是伯乐三段/,
       'Every run shows the Agent answer without requiring a conversation binding');
-    assert.match(rendered.at(-1)?.header.title.content || '', /本轮已结束/);
+    assert.match(rendered.at(-1)?.header.title.content || '', /执行完成/);
     await prisma.taskGraphEvent.create({ data: { runId: chat.graph.id, nodeId: chat.job.nodeId, kind: 'conversation_followup_bound',
       idempotencyKey: 'chat-binding', payload: { taskRunId: chatRun.id, executionId: chat.job.id } } });
     const beforeChat = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: chat.job.id } });

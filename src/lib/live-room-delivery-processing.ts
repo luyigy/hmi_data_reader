@@ -1,4 +1,5 @@
 import { applyGraphControlOutput } from './task-graph/conversation-intent';
+import { failRoomTurnCard } from './feishu-turn-card';
 import { prisma } from '@/lib/prisma';
 import {
   clearLiveRoomRunningProcess,
@@ -509,6 +510,8 @@ export const processLiveRoomDelivery = async ({
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Live room delivery failed';
     const message = normalizeLiveRoomExecutionError(rawMessage);
+    const hasTurnCard = targetMember.backend === 'platform_local'
+      ? await failRoomTurnCard(sourceMessage.id, targetMember.id, message).catch(() => false) : false;
 
     await prisma.liveRoomDelivery.update({
       where: { id: delivery.id },
@@ -551,6 +554,7 @@ export const processLiveRoomDelivery = async ({
           extras: {
             ...relayOrigin,
             error: message,
+            skipFeishuRelay: hasTurnCard,
           },
         }),
       });

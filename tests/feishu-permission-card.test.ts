@@ -43,12 +43,14 @@ assert.equal(isPermissionRequestWithinBoundary({
   kind: 'permission_request',
   title: 'Codex 请求修改文件',
   rawContent: '/workspace/project/src/index.ts',
+  nativePermission: { method: 'item/fileChange/requestApproval', scope: 'operation', grantRoot: '/workspace/project/src/index.ts' },
   workspaceBoundary: '/workspace/project',
 }), true);
 assert.equal(isPermissionRequestWithinBoundary({
   kind: 'permission_request',
   title: 'Codex 请求修改文件',
   rawContent: '/workspace/sibling/secret.txt',
+  nativePermission: { method: 'item/fileChange/requestApproval', scope: 'operation', grantRoot: '/workspace/sibling/secret.txt' },
   workspaceBoundary: '/workspace/project',
 }), false);
 

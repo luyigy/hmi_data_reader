@@ -42,11 +42,11 @@ export async function ensureGraphRoomParticipants(roomId: string, executionId: s
     const members = [...room.members];
     for (const approved of participants) {
       const existing = members.find((member) => member.backend === approved.executionBackend && member.harnessType === approved.harnessType &&
-        member.runtimeAgentId === (approved.agentId || null));
+        member.runtimeAgentId === (approved.agentId || null) && member.role === approved.role);
       if (existing) continue; // Explicitly removed/stopped members are not silently re-enabled.
       const member = await tx.liveRoomMember.create({ data: {
         roomId, memberType: 'local_agent', backend: approved.executionBackend, harnessType: approved.harnessType,
-        runtimeAgentId: approved.agentId || null, displayName: approved.agentName || approved.harnessType,
+        runtimeAgentId: approved.agentId || null, displayName: `${approved.role === 'implementer' ? '执行者' : approved.role === 'tester' ? '验收者' : '架构审查'} · ${approved.agentName || approved.harnessType}`,
         agentNameSnapshot: approved.agentName || approved.harnessType, role: approved.role,
         roleLabel: '任务图获批参与者', canReply: true, joinStatus: 'joined', presenceStatus: 'idle', sortOrder: members.length + 1,
         codexModel: approved.model || null, codexReasoningEffort: approved.reasoningEffort || null,

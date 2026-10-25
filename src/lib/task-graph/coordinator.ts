@@ -1,3 +1,4 @@
+import { reconcileResourceApprovals, drainResourceApprovals } from '../task-resources/reconcile';
 import { implementationQuality } from './implementation-quality';
 import { selfCheckExecution, verificationInputs } from './domain';
 import { transientPlatformCode } from './platform-failure';
@@ -548,7 +549,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       : ['check', 'integrate'].includes(progress.phase) && progress.taskRunId
         ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
-    const inbox = storedRun ? [] : await conversationInputs(execution.id);
+    const inbox = storedRun ? [] : await conversationInputs(execution.id, true);
     const inputPrompt = conversationPrompt(inbox) + (inbox.length ? '\n' + await syncGraphConversationMaterials(task.id) : '');
     const plannedNode = definition.nodes.find(node => node.key === nodeKey)!;
     const ownsQuality = definition.deliveryContract === 'agent_owned_v1' && selfCheckExecution(plannedNode) === execution.key;
@@ -779,6 +780,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
 
 /** Prior writers retain ownership until their actual exit is proven. */
 export async function runTaskGraphCycle() {
+  await reconcileResourceApprovals();
   await stopPausedGraphTurns();
   await deliverConversationSteering();
   await reconcileConversationDeliveries();
@@ -882,6 +884,7 @@ export async function startTaskGraphCoordinator(signal: AbortSignal) {
     });
   }
   await Promise.allSettled(Array.from(inflight));
+  await drainResourceApprovals();
   await syncing;
   await adopting;
 }

@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { AgentMessageInfo } from '../src/lib/agent-reply-state';
 import type { HarnessSteer } from '../src/lib/acpx/types';
 import { runCodexAppServer } from '../src/lib/real-agents/codex-app-server';
 
@@ -16,6 +17,7 @@ async function main() {
   let steer!: HarnessSteer;
   let receipts: Promise<string>[]=[];
   let spawned=0, toolCalls=0;
+  const output: { text: string; message?: AgentMessageInfo }[] = [];
   const server=createServer((req,res)=>{
     let body=''; req.on('data',chunk=>{body+=chunk;});
     req.on('end',()=>{
@@ -24,6 +26,14 @@ async function main() {
       const emit=(type:string,data:object)=>res.write(`event: ${type}\ndata: ${JSON.stringify({type,...data})}\n\n`);
       const id=`response-${histories.length}`;
       emit('response.created',{response:{id,object:'response',status:'in_progress',output:[]}});
+      if (histories.length === 1) {
+        const reasoning = { id: 'rs-1', type: 'reasoning', summary: [{ type: 'summary_text', text: 'Checking the command result.' }] };
+        emit('response.output_item.added', { output_index: 0, item: { ...reasoning, summary: [] } });
+        emit('response.reasoning_summary_part.added', { item_id: 'rs-1', output_index: 0, summary_index: 0, part: { type: 'summary_text', text: '' } });
+        emit('response.reasoning_summary_text.delta', { item_id: 'rs-1', output_index: 0, summary_index: 0, delta: 'Checking the command result.' });
+        emit('response.reasoning_summary_text.done', { item_id: 'rs-1', output_index: 0, summary_index: 0, text: 'Checking the command result.' });
+        emit('response.output_item.done', { output_index: 0, item: reasoning });
+      }
       let item;
       if(histories.length===1) {
         const names=request.tools.map((t:{name:string})=>t.name);
@@ -32,7 +42,7 @@ async function main() {
         const args=name==='exec_command'?{cmd:'sleep 0.3',yield_time_ms:1000}:name==='shell_command'?{command:'sleep 0.3'}:{command:['bash','-c','sleep 0.3']};
         item={id:'fc-1',type:'function_call',call_id:'call-1',name,arguments:JSON.stringify(args),status:'completed'};
       } else {
-        item={id:'msg-1',type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:'hello native',annotations:[]}]};
+        item={id:'msg-1',type:'message',role:'assistant',phase:'final_answer',status:'completed',content:[{type:'output_text',text:'hello native',annotations:[]}]};
       }
       emit('response.output_item.added',{output_index:0,item});
       if(item.type==='message') emit('response.output_text.delta',{item_id:item.id,output_index:0,content_index:0,delta:'hello native'});
@@ -65,6 +75,7 @@ requires_openai_auth = false
         });
       },
       streamCallbacks:{
+        onStdoutChunk:(text,message)=>{ output.push({text,message}); },
         onSteeringReady:control=>{steer=control;return ()=>{};},
         onToolEvent:event=>{
           if(event.toolName==='Bash' && !toolCalls++) receipts=[steer('first','输出 hello FIRST'),steer('second','SECOND'),steer('first','输出 hello FIRST')];
@@ -72,6 +83,10 @@ requires_openai_auth = false
       },
     });
     assert.deepEqual(await Promise.all(receipts),['accepted','accepted','accepted']);
+    assert.ok(output.some(item => item.message?.phase === 'final_answer' && item.message.operation === 'replace' && item.text === 'hello native'), 'Native completion preserves final-answer phase and authoritative snapshot');
+    assert.ok(output.some(item => item.message?.phase === 'reasoning_summary' && item.text === 'Checking the command result.'), 'Public reasoning summaries must reach the same card stream');
+    assert.equal(result.output, 'hello native', 'Display summaries must not alter execution output');
+    assert.ok(output.some(item => item.message?.phase === 'reasoning_summary' && item.message.operation === 'replace'), 'Completion snapshot must be preserved');
     assert.equal(spawned,1); assert.equal(toolCalls,1);
     assert.equal(histories.length,2);
     const userText=(index:number)=>JSON.stringify(histories[index].input.filter(item=>item.role==='user'));

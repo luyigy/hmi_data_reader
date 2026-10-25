@@ -673,6 +673,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
         feishuChatId: args.context.chatId,
         feishuChatType: args.context.chatType,
         feishuThreadId: args.context.threadId,
+        feishuParentMessageId: args.context.parentMessageId,
         feishuMessageId: args.context.messageId,
         feishuSenderOpenId: args.context.senderOpenId,
         targetLocked: explicitMentionMemberIds.length === 1 && !mentionedAll,

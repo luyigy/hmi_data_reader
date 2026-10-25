@@ -1,3 +1,4 @@
+import { submitRunnerResourceRequest } from '../task-resources/runner-protocol';
 import { prisma } from '@/lib/prisma';
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { publishTaskRunEvent } from './event-bus';
@@ -6,6 +7,8 @@ import {
   createTaskRunInteractionRequest,
   findRecentPendingInteractionRequest,
   isPermissionRequestWithinBoundary,
+  nativePermissionResources,
+  permissionResourceDirectory,
 } from './interactions';
 import { parseJsonObject, stringifyJson } from './runner-metadata';
 import type { AcpxLiveEventPayload, AcpxRunRequest, HarnessInteractionRequest } from './types';
@@ -75,9 +78,10 @@ export const detectHarnessInteractionRequest = (chunk: string, harnessType: stri
 };
 
 export const handleHarnessInteractionRequest = async ({
-  request, taskId, taskRunId, participantId, participant, workingDirectory, permissionConfig,
+  request, runRequest, taskId, taskRunId, participantId, participant, workingDirectory, permissionConfig,
 }: {
   request: HarnessInteractionRequest;
+  runRequest?: AcpxRunRequest;
   taskId: string; taskRunId: string; participantId: string;
   participant: NonNullable<AcpxLiveEventPayload['participant']>;
   workingDirectory: string;
@@ -89,17 +93,38 @@ export const handleHarnessInteractionRequest = async ({
     || (request.resumeStrategy === 'in_process'
       && participant.executionBackend === 'platform_local'
       && participant.harnessType === 'codex');
-  const workspaceBoundary = permissionConfig.profile === 'full_access'
-    ? 'Full Access（已由管理员在启动前批准）'
-    : permissionConfig.writableRoots[0] || workingDirectory;
-  if (permissionConfig.profile !== 'full_access' && !isPermissionRequestWithinBoundary({
-    ...request, workspaceBoundary,
-  })) return 'deny';
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   const [existingTaskRun, existingParticipant] = await Promise.all([
     prisma.taskRun.findUnique({ where: { id: taskRunId }, select: { controlMetadata: true, taskSessionId: true } }),
     prisma.taskRunParticipant.findUnique({ where: { id: participantId }, select: { controlMetadata: true } }),
   ]);
+  const applied = parseJsonObject(existingParticipant?.controlMetadata).resources as Record<string, unknown> | undefined;
+  const roots = (value: unknown): string[] => Array.isArray(value) ? value.filter((root): root is string => typeof root === 'string') : [];
+  const writableRoots = [...permissionConfig.writableRoots, ...roots(applied?.writableRoots),
+    ...(permissionConfig.sandboxMode === 'workspace-write' ? [workingDirectory] : [])];
+  const workspaceBoundary = permissionConfig.profile === 'full_access'
+    ? 'Full Access（已由管理员在启动前批准）' : writableRoots.join('\n');
+  const resources = nativePermissionResources(request);
+  if (resources === null) return 'deny';
+  if (permissionConfig.profile !== 'full_access' && !isPermissionRequestWithinBoundary({
+    ...request, writableRoots, readableRoots: [...(runRequest?.extraReadOnlyPaths || []), ...roots(applied?.readOnlyRoots)],
+  })) {
+    const target = runRequest?.participants.find(candidate => candidate.harnessType === participant.harnessType
+      && candidate.executionBackend === participant.executionBackend && candidate.role === participant.role
+      && (candidate.agentId || null) === (participant.agentId || null)
+      && (candidate.gatewayId || null) === (participant.gatewayId || null));
+    if (runRequest && target && resources.length) {
+      await submitRunnerResourceRequest({ request: runRequest, taskRunId, participantId, participant: target,
+        output: `<resource-request>${JSON.stringify({ purpose: request.message,
+          resources: resources.map(resource => ({ path: permissionResourceDirectory(resource.path), access: resource.access })) })}</resource-request>` });
+    }
+    return 'deny';
+  }
+  const approvalScope = !approvalSupported
+    ? 'adapter 不支持原进程批准；只能拒绝或另行启动受支持的运行'
+    : request.nativePermission?.scope === 'turn'
+      ? '仅本轮临时权限；范围限于已应用的目录边界'
+      : '仅本次操作；不修改 sandbox、network、writable roots 或 Workflow policy';
   const existingRequest = await findRecentPendingInteractionRequest({
     taskRunId, participantId, requestKind: request.kind, message: request.message,
   });
@@ -120,9 +145,8 @@ export const handleHarnessInteractionRequest = async ({
       command: request.rawContent.slice(0, 800),
       workdir: workingDirectory,
       workspaceBoundary,
-      approvalScope: approvalSupported
-        ? '仅本次操作；不修改 sandbox、network、writable roots 或 Workflow policy'
-        : 'adapter 不支持原进程批准；只能拒绝或另行启动受支持的运行',
+      nativePermission: request.nativePermission ?? null,
+      approvalScope,
       approvalSupported,
     },
     options: request.options?.map((option) => ({
@@ -204,9 +228,7 @@ export const handleHarnessInteractionRequest = async ({
           kind: request.kind,
           workdir: workingDirectory,
           workspaceBoundary,
-          approvalScope: approvalSupported
-            ? '仅批准启动策略边界内的本次操作'
-            : '当前 adapter 不支持原进程批准',
+          approvalScope,
           expiresAt: persistedRequest.expiresAt || expiresAt.toISOString(),
           approvalSupported,
         });

@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'child_process';
 import type { HarnessSteer } from './acpx/types';
+import { registerHarnessSteering } from './acpx/steering-registry';
 
 interface LiveRoomRunningProcessEntry {
   deliveryId: string;
@@ -56,9 +57,10 @@ export const registerLiveRoomSteering = (
   generation = getLiveRoomExecutionGeneration(memberId), runMessageId = '',
 ) => {
   const store = globalRegistry.liveRoomSteering ??= new Map();
-  const entry = { roomId, sessionId, steer, generation, runMessageId };
+  const handle = registerHarnessSteering(`room:${memberId}`, steer);
+  const entry = { roomId, sessionId, steer: handle.steer, generation, runMessageId };
   store.set(memberId, entry);
-  return () => { if (store.get(memberId) === entry) store.delete(memberId); };
+  return () => { handle.unregister(); if (store.get(memberId) === entry) store.delete(memberId); };
 };
 
 export const getLiveRoomSteering = (memberId: string) => globalRegistry.liveRoomSteering?.get(memberId);

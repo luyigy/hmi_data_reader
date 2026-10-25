@@ -34,9 +34,9 @@ async function main() {
     assert.match(json, /实施者.*Codex/); assert.match(json, /正在实现 S03/); assert.match(json, /运行开始/);
     const progress = sent[0].card as { body: { elements: { tag: string; expanded?: boolean; header?: { title: { content: string } }; elements?: unknown[] }[] } };
     const panels = progress.body.elements.filter(element => element.tag === 'collapsible_panel');
-    assert.equal(panels.length, 2);
+    assert.equal(panels.length, 3);
     assert.equal(panels[0].expanded, false); assert.equal(panels[1].expanded, false);
-    assert.match(panels[0].header?.title.content || '', /系统信息/);
+    assert.match(panels[0].header?.title.content || '', /思考过程/);
     assert.match(panels[1].header?.title.content || '', /工具调用/);
     assert.doesNotMatch(JSON.stringify(panels[0]), /工具：读取规格/);
     assert.match(JSON.stringify(panels[1]), /读取规格/);
@@ -80,20 +80,21 @@ async function main() {
     await relayTaskGraphReplies();
     assert.match(JSON.stringify(updated.at(-1)?.card), /S03 已提交，等待验收/, 'Final reply must remain on the same card');
     const finalVisible = (updated.at(-1)?.card as { body: { elements: { tag: string; content?: string }[] } }).body.elements.filter(e => e.tag === 'markdown').map(e => e.content).join('\n');
-    assert.match(finalVisible, /正在实现 S03。\n\n正在检查保存读回/, 'Final summary cannot erase earlier streaming conversation');
+    assert.doesNotMatch(finalVisible, /正在实现 S03/, 'Final body contains the answer only');
+    assert.match(JSON.stringify(updated.at(-1)?.card), /正在实现 S03/, 'Progress stays in the collapsed history');
     assert.match(finalVisible, /S03 已提交，等待验收/);
     assert.equal(updated.at(-1)?.id, 'reply-1', 'Finalization keeps the streaming message identity');
     assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).lastStatus, 'completed');
     assert.equal(sent.length, 1);
     assert.equal(replies.length, 0, 'Final result must not create another card');
-    assert.match(JSON.stringify(updated.at(-1)?.card), /本轮已结束/);
+    assert.match(JSON.stringify(updated.at(-1)?.card), /执行完成/);
     assert.doesNotMatch(JSON.stringify(updated.at(-1)?.card), /Slice 已完成/);
     await relayTaskGraphReplies();
     assert.equal(replies.length, 0, 'The final result must not create a new reply');
     const marker = 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"environment_failed","note":"project environment missing"}';
     await prisma.taskRunParticipant.updateMany({ where: { taskRunId: run.id }, data: { summary: marker } });
     await relayTaskGraphRunReply(run.id, true);
-    assert.match(JSON.stringify(updated.at(-1)?.card), /本轮已结束/);
+    assert.match(JSON.stringify(updated.at(-1)?.card), /执行完成/);
     assert.match(JSON.stringify(updated.at(-1)?.card), /project environment missing/);
     assert.equal(sent.length, 1); assert.equal(replies.length, 0);
     const retry = await prisma.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'running',

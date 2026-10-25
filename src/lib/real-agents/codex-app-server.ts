@@ -1,4 +1,5 @@
 import type { HarnessSandbox } from '../harness/types';
+import { parseAgentMessageInfo, type AgentMessageInfo } from '../agent-reply-state';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ChildProcess } from 'child_process';
 import { realpathSync } from 'node:fs';
@@ -69,6 +70,7 @@ export const toCodexApprovalRequest = (
     return {
       kind: 'permission_request',
       title: 'Codex 请求执行命令',
+      nativePermission: { method, scope: 'operation' },
       message: reason || 'Codex 请求批准后执行命令。',
       rawContent: [command, reason].filter(Boolean).join('\n'),
       responseFormat: 'approve_deny',
@@ -81,6 +83,7 @@ export const toCodexApprovalRequest = (
     return {
       kind: 'permission_request',
       title: 'Codex 请求修改文件',
+      nativePermission: { method, scope: 'operation', grantRoot },
       message: reason || 'Codex 请求批准后修改文件。',
       rawContent: [grantRoot, reason].filter(Boolean).join('\n') || 'Codex file change',
       responseFormat: 'approve_deny',
@@ -92,6 +95,7 @@ export const toCodexApprovalRequest = (
     return {
       kind: 'permission_request',
       title: 'Codex 请求临时权限',
+      nativePermission: { method, scope: 'turn', permissions: params.permissions },
       message: reason || 'Codex 请求本 turn 的临时权限。',
       rawContent: JSON.stringify(params.permissions ?? {}),
       responseFormat: 'approve_deny',
@@ -176,6 +180,7 @@ const runCodexAppServerProtocol = async (
   let buffer = '';
   let output = '';
   let startsNewAgentMessage = false;
+  const agentMessages = new Map<string, AgentMessageInfo>();
   let activeThreadId = options.threadId;
   let activeTurnId: string | undefined;
   let unregisterSteering: (() => void) | undefined;
@@ -309,17 +314,45 @@ const runCodexAppServerProtocol = async (
       void handleServerRequest(message);
       return;
     }
+    if (message.method?.startsWith('item/') && message.params?.threadId && message.params.threadId !== activeThreadId) return;
+    if (message.method?.startsWith('item/') && activeTurnId && message.params?.turnId && message.params.turnId !== activeTurnId) return;
     if (message.method === 'turn/started' && message.params?.threadId === activeThreadId) {
       activateSteering(message.params?.turn?.id);
     } else if (message.method === 'item/started') {
       startsNewAgentMessage = message.params?.item?.type === 'agentMessage';
+      if (startsNewAgentMessage) {
+        const item = message.params?.item;
+        const info = parseAgentMessageInfo({ id: item?.id, phase: item?.phase ?? null });
+        if (info) agentMessages.set(info.id, info);
+      }
       const toolEvent = toCodexToolEvent(message.params?.item);
       if (toolEvent) void options.streamCallbacks?.onToolEvent?.(toolEvent);
     } else if (message.method === 'item/agentMessage/delta' && typeof message.params?.delta === 'string') {
       const chunk = `${startsNewAgentMessage && output ? '\n\n' : ''}${message.params.delta}`;
       output = appendCodexAgentMessageDelta(output, message.params.delta, startsNewAgentMessage);
       startsNewAgentMessage = false;
-      void options.streamCallbacks?.onStdoutChunk?.(chunk);
+      const id = message.params.itemId;
+      const info = agentMessages.get(id) || parseAgentMessageInfo({ id, phase: null });
+      void options.streamCallbacks?.onStdoutChunk?.(chunk, info);
+    } else if (message.method === 'item/reasoning/summaryTextDelta' && typeof message.params?.delta === 'string') {
+      const { itemId, summaryIndex, delta } = message.params;
+      if (typeof itemId === 'string' && Number.isInteger(summaryIndex) && summaryIndex >= 0) {
+        void options.streamCallbacks?.onStdoutChunk?.(delta, {
+          id: `reasoning-summary:${itemId}:${summaryIndex}`, phase: 'reasoning_summary',
+        });
+      }
+    } else if (message.method === 'item/completed' && message.params?.item?.type === 'reasoning') {
+      const item = message.params.item;
+      // Only the API's display summaries belong on the card; raw reasoning content is not forwarded.
+      if (typeof item.id === 'string' && Array.isArray(item.summary)) item.summary.forEach((text: unknown, index: number) => {
+        if (typeof text === 'string') void options.streamCallbacks?.onStdoutChunk?.(text, {
+          id: `reasoning-summary:${item.id}:${index}`, phase: 'reasoning_summary', operation: 'replace',
+        });
+      });
+    } else if (message.method === 'item/completed' && message.params?.item?.type === 'agentMessage') {
+      const item = message.params.item;
+      const info = parseAgentMessageInfo({ id: item.id, phase: item.phase ?? null, operation: 'replace' });
+      if (info && typeof item.text === 'string') void options.streamCallbacks?.onStdoutChunk?.(item.text, info);
     } else if (message.method === 'thread/tokenUsage/updated') {
       const usage = parseCodexTokenUsage(message.params);
       if (usage && options.streamCallbacks?.onCodexTokenUsage) {
@@ -432,6 +465,7 @@ const runCodexAppServerProtocol = async (
       approvalPolicy: options.approvalPolicy,
       ...(options.model ? { model: options.model } : {}),
       ...(options.reasoningEffort ? { effort: options.reasoningEffort } : {}),
+      summary: 'auto',
     });
     await turnDone;
     await telemetryCallbacks;

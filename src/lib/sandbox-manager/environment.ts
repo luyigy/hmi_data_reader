@@ -65,7 +65,7 @@ export function prepareSandboxEnvironment(args: SandboxEnvironmentInput) {
   const executableMount = executable.endsWith('.js') ? path.dirname(path.dirname(executable))
     : packagedCodex ? path.dirname(executable) : executable;
   const configPaths = (args.configPaths || []).filter(existsSync);
-  const strict = args.strictReadOnlyRoots || args.env.AP_PROJECT_CAPABILITY_SOCKET || args.env.AP_PROJECT_CAPABILITIES_JSON;
+  const strict = args.strictReadOnlyRoots || args.env.AP_RESOURCE_SCOPE === '1' || args.env.AP_PROJECT_CAPABILITY_SOCKET || args.env.AP_PROJECT_CAPABILITIES_JSON;
   const explicitReadOnlyPaths = args.readOnlyPaths?.filter(existsSync).flatMap((source) => {
     const resolved = realpathSync(source);
     return strict ? [resolved] : [resolved, ...symlinkTargets(resolved)];

@@ -1,3 +1,6 @@
+import { assertResourceUseActive, withResourceProcessGuard } from '../task-resources/process-guard';
+import { resourceRequestInstructions, submitRunnerResourceRequest } from '../task-resources/runner-protocol';
+import { resourcesForRun, markResourceRunEffective } from '../task-resources/runtime';
 import type { HarnessExecutionContext, HarnessSandbox } from '../harness/types';
 import { withSandbox, type ManagedProcessControl, type SandboxIdentity } from '../sandbox-manager';
 import { withTaskProjectCapabilities } from '../project-capabilities/task-runtime';
@@ -138,6 +141,8 @@ export const executeViaLocalHarness = async (
     throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
   }
   const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
+  const resourceAccess = await resourcesForRun({ ...request, participants: [participant] }, taskRunId, participantId);
+  task.description += (participant.harnessType === 'codex' ? resourceRequestInstructions : '') + resourceAccess.instructions;
   if (request.taskId.startsWith('task-graph-') && request.workingDirectory && !existsSync(request.workingDirectory)) {
     throw new Error('任务工作区已清理或不可用。历史回复和提交仍保留；继续实施请创建后续任务工作区。');
   }
@@ -161,6 +166,7 @@ export const executeViaLocalHarness = async (
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
   const inputs = graphRuntime ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only') : null;
+  extraWritableRoots.push(...resourceAccess.write);
   if (inputs) { task.description += inputs.instructions; extraWritableRoots.push(...inputs.writablePaths); }
   const outputWorkspaces = request.taskId.startsWith('task-graph-review-') || request.taskId.startsWith('task-graph-architecture-')
     ? await prisma.taskGraphExecution.findMany({ where: { nodeId: request.taskId.replace(/^task-graph-(?:review|architecture)-/, '') }, select: { worktreePath: true } }).then(jobs => jobs.flatMap(job => job.worktreePath ? [job.worktreePath] : []))
@@ -169,6 +175,7 @@ export const executeViaLocalHarness = async (
   if (output) task.description += output.instructions;
   const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
+    ...resourceAccess.read,
     ...(graphRuntime && !('workflowPermissionSnapshot' in permissionConfig) ? [] : resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig)),
     ...(request.extraReadOnlyPaths || []),
     ...(output?.readOnlyPaths || []),
@@ -237,19 +244,22 @@ export const executeViaLocalHarness = async (
   return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
-  const taskEnvironment = { ...capabilities.env, ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };
+  const taskEnvironment = { ...(resourceAccess.approvalIds.length ? { AP_RESOURCE_SCOPE: '1' } : {}), ...capabilities.env, ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };
   const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
   let metadataWrites = Promise.resolve();
   let boundSessionId: string | undefined;
   const onSessionStarted = (session: import('@/lib/harness/types').HarnessSessionStarted) => {
     metadataWrites = metadataWrites.then(async () => {
       try {
+        await assertResourceUseActive(taskRunId, resourceAccess.approvalIds);
+        await markResourceRunEffective(request, taskRunId, session.threadId || session.sessionId);
         await persistPlatformLocalSessionMetadata(
           taskRunId, participantId, session.sessionKind, session.sessionId, session.threadId,
         );
         boundSessionId = session.threadId || session.sessionId;
-      } catch {
+      } catch (error) {
         boundSessionId = undefined;
+        if (request.resourceContinuation || resourceAccess.approvalIds.length) throw error;
         console.warn('Runtime telemetry: could not bind session', participantId);
       }
     });
@@ -299,14 +309,18 @@ export const executeViaLocalHarness = async (
     authority: stageAuthority, runtime: stageRuntimeContract(context), prompt: task.description,
   }) : null;
   const authority = await captureStageAuthority(request, taskRunId);
-  const result = await executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority,
-    continuationContext: { capabilityInstructions: capabilities.instructions, longFileContext } });
+  const result = await withResourceProcessGuard(taskRunId, participantId, resourceAccess.approvalIds, () =>
+    executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority,
+      continuationContext: { capabilityInstructions: capabilities.instructions, longFileContext } }));
 
   await metadataWrites;
   if (result.runtimeState && result.sessionId && result.sessionKind) {
     await onSessionStarted({ sessionId: result.sessionId, sessionKind: result.sessionKind, threadId: result.threadId });
   }
   if (result.contextUsage) await onContextUsage(result.contextUsage);
+  if (request.resourceContinuation && result.success && (!boundSessionId || (result.threadId || result.sessionId) !== boundSessionId)) {
+    throw new Error('接续未确认原生 Session 身份，保留现场');
+  }
   if (!result.success) {
     throw new Error(result.error || `${adapter.displayName} execution failed`);
   }
@@ -318,7 +332,7 @@ export const executeViaLocalHarness = async (
   }
 
   return {
-    output: result.output || `${adapter.displayName} completed`,
+    output: await submitRunnerResourceRequest({ request, taskRunId, participantId, participant, output: result.output || `${adapter.displayName} completed` }),
     filesModified: result.filesModified ?? [],
     executionTime: result.executionTime,
     liveStreaming: result.liveStreaming ?? false,

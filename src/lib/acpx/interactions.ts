@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma';
-import type { HarnessInteractionRequestKind } from './types';
+import type { HarnessInteractionRequest, HarnessInteractionRequestKind } from './types';
 import { cancelInProcessApproval } from './in-process-approvals';
 import path from 'node:path';
+import { realpathSync, statSync } from 'node:fs';
+import type { ResourceInput } from '../task-resources/model';
 
 const stringifyJson = (value?: Record<string, unknown> | Array<unknown> | null) =>
   value ? JSON.stringify(value) : null;
@@ -32,19 +34,82 @@ const parseJsonArray = (value?: string | null) => {
   }
 };
 
+export const nativePermissionResources = (request: Pick<HarnessInteractionRequest, 'nativePermission'>): ResourceInput[] | null => {
+  const native = request.nativePermission;
+  if (!native || native.method === 'item/commandExecution/requestApproval') return [];
+  if (native.method === 'item/fileChange/requestApproval') {
+    return native.grantRoot && path.isAbsolute(native.grantRoot) ? [{ path: native.grantRoot, access: 'write' }] : null;
+  }
+  if (native.method !== 'item/permissions/requestApproval') return null;
+  const permissions = native.permissions;
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) return null;
+  // Additional permission kinds (including network expansion) have no directory grant semantics.
+  if (Object.keys(permissions).some(key => key !== 'fileSystem' && !(key === 'network' && (permissions as Record<string, unknown>)[key] == null))) return null;
+  const fs = (permissions as Record<string, unknown>).fileSystem;
+  if (!fs || typeof fs !== 'object' || Array.isArray(fs) || Object.keys(fs).some(key => !['read', 'write', 'entries', 'globScanMaxDepth'].includes(key))) return null;
+  const resources: ResourceInput[] = [];
+  const entries = (fs as Record<string, unknown>).entries;
+  if (entries != null) {
+    if (!Array.isArray(entries)) return null;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== 'object' || Object.keys(entry).some(key => !['access', 'path'].includes(key))
+        || !['read', 'write'].includes(entry.access) || !entry.path || entry.path.type !== 'path'
+        || Object.keys(entry.path).some(key => !['type', 'path'].includes(key))
+        || typeof entry.path.path !== 'string' || !path.isAbsolute(entry.path.path)) return null;
+      resources.push({ path: entry.path.path, access: entry.access });
+    }
+  }
+  for (const access of ['read', 'write'] as const) {
+    const paths = (fs as Record<string, unknown>)[access];
+    if (paths == null) continue;
+    if (!Array.isArray(paths) || paths.some(value => typeof value !== 'string' || !path.isAbsolute(value))) return null;
+    resources.push(...paths.map(value => ({ path: value as string, access })));
+  }
+  return resources.length ? resources : null;
+};
+
+const canonicalPath = (value: string): string => {
+  try { return realpathSync(value); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    const parent = path.dirname(value);
+    if (parent === value) throw error;
+    return path.join(canonicalPath(parent), path.basename(value));
+  }
+};
+
+export const permissionResourceDirectory = (value: string): string => {
+  let candidate = value;
+  for (;;) {
+    try {
+      return statSync(candidate).isDirectory() ? realpathSync(candidate) : realpathSync(path.dirname(candidate));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      const parent = path.dirname(candidate);
+      if (parent === candidate) throw error;
+      candidate = parent;
+    }
+  }
+};
+
 export const isPermissionRequestWithinBoundary = (args: {
   kind: string;
   title?: string;
   rawContent: string;
+  nativePermission?: HarnessInteractionRequest['nativePermission'];
   workspaceBoundary?: string;
+  writableRoots?: string[];
+  readableRoots?: string[];
 }) => {
-  if (args.kind !== 'permission_request'
-    || args.title !== 'Codex 请求修改文件'
-    || !args.workspaceBoundary) return true;
-  const requestedPath = args.rawContent.split('\n')[0];
-  if (!requestedPath?.startsWith('/')) return true;
-  const relative = path.relative(args.workspaceBoundary, path.resolve(requestedPath));
-  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+  if (args.kind !== 'permission_request') return true;
+  const resources = nativePermissionResources(args);
+  if (!resources) return false;
+  const writes = args.writableRoots ?? (args.workspaceBoundary ? [args.workspaceBoundary] : []);
+  try {
+    return resources.every(resource => (resource.access === 'write' ? writes : [...writes, ...(args.readableRoots || [])]).some(root => {
+      const relative = path.relative(canonicalPath(root), canonicalPath(resource.path));
+      return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+    }));
+  } catch { return false; }
 };
 
 export type TaskRunInteractionRequestStatus =

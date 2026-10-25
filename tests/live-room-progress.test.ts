@@ -10,6 +10,7 @@ async function main() {
   const tools: string[] = [], updates: string[] = [];
   FeishuProgressTracker.prototype.onToolEvent = name => { tools.push(name); };
   FeishuProgressTracker.prototype.onSystemEvent = message => { updates.push(message); };
+  FeishuProgressTracker.prototype.setReplyContent = async () => {};
   FeishuProgressTracker.prototype.finalize = async () => null;
   const progress = await attachLiveRoomProgress({room:{id:'room'},participant:{id:'agy',displayName:'Antigravity',harnessType:'codex'},sourceMessage:{}});
   try {

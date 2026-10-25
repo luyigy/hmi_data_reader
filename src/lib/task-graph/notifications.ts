@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { redactSensitiveText } from '../redact-sensitive';
 
@@ -22,9 +23,9 @@ function parseNotification(value: unknown): GraphNotification {
   }
 }
 
-export async function queueGraphNotification(runId: string, identity: string, notification: GraphNotification) {
+export async function queueGraphNotification(runId: string, identity: string, notification: GraphNotification, db: Pick<Prisma.TransactionClient, 'taskGraphEvent'> = prisma) {
   const idempotencyKey = `notification:${createHash('sha256').update(identity).digest('hex')}`;
-  return prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey } }, update: {},
+  return db.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey } }, update: {},
     create: { runId, idempotencyKey, kind: 'notification_requested', payload: notification } });
 }
 

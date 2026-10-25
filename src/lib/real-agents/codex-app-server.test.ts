@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { AgentReplyState, type AgentMessageInfo } from '../agent-reply-state';
 import { chmod, mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -112,6 +113,12 @@ while IFS= read -r line; do
     if [[ "$CODEX_FIXTURE_MODE" == "approval" ]]; then
       echo '{"id":99,"method":"item/commandExecution/requestApproval","params":{"command":"npm test","reason":"test"}}'
     elif [[ "$CODEX_FIXTURE_MODE" != "hang" ]]; then
+      echo '{"method":"turn/started","params":{"threadId":"thread-new","turn":{"id":"turn-1"}}}'
+      echo '{"method":"item/reasoning/summaryTextDelta","params":{"threadId":"thread-new","turnId":"turn-1","itemId":"r1","summaryIndex":0,"delta":"Public progress."}}'
+      echo '{"method":"item/reasoning/textDelta","params":{"threadId":"thread-new","turnId":"turn-1","itemId":"r1","delta":"RAW_CONTENT_MUST_NOT_DISPLAY"}}'
+      echo '{"method":"item/completed","params":{"threadId":"thread-new","turnId":"turn-1","item":{"type":"reasoning","id":"r1","summary":["Public progress."],"content":["RAW_CONTENT_MUST_NOT_DISPLAY"]}}}'
+      echo '{"method":"item/reasoning/summaryTextDelta","params":{"threadId":"other-thread","turnId":"turn-1","itemId":"r2","summaryIndex":0,"delta":"WRONG_THREAD"}}'
+      echo '{"method":"item/reasoning/summaryTextDelta","params":{"threadId":"thread-new","turnId":"old-turn","itemId":"r3","summaryIndex":0,"delta":"OLD_TURN"}}'
       echo '{"method":"item/started","params":{"item":{"type":"agentMessage"}}}'
       echo '{"method":"item/agentMessage/delta","params":{"delta":"done"}}'
       echo '{"method":"thread/tokenUsage/updated","params":{"threadId":"thread-new","turnId":"turn-1","tokenUsage":{"last":{"inputTokens":50000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":52500},"total":{"inputTokens":50000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":52500},"modelContextWindow":100000}}}'
@@ -137,6 +144,7 @@ done
   const telemetryOrder: string[] = [];
   const newThreadUsage: Array<{ threadId: string }> = [];
   const quotaEvents: Array<{ snapshot: boolean }> = [];
+  const display: { text: string; message?: AgentMessageInfo }[] = [];
   const newThread = await runCodexAppServer({
     prompt: 'new',
     workingDirectory: linkedCwd,
@@ -153,6 +161,7 @@ done
       telemetryOrder.push('thread');
     },
     streamCallbacks: {
+      onStdoutChunk: (text, message) => { display.push({ text, message }); },
       onCodexTokenUsage: (usage) => {
         telemetryOrder.push('usage');
         newThreadUsage.push(usage);
@@ -162,6 +171,11 @@ done
   });
   assert.equal(newThread.threadId, 'thread-new');
   assert.equal(newThread.output, 'done');
+  const projected = new AgentReplyState();
+  display.forEach(item => projected.append(item.text, item.message));
+  assert.equal(projected.view().process.split('Public progress.').length - 1, 1, 'Completion snapshots must not duplicate streamed summaries');
+  assert.doesNotMatch(JSON.stringify(display), /RAW_CONTENT_MUST_NOT_DISPLAY|WRONG_THREAD|OLD_TURN/);
+  assert.ok(display.some(item => item.message?.phase === 'reasoning_summary' && item.message.operation === 'replace'));
   assert.ok(spawnedPid && spawnedPid > 0);
   assert.deepEqual(newThreadUsage.map((usage) => usage.threadId), ['thread-new']);
   assert.deepEqual(telemetryOrder, ['thread', 'usage']);

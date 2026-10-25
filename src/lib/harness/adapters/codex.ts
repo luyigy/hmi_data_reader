@@ -46,16 +46,18 @@ const innerSandboxMode = (context: HarnessExecutionContext) =>
     : context.permissionConfig?.sandboxMode;
 
 function prepareCodexInvocationContext(context: HarnessExecutionContext) {
+  const boundary = resolveWorkflowCodexBoundary(context.permissionConfig, context.workingDirectory, context.codexHome);
   return {
     workingDirectory: context.workingDirectory,
     workspaceRoot: context.workspaceRoot,
     extraWritableRoots: context.extraWritableRoots,
-    readOnlyPaths: codexReadOnlyPaths(context.extraReadOnlyPaths),
     networkAccess: context.networkAccess,
     codexHome: context.codexHome,
     sandboxMode: innerSandboxMode(context),
     approvalPolicy: context.permissionConfig?.approvalPolicy,
-    ...resolveWorkflowCodexBoundary(context.permissionConfig, context.workingDirectory, context.codexHome),
+    ...boundary,
+    readOnlyPaths: context.extraReadOnlyPaths?.length || boundary?.readOnlyPaths
+      ? Array.from(new Set([...(codexReadOnlyPaths(context.extraReadOnlyPaths) || []), ...(boundary?.readOnlyPaths || [])])) : undefined,
     sandbox: context.sandbox,
   };
 }

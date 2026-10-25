@@ -103,6 +103,7 @@ export interface AcpxParticipantRequest {
 }
 
 export interface AcpxRunRequest {
+  resourceContinuation?: { approvalId: string; revision: number };
   graphReview?: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string };
   graphExecution?: { executionId: string; claimToken: string; revision: number; inputIds?: string[] };
   graphConversation?: { executionId: string; reservationId: string; inputIds: string[] };
@@ -165,9 +166,10 @@ export interface HarnessSubagentEvent {
 }
 
 export interface HarnessStreamCallbacks {
+  onRunStarted?: (taskRunId: string) => Promise<void> | void;
   // Present only for executions whose owner supports running-message delivery.
   onSteeringReady?: (steer: HarnessSteer) => () => void;
-  onStdoutChunk?: (chunk: string) => Promise<void> | void;
+  onStdoutChunk?: (chunk: string, message?: import('../agent-reply-state').AgentMessageInfo) => Promise<void> | void;
   onStderrChunk?: (chunk: string) => Promise<void> | void;
   onToolEvent?: (event: HarnessToolEvent) => Promise<void> | void;
   onSubagentEvent?: (event: HarnessSubagentEvent) => Promise<void> | void;
@@ -185,6 +187,12 @@ export interface HarnessStreamCallbacks {
 export type HarnessSteer = (messageId: string, message: string) => Promise<'accepted' | 'rejected' | 'unknown'>;
 
 export interface HarnessInteractionRequest {
+  nativePermission?: {
+    method: string;
+    scope: 'operation' | 'turn';
+    grantRoot?: string;
+    permissions?: unknown;
+  };
   kind: HarnessInteractionRequestKind;
   message: string;
   rawContent: string;

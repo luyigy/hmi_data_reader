@@ -1,4 +1,6 @@
 import { attachLiveRoomStructuredOutput } from '@/lib/live-room-raw-output';
+import { AgentReplyState } from './agent-reply-state';
+import { bindTurnCardRun, prepareRoomTurnCard, publishTurnCard } from './feishu-turn-card';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import {
   PROGRESS_HEARTBEAT_MS,
@@ -26,8 +28,10 @@ export const attachLiveRoomProgress = async ({
 }: {
   room: { id: string };
   participant: { id: string; displayName: string; harnessType: string | null };
-  sourceMessage: { metadata?: string | null };
+  sourceMessage: { id?: string; metadata?: string | null };
 }) => {
+  const durable = sourceMessage.id ? await prepareRoomTurnCard(sourceMessage.id, participant.id) : null;
+  const publisher = durable ? (card: Record<string, unknown>, final: boolean) => publishTurnCard(durable.identity, card, final) : undefined;
   const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
   const metadataChatId = typeof sourceMetadata?.feishuChatId === 'string'
     ? sourceMetadata.feishuChatId
@@ -37,8 +41,8 @@ export const attachLiveRoomProgress = async ({
   const metadataBindingId = typeof sourceMetadata?.feishuBindingId === 'string'
     ? sourceMetadata.feishuBindingId
     : null;
-  let originBinding: { chatId: string; threadId: string | null; rootMessageId: string | null } | null = null;
-  if (metadataBindingId) {
+  let originBinding: { chatId: string; threadId: string | null; rootMessageId: string | null } | null = durable?.binding || null;
+  if (!originBinding && metadataBindingId) {
     const byId = await prisma.feishuConversationBinding.findUnique({
       where: { id: metadataBindingId },
       select: { chatId: true, threadId: true, rootMessageId: true, liveRoomId: true },
@@ -64,6 +68,8 @@ export const attachLiveRoomProgress = async ({
     return attachLiveRoomStructuredOutput({
       progressTarget,
       displayName: participant.displayName,
+      publisher,
+      onRunStarted: durable ? runId => bindTurnCardRun(durable.identity, runId) : undefined,
       onHeartbeat: async () => {
         await postLiveRoomMessage({
           roomId: room.id,
@@ -78,7 +84,7 @@ export const attachLiveRoomProgress = async ({
       },
     });
   }
-  const progressTracker = progressTarget ? new FeishuProgressTracker(progressTarget) : null;
+  const progressTracker = progressTarget ? new FeishuProgressTracker(progressTarget, undefined, participant.displayName, publisher) : null;
   const relayOrigin = {
     feishuBindingId: sourceMetadata?.feishuBindingId,
     feishuChatId: sourceMetadata?.feishuChatId,
@@ -91,6 +97,8 @@ export const attachLiveRoomProgress = async ({
   let lastThinkingPreview = '';
   let pendingThinkingText = '';
   let thinkingTimer: ReturnType<typeof setTimeout> | undefined;
+  const reply = new AgentReplyState();
+  let speechBoundary = false;
 
   const postProgress = (content: string, systemEvent: string, extras: Record<string, unknown>) => {
     flushPromise = flushPromise.then(() => postLiveRoomMessage({
@@ -142,6 +150,7 @@ export const attachLiveRoomProgress = async ({
   };
 
   const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }) => {
+    speechBoundary = true;
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
     const now = Date.now();
@@ -163,8 +172,17 @@ export const attachLiveRoomProgress = async ({
   };
 
   const streamCallbacks: HarnessStreamCallbacks = {
+    onRunStarted: durable ? runId => bindTurnCardRun(durable.identity, runId) : undefined,
     ...(shouldRelayLiveRoomStdoutProgress(participant.harnessType)
-      ? { onStdoutChunk: enqueueThinkingUpdate }
+      ? { onStdoutChunk: (chunk, message) => {
+        if (chunk) {
+          reply.append((!message && speechBoundary ? '\n\n' : '') + chunk, message);
+          speechBoundary = false;
+          const view = reply.view();
+          void progressTracker?.setReplyContent(view.latest, view.process, '', view.processEntries).catch(error => console.error('[LiveRoom] reply stream:', error));
+        }
+        if (message?.operation !== 'replace' && message?.phase !== 'final_answer') enqueueThinkingUpdate(chunk);
+      } }
       : {}),
     onToolEvent: enqueueToolUpdate,
     onSubagentEvent: (event) => {
@@ -174,6 +192,7 @@ export const attachLiveRoomProgress = async ({
         : '';
       const output = event.output?.trim();
       const count = event.ordinal && event.limit ? ` ${event.ordinal}/${event.limit}` : '';
+      progressTracker?.onToolEvent(`SubAgent${count}`, `${event.status}：${event.description}${duration}`, '🛠️');
       postProgress(
         `系统提示：${participant.displayName} 的 SubAgent${count} ${event.agentId || event.taskId} ${event.status}：${event.description}${duration}${output ? `\n\n${output}` : ''}`,
         'member_reply_subagent',
@@ -184,6 +203,7 @@ export const attachLiveRoomProgress = async ({
           subagentType: event.subagentType,
           subagentModel: event.model,
           preview: event.description,
+          ...(progressTracker ? { skipFeishuRelay: true } : {}),
         },
       );
     },
@@ -212,7 +232,9 @@ export const attachLiveRoomProgress = async ({
       enqueueThinkingUpdate('');
       clearTimeout(thinkingTimer);
       await flushPromise.catch(() => undefined);
-      await progressTracker?.finalize(summary, success).catch(() => undefined);
+      const view = reply.view(summary);
+      await progressTracker?.setReplyContent(view.latest, view.process, '', view.processEntries).catch(() => undefined);
+      await progressTracker?.finalize(success ? view.final : summary, success).catch(error => console.error('[LiveRoom] final card queued:', error));
     },
   };
 };

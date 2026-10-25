@@ -78,8 +78,9 @@ export const setTaskSessionPermissionOverride = async (args: {
   });
 };
 
-export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessionOptions = {}) => {
-  const task = await prisma.task.findUnique({
+export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessionOptions = {}) => prisma.$transaction(async tx => {
+  await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${taskId} FOR UPDATE`;
+  const task = await tx.task.findUnique({
     where: { id: taskId },
     include: {
       currentTaskSession: true,
@@ -94,13 +95,13 @@ export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessi
     return task.currentTaskSession;
   }
 
-  const existingSession = await prisma.taskSession.findFirst({
+  const existingSession = await tx.taskSession.findFirst({
     where: { taskId },
     orderBy: { createdAt: 'desc' },
   });
 
   if (existingSession) {
-    await prisma.task.update({
+    await tx.task.update({
       where: { id: taskId },
       data: {
         currentTaskSessionId: existingSession.id,
@@ -110,7 +111,7 @@ export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessi
     return existingSession;
   }
 
-  const session = await prisma.taskSession.create({
+  const session = await tx.taskSession.create({
     data: {
       taskId,
       status: 'active',
@@ -122,7 +123,7 @@ export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessi
     },
   });
 
-  await prisma.task.update({
+  await tx.task.update({
     where: { id: taskId },
     data: {
       currentTaskSessionId: session.id,
@@ -130,7 +131,7 @@ export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessi
   });
 
   return session;
-};
+});
 
 export const rotateTaskSession = async (taskId: string, options: EnsureTaskSessionOptions = {}) => {
   const task = await prisma.task.findUnique({

@@ -2,12 +2,15 @@ export type StreamWrite = {
   stream: 'stdout' | 'stderr';
   content: string;
   interactionDetected: boolean;
+  agentMessage?: import('../agent-reply-state').AgentMessageInfo;
 };
 
 export const compactStreamWrites = (writes: StreamWrite[]) =>
   writes.reduce<StreamWrite[]>((compacted, write) => {
     const previous = compacted[compacted.length - 1];
-    if (previous?.stream === write.stream && previous.interactionDetected === write.interactionDetected) {
+    if (previous?.stream === write.stream && previous.interactionDetected === write.interactionDetected &&
+        previous.agentMessage?.operation !== 'replace' && write.agentMessage?.operation !== 'replace' &&
+        JSON.stringify(previous.agentMessage) === JSON.stringify(write.agentMessage)) {
       previous.content += write.content;
     } else {
       compacted.push({ ...write });

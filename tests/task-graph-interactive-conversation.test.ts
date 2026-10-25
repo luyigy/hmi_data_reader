@@ -41,19 +41,19 @@ async function main() {
     if (execution?.node.runId === legacyRunId) {
       if (args.context.permissionConfig?.sandboxMode === 'read-only') {
         const inputs = prompt.split('\n').filter(line => line.startsWith('{"id":')).map(line => JSON.parse(line)).filter(input => !input.history);
-        if (inputs.some(input => input.content === '尺寸材料是42，只检查不要继续')) return { success: true, output: '尺寸材料已收到，先核对。', sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 };
+        if (inputs.some(input => input.content === '尺寸材料是42，只检查不要继续')) return { success: true, output: '尺寸材料已收到，先核对。', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
         const input = inputs.find(input => input.content.includes('尺寸材料'));
-        return { success: true, output: 'TASK_GRAPH_CONVERSATION ' + JSON.stringify({ action: 'resume_implementation', inputIds: [materialInputId || input.id], note: '材料已提供' }), sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 };
+        return { success: true, output: 'TASK_GRAPH_CONVERSATION ' + JSON.stringify({ action: 'resume_implementation', inputIds: [materialInputId || input.id], note: '材料已提供' }), sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
       }
       if (execution.key === 'peer') return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"permission_required","note":"需要额外授权，不得因兄弟材料恢复而放行"}', sessionId: 'peer-native', sessionKind: 'codex_thread', executionTime: 1 };
       legacyTurns++;
       if (legacyTurns === 1) return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"需要尺寸材料"}', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
-      assert.equal(resume, 'legacy-followup', 'Legacy material handoff preserves the original conversation lineage');
+      assert.equal(resume, 'legacy-native', 'Legacy material handoff preserves the original conversation lineage');
       writeFileSync(path.join(args.context.workingDirectory, 'done'), 'legacy fixed');
-      return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"material incorporated","evidence":["done"]}', sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 };
+      return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"material incorporated","evidence":["done"]}', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
     }
     if (args.context.permissionConfig?.sandboxMode === 'read-only' && prompt.includes('FAIL_NATIVE')) return { success: false, error: 'permanent-native-failure', executionTime: 1 };
-    if (args.context.permissionConfig?.sandboxMode === 'read-only') return { success: true, output: '已完成，保留原交付。', sessionId: native + '-followup', sessionKind: 'codex_thread', executionTime: 1 };
+    if (args.context.permissionConfig?.sandboxMode === 'read-only') return { success: true, output: '已完成，保留原交付。', sessionId: native, sessionKind: 'codex_thread', executionTime: 1 };
     const reader = (await prisma.taskGraphExecution.findUnique({ where: { childTaskId: args.task.id } }))?.key === 'reader';
     if (reader) {
       readerTurns++;
@@ -112,7 +112,7 @@ async function main() {
     const done = new AbortController(); done.abort(); await startTaskGraphCoordinator(done.signal);
     const followups = calls.filter(call => call.task === reader.childTaskId && call.readOnly);
     assert.equal(followups[0].session, native);
-    assert.equal(followups[1].session, native + '-followup', 'Second followup resumes native identity returned by first followup');
+    assert.equal(followups[1].session, native, 'Second followup remains in the original native session');
     writeFileSync(path.join(followups[1].directory, 'source'), 'dirty fixed artifact');
     await receiveGraphTaskMessage({ ...answer, sourceId: 'dirty-followup', content: '再问一下状态' });
     await until(async () => (await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_deferred' } })) === 1);

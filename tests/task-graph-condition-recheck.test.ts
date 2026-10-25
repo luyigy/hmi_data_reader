@@ -13,6 +13,7 @@ import { RuntimePreparationError } from '../src/lib/task-graph/runtime-preflight
 import { validationRuntimeDirectory } from '../src/lib/task-graph/acceptance-runtime';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { platformRepository } from '../src/lib/platform-repository';
+import { admitNode } from '../src/lib/task-graph/preparation-recovery';
 import { setGraphRunPaused } from '../src/lib/task-graph/run-control';
 
 async function main() {
@@ -94,7 +95,9 @@ async function main() {
     assert.equal(reviewed.commit, reviewJob.commit); assert.equal(reviewCalls, 1);
     assert.equal(executionProgress(reviewed.dispatchMetadata)?.platformAttempts, 77);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: reviewNode.id, kind: 'node_admitted' } }), 1);
-    // A deployment is a real condition change even when a development server has no BUILD_ID.
+    const legacyReady = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: reviewNode.id, kind: 'execution_conditions_ready' } });
+    await prisma.taskGraphEvent.update({ where: { id: legacyReady.id }, data: { idempotencyKey: 'legacy-global-head-key:' + legacyReady.id } });
+    // Old receipts that hashed platform HEAD still suppress the same semantic conditions.
     await prisma.taskGraphRun.update({ where: { id: reviewRun.id }, data: { status: 'attention' } });
     await prisma.taskGraphNode.update({ where: { id: reviewNode.id }, data: { status: 'attention' } });
     const completed = executionProgress(reviewed.dispatchMetadata)!;
@@ -104,12 +107,17 @@ async function main() {
     assert.equal(reviewCalls, 1, 'Unchanged already-checked conditions do not launch another review');
     gitBoundary.graphGit = async (repository, ...args) => repository === platformRepository() && args.join(' ') === 'rev-parse HEAD'
       ? 'f'.repeat(40) : originalGit(repository, ...args);
+    for (let i = 0; i < 8; i++) { await runTaskGraphCycle(); await drain(); }
+    assert.equal(reviewCalls, 1, 'Unrelated platform HEAD changes must not launch another review');
+    assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: reviewNode.id } })).status, 'attention');
+    const explicit = await admitNode(reviewNode.id, { source: 'operator', id: 'explicit-review-recovery' });
+    assert.equal(explicit.kind, 'admitted');
     await until(async () => (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: reviewNode.id } })).status === 'passed');
-    assert.equal(reviewCalls, 2, 'New platform code automatically rechecks and resumes the original acceptance');
+    assert.equal(reviewCalls, 2, 'An explicit targeted recovery still resumes the original acceptance');
     const resumed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: reviewed.id } });
     assert.equal(resumed.commit, reviewJob.commit);
     assert.equal(executionProgress(resumed.dispatchMetadata)?.platformAttempts, 77);
-    console.log('Deployment condition: code revision change resumes exhausted acceptance once without resetting counters or implementation');
+    console.log('Unrelated HEAD change does not resume exhausted acceptance; explicit targeted recovery resumes once without resetting counters');
     console.log('Review conditions: original fixed candidate independently verified after platform repair; historical count 77 retained; implementation not repeated');
     console.log('Conditions: unavailable platform resource launches no model; independent peer delivers; successful recheck reclaims original candidate/worktree despite old count 77; user pause and downstream dependency remain enforced');
   } finally {

@@ -108,6 +108,7 @@ export const executeParticipant = async (
         eventType: `${write.stream}_chunk`,
         stream: write.stream,
         content: write.content,
+        ...(write.agentMessage ? { metadata: { agentMessage: write.agentMessage } } : {}),
       });
     }
     if (writes.some(({ interactionDetected }) => !interactionDetected)) {
@@ -121,13 +122,14 @@ export const executeParticipant = async (
     onSteeringReady: participant.executionBackend === 'platform_local' && (participant.harnessType === 'pi-agent' || participant.harnessType === 'codex')
       && !request.workflowCompletionGate
       ? request.streamCallbacks?.onSteeringReady : undefined,
-    onStdoutChunk: async (chunk) => {
+    onStdoutChunk: async (chunk, agentMessage) => {
       // Only legacy terminal output may carry implicit interaction prompts.
-      const interactionRequest = detectHarnessInteractionRequest(chunk, participant.harnessType);
-      streamWrites.push({ stream: 'stdout', content: chunk, interactionDetected: Boolean(interactionRequest) });
+      const interactionRequest = agentMessage ? null : detectHarnessInteractionRequest(chunk, participant.harnessType);
+      streamWrites.push({ stream: 'stdout', content: chunk, interactionDetected: Boolean(interactionRequest), ...(agentMessage ? { agentMessage } : {}) });
       if (interactionRequest) {
         await handleHarnessInteractionRequest({
           request: interactionRequest,
+          runRequest: request,
           taskId: request.taskId,
           taskRunId,
           participantId,
@@ -139,7 +141,7 @@ export const executeParticipant = async (
 
       if (request.streamCallbacks?.onStdoutChunk) {
         try {
-          await request.streamCallbacks.onStdoutChunk(chunk);
+          await request.streamCallbacks.onStdoutChunk(chunk, agentMessage);
         } catch (error) {
           console.error('[ACPX] request stdout stream callback failed:', error);
         }
@@ -151,6 +153,7 @@ export const executeParticipant = async (
       if (interactionRequest) {
         await handleHarnessInteractionRequest({
           request: interactionRequest,
+          runRequest: request,
           taskId: request.taskId,
           taskRunId,
           participantId,
@@ -207,6 +210,7 @@ export const executeParticipant = async (
       ? async (interactionRequest) => {
           const decision = await handleHarnessInteractionRequest({
             request: interactionRequest,
+            runRequest: request,
             taskId: request.taskId,
             taskRunId,
             participantId,

@@ -1,3 +1,4 @@
+import { prepareRoomTurnCard } from './feishu-turn-card';
 import { prisma } from '@/lib/prisma';
 import {
   enqueueLiveRoomMemberExecution,
@@ -39,6 +40,7 @@ const enqueuePreparedLiveRoomDelivery = async ({
   chainDepth,
   relayOrigin,
   waitForCompletion,
+  hasTurnCard = false,
 }: {
   deliveryId: string;
   roomId: string;
@@ -47,6 +49,7 @@ const enqueuePreparedLiveRoomDelivery = async ({
   chainDepth: number;
   relayOrigin: { feishuBindingId?: string; feishuChatId?: string };
   waitForCompletion: boolean;
+  hasTurnCard?: boolean;
 }) => {
   const queued = hasLiveRoomMemberExecution(targetMember.id);
 
@@ -76,6 +79,7 @@ const enqueuePreparedLiveRoomDelivery = async ({
         extras: {
           ...relayOrigin,
           systemEvent: 'member_reply_queued',
+          skipFeishuRelay: hasTurnCard,
           deliveryId,
         },
       }),
@@ -296,6 +300,8 @@ export const triggerLiveRoomAgentReply = async ({
       return;
     }
 
+    const card = targetMember.backend === 'platform_local' && ['codex', 'pi-agent', 'kimi-code', 'antigravity'].includes(targetMember.harnessType || '')
+      ? await prepareRoomTurnCard(sourceMessage.id, targetMember.id) : null;
     await enqueuePreparedLiveRoomDelivery({
       deliveryId: delivery.id,
       roomId: room.id,
@@ -304,6 +310,7 @@ export const triggerLiveRoomAgentReply = async ({
       chainDepth,
       relayOrigin,
       waitForCompletion,
+      hasTurnCard: Boolean(card),
     });
   };
   if (localSteering) await dispatchLocalSteeringOnce(roomMessageId, targetMember.id, dispatch);

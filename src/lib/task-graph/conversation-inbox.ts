@@ -5,16 +5,19 @@ import { prisma } from '../prisma';
 import { executionProgress, metadataWithProgress } from './execution-progress';
 import { observeExecutionWriter } from './phase-worker';
 import type { HarnessSteer } from '../acpx/types';
+import { registerHarnessSteering } from '../acpx/steering-registry';
 import { observeTaskRunWriter } from './writer-ownership';
 import { syncGraphConversationMaterials } from './conversation-materials';
+import { resolveConversationTarget, parseConversationTarget, assertConversationTargetRun, isImplementationInput, conversationTargetKey, type ConversationTarget } from './conversation-target';
+import { queueGraphNotification } from './notifications';
 
-export type ConversationInput = { id: string; executionId: string; sourceId: string; actorId: string; content: string;
+export type ConversationInput = { id: string; executionId: string; sourceId: string; actorId: string; content: string; target?: ConversationTarget;
   rootInputId: string; actorOrigin: 'feishu' | 'platform' | 'room'; sourceMetadata: string | null; roomMessageId?: string; receivedPhase: string; receivedState: string };
 function parseInput(id: string, raw: Prisma.JsonValue): ConversationInput {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || typeof raw.executionId !== 'string' || typeof raw.sourceId !== 'string' ||
     typeof raw.actorId !== 'string' || typeof raw.content !== 'string' || typeof raw.receivedPhase !== 'string' || typeof raw.receivedState !== 'string') throw new Error('Invalid conversation input');
   return { id, rootInputId: typeof raw.rootInputId === 'string' ? raw.rootInputId : id, executionId: raw.executionId, sourceId: raw.sourceId, actorId: raw.actorId, content: raw.content,
-    actorOrigin: raw.actorOrigin === 'feishu' || raw.actorOrigin === 'platform' ? raw.actorOrigin : 'room',
+    target: parseConversationTarget(raw.target), actorOrigin: raw.actorOrigin === 'feishu' || raw.actorOrigin === 'platform' ? raw.actorOrigin : 'room',
     sourceMetadata: typeof raw.sourceMetadata === 'string' ? raw.sourceMetadata : null,
     ...(typeof raw.roomMessageId === 'string' ? { roomMessageId: raw.roomMessageId } : {}), receivedPhase: raw.receivedPhase, receivedState: raw.receivedState };
 }
@@ -53,10 +56,16 @@ export async function receiveGraphTaskMessageTx(tx: Prisma.TransactionClient, ar
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
   const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: original.id }, include: { node: { include: { run: true } } } });
   const progress = executionProgress(job.dispatchMetadata);
+  const key = `conversation-input:${job.id}:${args.sourceId}`;
+  if (await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: key } } })) return true;
+  const target = await resolveConversationTarget(tx, job, args.sourceMetadata);
+  if (target.kind === 'unresolved') await queueGraphNotification(job.node.runId, `${key}:target-question`, {
+    kind: 'child_progress', childTaskId: args.taskId, eventKey: `${key}:target-question`, text: target.reason,
+  }, tx);
   await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: job.node.runId,
     idempotencyKey: `conversation-input:${job.id}:${args.sourceId}` } }, update: {}, create: {
     runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input', idempotencyKey: `conversation-input:${job.id}:${args.sourceId}`,
-    payload: { executionId: job.id, sourceId: args.sourceId, actorId: args.actorId, actorOrigin: args.actorOrigin || 'room', content: args.content, sourceMetadata: args.sourceMetadata || null,
+    payload: { executionId: job.id, sourceId: args.sourceId, actorId: args.actorId, actorOrigin: args.actorOrigin || 'room', content: args.content, sourceMetadata: args.sourceMetadata || null, target,
       ...(args.roomMessageId ? { roomMessageId: args.roomMessageId } : {}), receivedPhase: progress?.phase || 'prepare', receivedState: progress?.state || job.status },
   } });
   return true;
@@ -88,6 +97,7 @@ export async function bindConversationInputs(tx: Prisma.TransactionClient, execu
   const pending = await pendingConversationInputs(tx, job.node.runId, job.id);
   for (const id of inputIds) {
     if (!pending.some(input => input.id === id)) throw new Error('Conversation input already claimed or belongs to another task');
+    await assertConversationTargetRun(tx, pending.find(input => input.id === id)!.target, taskRunId);
     await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input_bound',
       idempotencyKey: conversationReceiptKey(id), payload: { executionId, inputId: id, taskRunId, delivery: 'turn' } } });
   }
@@ -99,13 +109,14 @@ export async function completeConversationTurn(executionId: string, taskRunId: s
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
     const run = await tx.taskRun.findUniqueOrThrow({ where: { id: taskRunId } });
-    if (run.taskId !== job.childTaskId || !['completed', 'failed', 'stopped', 'interrupted'].includes(run.status)) throw new Error('Conversation run has no terminal result');
+    const conversation = executionProgress(job.dispatchMetadata)?.conversation;
+    if (!(run.taskId === job.childTaskId || conversation?.kind === 'running' && conversation.taskRunId === run.id) || !['completed', 'failed', 'stopped', 'interrupted'].includes(run.status)) throw new Error('Conversation run has no terminal result');
     await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: `conversation-turn:${taskRunId}:result` } }, update: {}, create: {
       runId: job.node.runId, nodeId: job.nodeId, idempotencyKey: `conversation-turn:${taskRunId}:result`, kind: 'conversation_turn_result',
       payload: { executionId, taskRunId, status: run.status, summary: run.summary } } });
     const progress = executionProgress(job.dispatchMetadata);
     const currentOwner = progress?.conversation?.kind === 'running' ? progress.conversation.taskRunId === run.id : job.taskRunId === run.id && progress?.conversationOwnerRunId === run.id;
-    if (progress && run.status === 'completed' && currentOwner) await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
+    if (progress && run.taskId === job.childTaskId && run.status === 'completed' && currentOwner) await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
       dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, conversationOwnerRunId: taskRunId }) } });
   });
 }
@@ -191,17 +202,19 @@ export async function conversationHistoryPrompt(executionId: string, current: Co
   const events = await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input',
     payload: { path: ['executionId'], equals: executionId } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 50 });
   const currentIds = new Set(current.map(input => input.id));
-  const previous = events.map(event => parseInput(event.id, event.payload)).filter(input => !currentIds.has(input.id)).reverse();
+  const previous = events.map(event => parseInput(event.id, event.payload)).filter(input => !currentIds.has(input.id) &&
+    conversationTargetKey(input.target) === conversationTargetKey(current[0]?.target)).reverse();
   if (!previous.length) return '';
   return '\n本任务已处理的历史输入，可在接续时按 id 引用；无需要求用户重发。\n' +
     previous.map(input => JSON.stringify({ id: input.id, history: true, actor: input.actorId, content: input.content,
       receivedPhase: input.receivedPhase, receivedState: input.receivedState, sourceMetadata: input.sourceMetadata })).join('\n').slice(-20_000);
 }
 
-export async function conversationInputs(executionId: string) {
+export async function conversationInputs(executionId: string, implementationOnly = false) {
   return prisma.$transaction(async tx => {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
-    return pendingConversationInputs(tx, job.node.runId, executionId);
+    const inputs = await pendingConversationInputs(tx, job.node.runId, executionId);
+    return implementationOnly ? inputs.filter(isImplementationInput) : inputs;
   });
 }
 
@@ -213,7 +226,7 @@ export async function sealConversationTurn(executionId: string, claimToken: stri
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
     const progress = executionProgress(job.dispatchMetadata);
     if (!progress || job.claimToken !== claimToken || job.status !== 'claimed') throw new Error('Conversation turn ownership changed');
-    const pending = await pendingConversationInputs(tx, job.node.runId, job.id);
+    const pending = (await pendingConversationInputs(tx, job.node.runId, job.id)).filter(isImplementationInput);
     const unknown = await tx.taskGraphEvent.findFirst({ where: { runId: job.node.runId, kind: 'conversation_steering_started',
       payload: { path: ['executionId'], equals: job.id }, NOT: { idempotencyKey: { in: (await tx.taskGraphEvent.findMany({
         where: { runId: job.node.runId, kind: 'conversation_steering_result' }, select: { idempotencyKey: true } })).map(event => event.idempotencyKey.replace(/:result$/, '')) } } } });
@@ -270,7 +283,9 @@ export async function authorizedMaterialHandoffInput(input: ConversationInput, t
 export async function reconcileConversationWaits() {
   const jobs = await prisma.taskGraphExecution.findMany({ where: { status: 'attention', node: { status: { in: ['attention', 'claimed'] }, run: { status: { in: ['running', 'attention'] } } } } });
   for (const job of jobs) {
-    const inputs = await pendingConversationInputs(prisma, (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: job.nodeId } })).runId, job.id);
+    const progress = executionProgress(job.dispatchMetadata);
+    if (progress?.phase !== 'implement' || progress.state !== 'waiting_for_user') continue;
+    const inputs = (await pendingConversationInputs(prisma, (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: job.nodeId } })).runId, job.id)).filter(isImplementationInput);
     if (!inputs.length) continue;
     const { admitNode } = await import('./preparation-recovery');
     await admitNode(job.nodeId, { source: 'conversation', id: inputs.map(input => input.id).join(':'),
@@ -286,14 +301,17 @@ export async function handoffConversationMaterials(args: { executionId: string; 
     executionIds: [job.id], reservationId: args.reservationId, expectedRevision: args.expectedRevision });
 }
 
-const steering = new Map<string, { taskRunId: string; send: HarnessSteer }>();
+const steering = new Map<string, { executionId: string; taskRunId: string; send: HarnessSteer }>();
 export function registerConversationSteering(executionId: string, taskRunId: string, send: HarnessSteer) {
-  const owner = { taskRunId, send }; steering.set(executionId, owner);
-  return () => { if (steering.get(executionId) === owner) steering.delete(executionId); };
+  const key = `${executionId}:${taskRunId}`;
+  const handle = registerHarnessSteering(`graph:${key}`, send);
+  const owner = { executionId, taskRunId, send: handle.steer }; steering.set(key, owner);
+  return () => { handle.unregister(); if (steering.get(key) === owner) steering.delete(key); };
 }
 
 export async function deliverConversationSteering() {
-  for (const [executionId, target] of Array.from(steering.entries())) {
+  for (const target of Array.from(steering.values())) {
+    const { executionId } = target;
     const inputs = await conversationInputs(executionId);
     const child = inputs.length ? await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, select: { childTaskId: true } }) : null;
     const materials = child?.childTaskId ? await syncGraphConversationMaterials(child.childTaskId) : '';
@@ -302,7 +320,18 @@ export async function deliverConversationSteering() {
         const original = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId } });
         await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
         const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
-        if (job.status !== 'claimed' || job.taskRunId !== target.taskRunId || executionProgress(job.dispatchMetadata)?.phase !== 'implement') return null;
+        const run = await tx.taskRun.findUnique({ where: { id: target.taskRunId }, include: { taskSession: true } });
+        if (!run || !['running', 'waiting_for_input'].includes(run.status) ||
+          run.taskSession && run.taskSession.activeRunId !== run.id) return null;
+        const progress = executionProgress(job.dispatchMetadata);
+        const owned = job.status === 'claimed' && job.taskRunId === run.id && progress?.phase === 'implement'
+          || progress?.review?.kind === 'running' && progress.review.taskRunId === run.id
+          || progress?.conversation?.kind === 'running' && progress.conversation.taskRunId === run.id;
+        if (!owned || !input.target && run.taskId !== job.childTaskId) return null;
+        try { await assertConversationTargetRun(tx, input.target, run.id); } catch { return null; }
+        if (input.target?.kind === 'session' && input.target.role !== 'implementer' &&
+          input.target.candidateCommit !== (job.commit || progress?.candidateCommit || null)) return null;
+        if (!(await pendingConversationInputs(tx, job.node.runId, job.id)).some(item => item.id === input.id)) return null;
         const key = conversationReceiptKey(input.id) + ':steering';
         if (await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: key } } })) return null;
         await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_steering_started', idempotencyKey: key,

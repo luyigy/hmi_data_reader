@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { finishOwnedTurnCard } from './feishu-turn-card';
 import { prisma } from '@/lib/prisma';
 import {
   removeTypingReaction,
@@ -204,7 +205,10 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
 
   if (message.messageType === 'assistant') {
     const relay = extractAssistantRelayImages(message.content);
-    if (relay.text) {
+    const owned = message.replyToMessageId && message.senderMemberId ? await finishOwnedTurnCard({
+      sourceMessageId: message.replyToMessageId, memberId: message.senderMemberId, bindingId: binding.id,
+    }, { text: relay.text, footnotes: Array.isArray(message.metadata?.footnotes) ? message.metadata.footnotes.filter((line): line is string => typeof line === 'string') : [] }) : false;
+    if (relay.text && !owned) {
       try {
         await sendFeishuInteractiveMessage({
           ...target,
