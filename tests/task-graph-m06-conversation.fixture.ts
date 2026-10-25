@@ -65,6 +65,8 @@ export async function m06ConversationRegression() {
   const runtime = require('../src/lib/task-resources/runtime'), preflight = require('../src/lib/task-graph/runtime-continuity');
   const boundary = require('../src/lib/task-resources/writer-boundary');
   const notices = require('../src/lib/task-graph/feishu');
+  const continuation = require('../src/lib/task-graph/conversation-continuation');
+  const originalContinuation = continuation.conversationContinuation;
   const adapter = getHarnessAdapter('codex')!;
   const saved = { send: api.sendFeishuInteractiveMessage, update: cards.updateFeishuTaskEntryCard, resources: runtime.resourcesForRun,
     prepare: preflight.prepareTaskDeclaredRuntime, writers: boundary.reserveResourceWriters, notice: notices.postGraphChildProgress, execute: adapter.execute, resume: adapter.resume };
@@ -123,6 +125,24 @@ export async function m06ConversationRegression() {
     const beforeLate = updates.length;
     await relayTaskGraphRunReply(runIds[0], true);
     assert.equal(updates.length, beforeLate, 'Late failure must not overwrite the successful retry or the next round');
+    let preparationAttempts = 0;
+    continuation.conversationContinuation = async (...args: Parameters<typeof originalContinuation>) => {
+      if (++preparationAttempts <= 3) throw new Error('Injected failure before TaskRun creation');
+      return originalContinuation(...args);
+    };
+    await receiveGraphTaskMessage({ taskId: task.id, sourceId: 'pre-run', actorId: 'm06-admin', content: '启动前失败后仍应在原卡回答' });
+    const runCount = await prisma.taskRun.count({ where: { taskId: task.id } });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const work = await startConversationFollowups(1); assert.equal(work.length, 1); await work[0].promise;
+      if (attempt < 3) assert.equal(await prisma.taskRun.count({ where: { taskId: task.id } }), runCount);
+      else {
+        const turn = await prisma.taskRun.findFirstOrThrow({ where: { taskId: task.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+        await relayTaskGraphRunReply(turn.id);
+        assert.equal(updates.at(-1)?.id, 'm06-card-3'); assert.match(JSON.stringify(updates.at(-1)?.card), /原会话解释 3/);
+      }
+      assert.equal(sent.length, 3, 'Pre-TaskRun failures and eventual answer share exactly one source card');
+      await prisma.taskGraphEvent.updateMany({ where: { runId: graph.id, kind: 'conversation_followup_reserved' }, data: { createdAt: new Date(Date.now() - 20_000) } });
+    }
     const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
     assert.equal(current.status, 'attention'); assert.equal(current.commit, commit); assert.equal(current.taskRunId, failedStartup.id);
     assert.deepEqual(executionProgress(current.dispatchMetadata)?.lastFailure, progress.lastFailure);
@@ -131,6 +151,7 @@ export async function m06ConversationRegression() {
     assert.equal((await prisma.feishuAdminApproval.findUniqueOrThrow({ where: { id: grant.approval.id } })).status, 'approved');
     console.log('PASS M06: original session, read-only approved Reader, no business preflight/writer claim, three startup retries share one card, next question gets a new card, frozen business state');
   } finally {
+    continuation.conversationContinuation = originalContinuation;
     api.sendFeishuInteractiveMessage = saved.send; cards.updateFeishuTaskEntryCard = saved.update;
     runtime.resourcesForRun = saved.resources; preflight.prepareTaskDeclaredRuntime = saved.prepare; boundary.reserveResourceWriters = saved.writers;
     adapter.execute = saved.execute; adapter.resume = saved.resume; notices.postGraphChildProgress = saved.notice;

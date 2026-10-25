@@ -6,7 +6,7 @@ import { redactSensitiveText } from './redact-sensitive';
 import type { ExecutionProgress } from './task-graph/execution-progress';
 import { boundFeishuCardText } from './feishu-card-markdown';
 
-type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & Partial<Pick<TaskRun, 'startedAt' | 'completedAt'>> & { participants: TaskRunParticipant[]; graphStatus?: string; graphProgress?: ExecutionProgress | null; replyKind?: 'conversation'; graphWorkspace?: { repository: string; executionId: string; branch: string | null; path: string | null } };
+type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & Partial<Pick<TaskRun, 'startedAt' | 'completedAt' | 'controlMetadata'>> & { participants: TaskRunParticipant[]; graphStatus?: string; graphProgress?: ExecutionProgress | null; replyKind?: 'conversation'; graphWorkspace?: { repository: string; executionId: string; branch: string | null; path: string | null } };
 const labels: Record<string, string> = { running: '执行中', waiting_for_input: '等待确认', pending: '等待启动', completed: '执行完成', failed: '执行失败', interrupted: '已中断', stopped: '已停止' };
 const roles: Record<string, string> = { implementer: '实施者', reviewer: '架构审查', tester: '测试验收' };
 const bounded = (content: string, limit: number) => boundFeishuCardText(redactSensitiveText(content), limit);

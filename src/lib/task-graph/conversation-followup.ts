@@ -1,3 +1,4 @@
+import { deliverConversationDeferredCard } from './conversation-deferred-card';
 import { graphGit } from './git-command';
 import { graphRunCanStartTx, requireGraphNodeActiveTx } from './run-control';
 import { createHash } from 'node:crypto';
@@ -179,8 +180,8 @@ export async function startConversationFollowups(capacity: number) {
         create: { runId: reservation.event.runId, nodeId: reservation.job.nodeId, kind: 'conversation_followup_deferred', idempotencyKey: `${reservation.event.id}:deferred`,
           payload: { executionId: reservation.job.id, reason, fingerprint: createHash('sha256').update(reason).digest('hex'), inputIds: reservation.pending.map(input => input.id) } } });
       const bound = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: reservation.event.runId, idempotencyKey: `conversation-followup:${reservation.event.id}:run` } } });
-      if (!bound && reservation.job.childTaskId) await postGraphChildProgress(reservation.job.childTaskId, `conversation:deferred:${reservation.pending[0].rootInputId}`,
-        `本轮会话处理未完成：${reason.slice(0, 300)}。消息和原工作保留；同批输入最多尝试四次，间隔至少15秒，未恢复时由平台核对上述原因。`)
+      if (!bound && reservation.job.childTaskId) await deliverConversationDeferredCard({ taskId: reservation.job.childTaskId,
+        executionId: reservation.job.id, runId: reservation.event.runId, rootInputId: reservation.pending[0].rootInputId, reason })
         .catch(notificationError => console.error('[TaskGraph] conversation defer notification:', notificationError));
     }).finally(async () => {
       await releaseGraphReviewWorker(reservation.job.nodeId, parseReservation(reservation.event.payload).worker.nonce);

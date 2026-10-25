@@ -1,3 +1,4 @@
+import { replyOwnershipRegression } from './task-graph-reply-ownership.fixture';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -137,6 +138,7 @@ async function main() {
     const latestCard = updated.at(-1)?.card;
     assert.equal(await relayTaskGraphRunReply(run.id), false, 'An older TaskRun must not overwrite the current task card');
     assert.deepEqual(updated.at(-1)?.card, latestCard);
+    await replyOwnershipRegression(task.id, node.id, sent, updated);
     console.log('Each TaskRun owns a new topic card; legacy shared cursors migrate, current output updates once, and superseded runs cannot overwrite it');
   } finally {
     api.sendFeishuInteractiveMessage = original.send; cards.updateFeishuTaskEntryCard = original.update; api.replyFeishuMessage = original.reply;

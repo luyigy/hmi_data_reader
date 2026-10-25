@@ -51,7 +51,13 @@ export async function resolveConversationTarget(tx: Prisma.TransactionClient, jo
       ...(typeof source.feishuBindingId === 'string' ? { id: source.feishuBindingId } : {}) } });
     if (!binding) return { kind: 'unresolved', reason: '回复的话题绑定已改变，请回复本任务的角色卡片。' };
     if (source.feishuParentMessageId !== binding.rootMessageId) {
-      const relay = await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, messageId: source.feishuParentMessageId } });
+      const relay = await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, messageId: source.feishuParentMessageId }, orderBy: [{ taskRun: { createdAt: 'desc' } }, { taskRunId: 'desc' }] });
+      if (!relay) {
+        const receipt = await tx.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId, kind: 'conversation_reply_card',
+          AND: [{ payload: { path: ['bindingId'], equals: binding.id } }, { payload: { path: ['messageId'], equals: source.feishuParentMessageId } }] } });
+        const value = receipt?.payload;
+        if (value && typeof value === 'object' && !Array.isArray(value) && typeof value.taskRunId === 'string') return fromRun(value.taskRunId);
+      }
       if (!relay) return { kind: 'unresolved', reason: '无法确认被回复消息的 Agent 会话，请回复执行者或验收者的运行卡片。' };
       return fromRun(relay.taskRunId);
     }

@@ -177,7 +177,8 @@ export const executeParticipant = async (
         await publishTaskRunEvent({ taskId: request.taskId, taskRunId, participantId,
           participant: participantPayload, eventType: 'control_message',
           content: redactSensitiveText(`工具：${event.toolName} · ${event.preview}`),
-          metadata: { kind: 'tool', toolName: event.toolName } });
+          metadata: { kind: 'tool', toolName: event.toolName, ...(event.status ? { status: event.status } : {}),
+            ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}), ...(event.exitCode !== undefined ? { exitCode: event.exitCode } : {}) } });
         await request.streamCallbacks?.onToolEvent?.(event);
       }).catch((error) => console.error('[ACPX] tool event persistence failed:', error));
       return subagentEventWrites;

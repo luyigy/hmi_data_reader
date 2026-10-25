@@ -8,7 +8,7 @@ import { readSessionSize } from '../session-size';
 import { deliverProgressCard } from './progress-card-delivery';
 import { graphNodeForTask } from './task-binding';
 
-async function runBinding(taskId: string) {
+export async function runBinding(taskId: string) {
   const direct = await prisma.feishuConversationBinding.findFirst({
     where: { liveRoom: { sourceTaskId: taskId }, chatType: 'group', rootMessageId: { not: null } }, orderBy: { updatedAt: 'desc' },
   });
@@ -42,6 +42,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
   const changed = await prisma.$transaction(async (tx) => {
     const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext(${`graph-reply-topic:${binding.id}`})) AS locked`;
     if (!lock.locked) return false;
+    const run = await tx.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true, task: { select: { name: true } } } });
     const cursor = await tx.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } });
     if (cursor.bindingId !== binding.id) throw new Error(`Reply target changed for ${run.id}; reconcile the original card`);
     const replyOwner = await conversationReplyOwner(tx, run, binding.id);

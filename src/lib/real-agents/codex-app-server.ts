@@ -1,3 +1,4 @@
+import { completedCodexToolEvent } from './codex-tool-result';
 import type { HarnessSandbox } from '../harness/types';
 import { parseAgentMessageInfo, type AgentMessageInfo } from '../agent-reply-state';
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -353,6 +354,9 @@ const runCodexAppServerProtocol = async (
       const item = message.params.item;
       const info = parseAgentMessageInfo({ id: item.id, phase: item.phase ?? null, operation: 'replace' });
       if (info && typeof item.text === 'string') void options.streamCallbacks?.onStdoutChunk?.(item.text, info);
+    } else if (message.method === 'item/completed') {
+      const toolEvent = completedCodexToolEvent(message.params?.item);
+      if (toolEvent) void options.streamCallbacks?.onToolEvent?.(toolEvent);
     } else if (message.method === 'thread/tokenUsage/updated') {
       const usage = parseCodexTokenUsage(message.params);
       if (usage && options.streamCallbacks?.onCodexTokenUsage) {

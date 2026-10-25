@@ -29,7 +29,7 @@ export async function deliverProgressCard(args: {
   const receiptKey = { runId, idempotencyKey: `notification-message:${hash(identity)}` };
   let receipt = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: receiptKey } });
   let legacySend: { uuid: string; createdAt: Date } | undefined;
-  if (!receipt && args.childTaskId && !args.taskRunId) {
+  if (!receipt && args.childTaskId && !args.taskRunId && !args.replyIdentity) {
     const legacyRequests = await prisma.taskGraphEvent.findMany({ where: { runId, kind: 'notification_requested',
       payload: { path: ['childTaskId'], equals: args.childTaskId } }, orderBy: { createdAt: 'asc' } });
     for (const request of legacyRequests) {

@@ -146,6 +146,9 @@ export interface AcpxLiveEventPayload {
 }
 
 export interface HarnessToolEvent {
+  status?: 'completed' | 'failed';
+  toolCallId?: string;
+  exitCode?: number;
   toolName: string;
   preview: string;
   emoji: string;

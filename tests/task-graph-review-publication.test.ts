@@ -1,3 +1,4 @@
+import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -70,6 +71,21 @@ async function scenario(phase: 'acceptance' | 'architecture') {
     assert.equal(progress.revision, 8); assert.equal(progress.platformAttempts, 1);
     assert.equal(progress.review?.kind, 'ready'); assert.equal(progress.review?.candidateCommit, commit);
     assert.equal(progress.lastFailure?.code, 'review_platform_failure');
+    const platformRun = await prisma.taskRun.findUniqueOrThrow({ where: { id: turn.id }, include: { participants: true } });
+    assert.match(buildRunReplyCard(platformRun, []).header.title.content, /复核执行失败/);
+    assert.doesNotMatch(buildRunReplyCard(platformRun, []).header.title.content, /正式.*未通过/);
+    const formal = await prisma.taskRun.create({ data: { taskId: parent.id, status: 'completed', controlMetadata: JSON.stringify({ graphWriter: writer }),
+      participants: { create: { executionBackend: 'platform_local', gatewayNameSnapshot: 'local', harnessType: 'codex', role: 'tester', status: 'completed', summary: '检查得到不通过结论' } } } });
+    await releaseTaskRunWriter(formal.id, writer.nonce);
+    await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'verifying' } });
+    await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(after.dispatchMetadata, {
+      ...progress, review: { kind: 'running', phase, claimKey: 'formal', taskRunId: formal.id, candidateCommit: commit } }) } });
+    await submitNodeVerification({ ...request, review: { phase, claimKey: 'formal', taskRunId: formal.id, outcome: 'classified' },
+      evidence: { checks: [{ name: 'file', passed: false, evidence: 'Expected field missing' }], summary: '固定候选缺少要求字段' } });
+    const failedReview = await prisma.taskRun.findUniqueOrThrow({ where: { id: formal.id }, include: { participants: true } });
+    assert.equal(failedReview.status, 'completed', 'A failed acceptance verdict is not a native execution failure');
+    assert.match(buildRunReplyCard(failedReview, []).header.title.content, /正式.*未通过/);
+    assert.match(JSON.stringify(buildRunReplyCard(failedReview, [])), /固定候选缺少要求字段/);
     console.log(`PASS ${phase}: real exited writer publishes on one connection in ${Date.now() - started} ms; live/unknown/changed writer and stale claim rejected without ledger writes`);
   } finally {
     if (!exited) { const exit = once(child, 'exit'); child.kill('SIGTERM'); await exit; }

@@ -26,6 +26,7 @@ async function main() {
   process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
   const require = createRequire(__filename); const feishu = require('../src/lib/task-graph/feishu');
   const notices: string[] = []; feishu.postGraphParentProgress = async () => {}; feishu.postGraphChildProgress = async (_task: string, _key: string, text: string) => { notices.push(text); };
+  require('../src/lib/task-graph/conversation-deferred-card').deliverConversationDeferredCard = async (args: { reason: string }) => { notices.push(args.reason); };
   const adapter = getHarnessAdapter('codex')!; const saved = { execute: adapter.execute, resume: adapter.resume };
   const calls: { task: string; session: string | null; directory: string; readOnly: boolean; prompt: string }[] = [];
   const native = 'original-reader-native-session';
