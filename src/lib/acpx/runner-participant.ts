@@ -119,6 +119,7 @@ export const executeParticipant = async (
   let spawnedMetadataWrites = Promise.resolve();
 
   const callbacks: HarnessStreamCallbacks = {
+    onSessionSize: sample => request.streamCallbacks?.onSessionSize?.(sample),
     onSteeringReady: participant.executionBackend === 'platform_local' && (participant.harnessType === 'pi-agent' || participant.harnessType === 'codex')
       && !request.workflowCompletionGate
       ? request.streamCallbacks?.onSteeringReady : undefined,

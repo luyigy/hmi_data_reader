@@ -172,6 +172,7 @@ export const attachLiveRoomProgress = async ({
   };
 
   const streamCallbacks: HarnessStreamCallbacks = {
+    onSessionSize: sample => progressTracker?.setSessionSize(sample),
     onRunStarted: durable ? runId => bindTurnCardRun(durable.identity, runId) : undefined,
     ...(shouldRelayLiveRoomStdoutProgress(participant.harnessType)
       ? { onStdoutChunk: (chunk, message) => {

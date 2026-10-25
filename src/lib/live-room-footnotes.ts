@@ -2,6 +2,7 @@ import { DEFAULT_CONTEXT_WINDOW, readContextUsage, contextUsagePercentage } from
 import type { NormalizedContextUsage } from './harness/types';
 import { readHarnessRuntimeState, formatHarnessRuntimeState } from './harness-runtime-state';
 import { prisma } from './prisma';
+import { formatSessionSize, readSessionSize } from './session-size';
 
 export function formatContextUsage(usage: NormalizedContextUsage | null): string {
   if (!usage) return '上下文：未知（遥测缺失、过期或会话不匹配）';
@@ -36,6 +37,7 @@ export function buildLiveRoomFootnotes(input: {
       : []),
     `${usage?.metricKind === 'turn_input' ? `最近一次模型调用输入 ${usage.usedTokens.toLocaleString('en-US')} / 输出 ${usage.outputTokens?.toLocaleString('en-US') ?? '未提供'} tokens` : '本轮 token 用量未提供'} · 耗时 ${Math.max(0, (now - input.startedAt) / 1000).toFixed(1)}秒`,
     ...(usage ? [`采集时间：${new Date(usage.collectedAt).toISOString()} · ${usage.metricKind} · ${usage.confidence}`] : []),
+    ...formatSessionSize(readSessionSize(input.metadata, { participantId: input.participantId, startedAt: input.startedAt, now })),
   ];
 }
 

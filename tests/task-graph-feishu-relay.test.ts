@@ -21,7 +21,7 @@ async function main() {
   try {
     await prisma.feishuConversationBinding.create({ data: { scopeKey: task.id, liveRoomId: room.id,
       appId: 'test', chatId: 'science-chat', chatType: 'group', rootMessageId: 'child-root', threadId: 'child-thread' } });
-    const run = await prisma.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'running', participants: {
+    const run = await prisma.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'running', startedAt: new Date(), participants: {
       create: { gatewayNameSnapshot: 'Platform Local', runner: 'codex', harnessType: 'codex', harnessNameSnapshot: 'Codex', role: 'implementer', status: 'running' } }, events: { create: [
       { sequence: 1, eventType: 'runner_started', content: '运行开始' },
       { sequence: 2, eventType: 'stdout_chunk', stream: 'stdout', content: '正在实现 S03。' },
@@ -43,6 +43,18 @@ async function main() {
     assert.doesNotMatch(json, /secretvalue/);
     assert.equal(await relayTaskGraphRunReply(run.id), false);
     assert.equal(sent.length, 1, 'History replay must not resend an existing card');
+    const sizeParticipant = await prisma.taskRunParticipant.findFirstOrThrow({ where: { taskRunId: run.id } });
+    const observedAt = Date.now();
+    await prisma.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { updatedAt: new Date(observedAt - 1000) } });
+    await prisma.taskRunParticipant.update({ where: { id: sizeParticipant.id }, data: { controlMetadata: JSON.stringify({
+      lastSessionId: 'size-session', runtimeExecution: { id: 'size-execution', participantId: sizeParticipant.id, startedAt: run.startedAt!.getTime() },
+      sessionSize: { executionId: 'size-execution', sessionId: 'size-session', totalBytes: 21 * 1024 ** 2, deltaBytes: 1024 ** 2, observedAt },
+    }) } });
+    assert.equal(await relayTaskGraphRunReply(run.id), true, 'A size warning refreshes the original card even without output events');
+    assert.equal(updated.at(-1)?.id, 'reply-1');
+    assert.match(JSON.stringify(updated.at(-1)?.card), /21.00 MiB.*本轮新增：\+1.00 MiB/);
+    assert.match(JSON.stringify(updated.at(-1)?.card), /强提醒/);
+    assert.equal(await relayTaskGraphRunReply(run.id), false, 'The same size sample is not repeatedly delivered');
     await prisma.taskRunEvent.create({ data: { taskRunId: run.id, sequence: 4, eventType: 'stdout_chunk', content: '正在检查' } });
     await relayTaskGraphRunReply(run.id);
     assert.equal(replies.length, 0, 'Do not publish unfinished paragraphs');

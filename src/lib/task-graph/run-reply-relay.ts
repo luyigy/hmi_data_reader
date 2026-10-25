@@ -3,6 +3,7 @@ import { queueGraphNotification } from './notifications';
 import { redactSensitiveText } from '../redact-sensitive';
 import { prisma } from '../prisma';
 import { buildRunReplyCard } from './run-reply-card';
+import { readSessionSize } from '../session-size';
 import { deliverProgressCard } from './progress-card-delivery';
 
 async function runBinding(taskId: string) {
@@ -56,7 +57,12 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     const expiredSinceDelivery = requests.some((request) => request.expiresAt && request.expiresAt <= new Date() && request.expiresAt > cursor.updatedAt);
     const execution = await tx.taskGraphExecution.findFirst({ where: { childTask: { liveRooms: { some: { id: binding.liveRoomId } } } },
       select: { id: true, nodeId: true, childTaskId: true, repository: true, worktreePath: true, worktreeBranch: true, node: { select: { runId: true } } } });
-    if (!forceRefresh && !sharedCard && cursor.deliveredSequence === sequence && (cursor.lastStatus === run.status || older && cursor.lastStatus === 'superseded') && !expiredSinceDelivery) {
+    const sizeChanged = run.participants.some(participant => {
+      const sample = readSessionSize(participant.controlMetadata, { participantId: participant.id,
+        startedAt: run.startedAt?.getTime() || participant.startedAt?.getTime() || Date.now() });
+      return sample && sample.observedAt > cursor.updatedAt.getTime();
+    });
+    if (!forceRefresh && !sharedCard && !sizeChanged && cursor.deliveredSequence === sequence && (cursor.lastStatus === run.status || older && cursor.lastStatus === 'superseded') && !expiredSinceDelivery) {
       if (older && cursor.lastStatus !== 'superseded' && !['running', 'pending', 'waiting_for_input'].includes(run.status)) {
         await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded' } });
       }

@@ -45,6 +45,7 @@ export interface HarnessExecutionContext {
   sessionKey?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onContextUsage?: (usage: NormalizedContextUsage) => Promise<void> | void;
+  onSessionSize?: (sample: import('../session-size').SessionSizeSample) => Promise<void> | void;
   onSpawn?: (child: ChildProcess) => void;
   onSessionStarted?: (session: HarnessSessionStarted) => Promise<void> | void;
 }

@@ -1,4 +1,5 @@
 import { turnReplyElements } from './agent-reply-card';
+import { formatSessionSize, type SessionSizeSample } from './session-size';
 import { safeFeishuCard } from './feishu-card-markdown';
 import { PROGRESS_CARD_MIN_MS, sanitizePreview } from '@/lib/acpx/harness-events';
 import { resolveFeishuMessageTarget, sendFeishuInteractiveMessage } from '@/lib/feishu-api';
@@ -33,6 +34,12 @@ export class FeishuProgressTracker {
   private systemEntries: SystemEntry[] = [];
   private replyContent: { text: string; details: string; usage: string; processEntries?: string[] } | null = null;
   private footnotes: string[] = [];
+  private sessionSize?: SessionSizeSample;
+  async setSessionSize(sample: SessionSizeSample): Promise<void> {
+    this.sessionSize = sample;
+    this.flushPromise = this.flushPromise.then(() => this.maybeFlush());
+    await this.flushPromise;
+  }
   setFootnotes(lines: string[]): void { this.footnotes = lines; }
   private lastEditAt = 0;
   private flushTimer?: ReturnType<typeof setTimeout>;
@@ -111,7 +118,7 @@ export class FeishuProgressTracker {
       elements: turnReplyElements({ active, latest: reply?.text || this.latestActivity, final: summary,
         processEntries: reply?.processEntries, processStarted: `开始处理消息 | ${this.displayName}`,
         process, tools: this.entries.map(entry => `${entry.emoji} ${entry.toolName}：${entry.preview}`).join('\n'),
-        footnotes: this.footnotes.length ? this.footnotes : [`耗时 ${this.elapsedText()} · ${reply?.usage || 'Token 用量未提供'}`],
+        footnotes: this.footnotes.length ? this.footnotes : [`耗时 ${this.elapsedText()} · ${reply?.usage || 'Token 用量未提供'}`, ...formatSessionSize(this.sessionSize)],
       }),
     };
   }

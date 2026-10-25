@@ -166,6 +166,7 @@ export interface HarnessSubagentEvent {
 }
 
 export interface HarnessStreamCallbacks {
+  onSessionSize?: (sample: import('../session-size').SessionSizeSample) => Promise<void> | void;
   onRunStarted?: (taskRunId: string) => Promise<void> | void;
   // Present only for executions whose owner supports running-message delivery.
   onSteeringReady?: (steer: HarnessSteer) => () => void;

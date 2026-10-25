@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { HarnessRuntimeState } from './harness/types';
 import { parseJsonObject } from './acpx/runner-metadata';
 import { prisma } from './prisma';
+import { normalizeSessionSize } from './session-size';
 
 interface RuntimeExecution {
   id: string;
@@ -91,7 +92,7 @@ async function updateRuntimeMetadata(participantId: string, patch: (
 export async function beginHarnessRuntimeExecution(participantId: string): Promise<RuntimeExecution> {
   const execution = { id: randomUUID(), participantId, startedAt: Date.now() };
   try {
-    await updateRuntimeMetadata(participantId, () => ({ runtimeExecution: execution, runtimeState: null }));
+    await updateRuntimeMetadata(participantId, () => ({ runtimeExecution: execution, runtimeState: null, sessionSize: null }));
   } catch {
     console.warn('Runtime telemetry: could not initialize execution', participantId);
   }
@@ -119,6 +120,20 @@ export async function persistHarnessRuntimeState(execution: RuntimeExecution, va
   } catch {
     console.warn('Runtime telemetry: could not persist evidence', execution.participantId);
   }
+}
+
+export async function persistSessionSize(execution: RuntimeExecution, value: unknown) {
+  const sample = normalizeSessionSize(value);
+  if (!sample || sample.executionId !== execution.id || sample.observedAt < execution.startedAt || sample.observedAt > Date.now()) return;
+  let accepted = false;
+  await updateRuntimeMetadata(execution.participantId, data => {
+    const current = data.runtimeExecution as RuntimeExecution | undefined;
+    const previous = normalizeSessionSize(data.sessionSize);
+    accepted = current?.id === execution.id && current.completedAt === undefined && data.lastSessionId === sample.sessionId
+      && (!previous || previous.observedAt <= sample.observedAt);
+    return accepted ? { sessionSize: sample } : null;
+  });
+  return accepted;
 }
 
 export function formatHarnessRuntimeState(state: HarnessRuntimeState | null): string {

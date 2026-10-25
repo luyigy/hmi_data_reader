@@ -36,7 +36,10 @@ export function turnReplyElements(args: {
   footnotes: string[]; schema?: '2.0';
 }) {
   const clean = (text: string) => text.replace(/<(?:graph|room)-control>[\s\S]*?<\/(?:graph|room)-control>/g, '').trim();
-  const footer = boundFeishuCardText(redactSensitiveText(args.footnotes.join('\n')), 2000);
+  // Keep the reset reminder visible even when other telemetry exhausts the footer budget.
+  const sizeNote = (line: string) => /^(?:⚠️ )?会话记录/.test(line);
+  const footerLines = [...args.footnotes.filter(sizeNote), ...args.footnotes.filter(line => !sizeNote(line))];
+  const footer = boundFeishuCardText(redactSensitiveText(footerLines.join('\n')), 2000);
   const process = [
     ...(args.processStarted ? [`🚀 ${args.processStarted}`] : []),
     ...(args.processEntries ?? [args.process]).map(clean).filter(Boolean).map(entry => `🧠 思考分析：${entry}`),

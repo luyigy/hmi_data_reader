@@ -28,7 +28,7 @@ import { getHarnessAdapter } from '@/lib/harness';
 import { resolveLocalRuntimeReadOnlyPaths } from './runtime-environments';
 import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
 import { persistContextUsage } from '@/lib/context-usage';
-import { beginHarnessRuntimeExecution, persistHarnessRuntimeState } from '@/lib/harness-runtime-state';
+import { beginHarnessRuntimeExecution, persistHarnessRuntimeState, persistSessionSize } from '@/lib/harness-runtime-state';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { executeRemoteRunnerTask } from '@/lib/remote-harness/runner-executor';
@@ -303,6 +303,12 @@ export const executeViaLocalHarness = async (
     streamCallbacks: harnessCallbacks,
     onSpawn: registerSpawn,
     onContextUsage,
+    onSessionSize: async sample => {
+      await metadataWrites;
+      if (sample.sessionId === boundSessionId && await persistSessionSize(runtimeExecution, sample)) {
+        await callbacks.onSessionSize?.(sample);
+      }
+    },
     onSessionStarted,
   };
   const stageRequest = stageAuthority ? StageExecutionRequest.create({

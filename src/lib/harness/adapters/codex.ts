@@ -5,6 +5,7 @@ import path from 'node:path';
 import { SHARED_ENTRIES } from '@/lib/real-agents/codex-home';
 import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
 import { collectCodexTelemetry } from '@/lib/real-agents/codex-runtime-state';
+import { withCodexSessionSize } from '@/lib/real-agents/codex-session-size';
 
 // Keep the native stream callback at the protocol boundary.
 function contextTelemetry(context: HarnessExecutionContext) {
@@ -92,7 +93,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
     const { executeCodexTask } = await loadCodexAgent();
     const telemetry = contextTelemetry(context);
     const invocation = prepareCodexInvocationContext(context);
-    const result = await executeCodexTask(task, {
+    const result = await withCodexSessionSize({ executionId: context.executionId, codexHome: invocation.codexHome,
+      ephemeral: context.ephemeralSession, onSample: context.onSessionSize }, onSession => executeCodexTask(task, {
       timeout: context.timeout,
       ephemeral: context.ephemeralSession,
       runtimeHome: context.runtimeHome,
@@ -102,14 +104,15 @@ export const codexHarnessAdapter: HarnessAdapter = {
       reasoningEffort: context.reasoningEffort,
       onSpawn: context.onSpawn,
       ...invocation,
-      onThreadStarted: (threadId) => {
-        return context.onSessionStarted?.({
+      onThreadStarted: async (threadId) => {
+        await context.onSessionStarted?.({
           sessionId: threadId,
           sessionKind: 'codex_thread',
           threadId,
         });
+        await onSession(threadId);
       },
-    });
+    }));
 
     const native = result.success ? await collectCodexTelemetry({
       executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
@@ -139,7 +142,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
     const invocation = prepareCodexInvocationContext(context);
 
     try {
-      const result = await resumeCodexSession({
+      const result = await withCodexSessionSize({ executionId: context.executionId, sessionId, codexHome: invocation.codexHome,
+        onSample: context.onSessionSize }, onSession => resumeCodexSession({
         threadId: sessionId,
         prompt: continuationMessage,
         timeout: context.timeout,
@@ -150,14 +154,15 @@ export const codexHarnessAdapter: HarnessAdapter = {
         reasoningEffort: context.reasoningEffort,
         onSpawn: context.onSpawn,
         ...invocation,
-        onThreadStarted: (threadId) => {
-          return context.onSessionStarted?.({
+        onThreadStarted: async (threadId) => {
+          await context.onSessionStarted?.({
             sessionId: threadId,
             sessionKind: 'codex_thread',
             threadId,
           });
+          await onSession(threadId);
         },
-      });
+      }));
 
       const native = await collectCodexTelemetry({
         executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
