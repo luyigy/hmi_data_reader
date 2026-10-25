@@ -3,6 +3,39 @@ import { completeExecutionFailure, executionProgress, type ExecutionProgress, ty
 import { parseImplementationResult } from './implementation-result';
 import { prisma } from '../prisma';
 
+/** Only recorded conversation reservations and worker releases may bridge a wait's revision. */
+async function sameWaitingRevision(job: TaskGraphExecution, saved: ExecutionProgress, current: ExecutionProgress, db: Prisma.TransactionClient) {
+  if (saved.revision === current.revision) return true;
+  if (saved.revision > current.revision) return false;
+  const reservations = await db.taskGraphEvent.findMany({ where: { nodeId: job.nodeId, kind: 'conversation_followup_reserved', AND: [
+    { payload: { path: ['executionId'], equals: job.id } },
+    { payload: { path: ['expectedRevision'], gte: saved.revision, lt: current.revision } },
+  ] }, select: { payload: true } });
+  const turns = new Map<number, string>();
+  for (const { payload } of reservations) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.expectedRevision !== 'number') return false;
+    const worker = payload.worker;
+    if (!worker || typeof worker !== 'object' || Array.isArray(worker) || typeof worker.nonce !== 'string' || turns.has(payload.expectedRevision)) return false;
+    turns.set(payload.expectedRevision, worker.nonce);
+  }
+  const nonces = [...Array.from(turns.values()), ...(saved.worker ? [saved.worker.nonce] : [])];
+  const releases = await db.taskGraphEvent.findMany({ where: { nodeId: job.nodeId, kind: 'phase_worker_released',
+    idempotencyKey: { in: nonces.flatMap(nonce => [`execution-worker-released:${nonce}`, `review-worker-released:${nonce}`]) },
+    OR: [{ payload: { path: ['executionId'], equals: job.id } }, { payload: { path: ['executionIds'], array_contains: [job.id] } }],
+  }, select: { payload: true } });
+  const releasedNonces = new Set(releases.flatMap(({ payload }) => payload && typeof payload === 'object' && !Array.isArray(payload) &&
+    typeof payload.nonce === 'string' ? [payload.nonce] : []));
+  let revision = saved.revision, nonce = saved.worker?.nonce, released = Boolean(saved.workerReleasedAt);
+  while (revision < current.revision) {
+    const next = turns.get(revision);
+    if (next) { nonce = next; released = false; }
+    else if (nonce && !released && releasedNonces.has(nonce)) released = true;
+    else return false;
+    revision++;
+  }
+  return nonce === current.worker?.nonce && released === Boolean(current.workerReleasedAt);
+}
+
 /** Restore only the current wait, never a cause from a previous execution turn. */
 export async function currentWaitCause(job: TaskGraphExecution, progress: ExecutionProgress, db: Prisma.TransactionClient = prisma): Promise<ExecutionFailure | null> {
   const latest = await db.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId, kind: { in: ['execution_outcome', 'implementation_blocked'] },
@@ -16,17 +49,9 @@ export async function currentWaitCause(job: TaskGraphExecution, progress: Execut
     return completeExecutionFailure({ code: result.blockerKind, detail: result.note });
   }
   const saved = executionProgress({ progress: payload.progress });
-  if (!saved || saved.state !== progress.state || saved.candidateCommit !== progress.candidateCommit || saved.taskRunId !== progress.taskRunId) return null;
-  const reservation = progress.conversation ? await db.taskGraphEvent.findUnique({ where: { id: progress.conversation.reservationId } }) : null;
-  const reserved = reservation?.payload;
-  const waitRevision = reserved && typeof reserved === 'object' && !Array.isArray(reserved) && typeof reserved.expectedRevision === 'number'
-    ? reserved.expectedRevision : progress.revision;
-  if (saved.revision !== waitRevision) {
-    // Releasing the wait's phase worker advances the revision without starting a new wait.
-    if (saved.revision + 1 !== waitRevision || !saved.worker || !await db.taskGraphEvent.count({ where: {
-      nodeId: job.nodeId, kind: 'phase_worker_released', idempotencyKey: `execution-worker-released:${saved.worker.nonce}`,
-      payload: { path: ['executionId'], equals: job.id } } })) return null;
-  }
+  if (!saved || saved.state !== progress.state || saved.phase !== progress.phase || saved.workspaceBase !== progress.workspaceBase ||
+      saved.candidateCommit !== progress.candidateCommit || saved.taskRunId !== progress.taskRunId ||
+      !await sameWaitingRevision(job, saved, progress, db)) return null;
   const outcome = payload.outcome;
   if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome)) return null;
   if (outcome.kind === 'waiting_for_user') {
