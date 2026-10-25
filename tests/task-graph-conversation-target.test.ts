@@ -8,6 +8,7 @@ import { getHarnessAdapter } from '../src/lib/harness';
 import { createGraphWriter, releaseTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { reserveConversationFollowup, startConversationFollowups } from '../src/lib/task-graph/conversation-followup';
 import assert from 'node:assert/strict';
+import { m06ConversationRegression } from './task-graph-m06-conversation.fixture';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { ensureGraphRoomParticipants } from '../src/lib/task-graph/conversation-members';
@@ -141,6 +142,7 @@ async function main() {
       assert.doesNotMatch(JSON.stringify(current.dispatchMetadata), new RegExp('conversationOwnerRunId[^,]*' + last.id));
       assert.equal((await startConversationFollowups(1)).length, 0, 'No fresh input means no repeat dispatch');
     } finally { adapter.execute = saved.execute; adapter.resume = saved.resume; }
+    await m06ConversationRegression();
     console.log('Same-model roles are distinct; quoted message stays bound to its original session across queueing and duplicate arrival');
   } finally {
     await prisma.taskGraphRun.delete({ where: { id: graph.id } });

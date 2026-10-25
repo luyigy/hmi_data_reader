@@ -70,6 +70,7 @@ async function approvedScopeChange(job: TaskGraphExecution) {
 }
 
 function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeApproved = false, conversationFinished = false): string | undefined {
+  if (wake.source === 'conditions' && progress.lastFailure?.code === 'agent_capability_missing') return 'agent_capability_unresolved';
   if (progress.state === 'ownership_attention' || progress.lastFailure?.code === 'ownership_mismatch') return 'ownership_unresolved';
   if (progress.conflictRepair || progress.lastFailure?.code === 'integration_conflict') return 'controlled_conflict_required';
   if (progress.conversation && !conversationFinished && !(wake.source === 'materials' && progress.conversation.reservationId === wake.reservationId)) return 'conversation_writer_reserved';

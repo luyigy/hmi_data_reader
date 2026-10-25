@@ -1,3 +1,4 @@
+import { bindConversationReplyIdentity } from './conversation-reply-identity';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { Prisma } from '@prisma/client';
@@ -95,6 +96,7 @@ export async function receiveGraphRoomMessage(roomId: string, roomMessageId: str
 export async function bindConversationInputs(tx: Prisma.TransactionClient, executionId: string, inputIds: string[], taskRunId: string) {
   const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
   const pending = await pendingConversationInputs(tx, job.node.runId, job.id);
+  await bindConversationReplyIdentity(tx, taskRunId, pending.filter(input => inputIds.includes(input.id)).map(input => input.rootInputId));
   for (const id of inputIds) {
     if (!pending.some(input => input.id === id)) throw new Error('Conversation input already claimed or belongs to another task');
     await assertConversationTargetRun(tx, pending.find(input => input.id === id)!.target, taskRunId);
@@ -277,20 +279,6 @@ export async function authorizedMaterialHandoffInput(input: ConversationInput, t
   const chat = metadata && typeof metadata === 'object' && 'feishuChatId' in metadata && typeof metadata.feishuChatId === 'string' ? metadata.feishuChatId :
     (await db.feishuConversationBinding.findFirst({ where: { liveRoom: { sourceTaskId: taskId }, chatType: 'group' }, select: { chatId: true } }))?.chatId;
   return isFeishuAdmin(input.actorId) || !!chat && await isFeishuGroupAdmin(chat, input.actorId);
-}
-
-/** Input remains pending until the original Agent turn binds and seals it. */
-export async function reconcileConversationWaits() {
-  const jobs = await prisma.taskGraphExecution.findMany({ where: { status: 'attention', node: { status: { in: ['attention', 'claimed'] }, run: { status: { in: ['running', 'attention'] } } } } });
-  for (const job of jobs) {
-    const progress = executionProgress(job.dispatchMetadata);
-    if (progress?.phase !== 'implement' || progress.state !== 'waiting_for_user') continue;
-    const inputs = (await pendingConversationInputs(prisma, (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: job.nodeId } })).runId, job.id)).filter(isImplementationInput);
-    if (!inputs.length) continue;
-    const { admitNode } = await import('./preparation-recovery');
-    await admitNode(job.nodeId, { source: 'conversation', id: inputs.map(input => input.id).join(':'),
-      executionIds: [job.id], inputIds: inputs.map(input => input.id) });
-  }
 }
 
 /** A model can hand back only its own material conversation; admission checks the reservation. */

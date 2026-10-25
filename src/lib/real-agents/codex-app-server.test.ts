@@ -1,3 +1,4 @@
+import { completedCodexToolEvent } from './codex-tool-result';
 import assert from 'node:assert/strict';
 import { AgentReplyState, type AgentMessageInfo } from '../agent-reply-state';
 import { chmod, mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
@@ -304,3 +305,8 @@ done
   assert.equal(cancelInProcessApproval('cancel'), false);
   console.log('codex app-server isolation and lifecycle checks passed');
 })();
+
+assert.equal(completedCodexToolEvent({ type: 'commandExecution', status: 'completed', exitCode: 2 })?.status, 'failed');
+assert.equal(completedCodexToolEvent({ type: 'mcpToolCall', status: 'completed', result: { isError: true } })?.status, 'failed');
+assert.equal(completedCodexToolEvent({ type: 'commandExecution', status: 'completed', exitCode: 0, aggregatedOutput: 'failed in prose' })?.status, 'completed');
+assert.equal(completedCodexToolEvent({ type: 'agentMessage', text: 'test failed' }), null);

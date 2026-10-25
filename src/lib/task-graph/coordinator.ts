@@ -6,7 +6,7 @@ import { continuationWorkFingerprint } from './continuation-work';
 import { stopPausedGraphTurns, requireGraphRunActive, graphRunIsPaused } from './run-control';
 import { scheduleVerificationRecovery } from './review-recovery';
 import { recoverPendingReviewRepairs } from './pending-review-repair';
-import { conversationInputs, conversationPrompt, sealConversationTurn, reconcileConversationWaits, deliverConversationSteering, reconcileConversationDeliveries } from './conversation-inbox';
+import { conversationInputs, conversationPrompt, sealConversationTurn, deliverConversationSteering, reconcileConversationDeliveries } from './conversation-inbox';
 import { implementationConversation } from './conversation-session';
 import { startConversationFollowups } from './conversation-followup';
 import { redactSensitiveText } from '../redact-sensitive';
@@ -784,7 +784,6 @@ export async function runTaskGraphCycle() {
   await stopPausedGraphTurns();
   await deliverConversationSteering();
   await reconcileConversationDeliveries();
-  await reconcileConversationWaits();
   for (const recovery of await startConversationRecoveries(recoverTaskGraphNode)) {
     activeVerifications.add(recovery.nodeId);
     const pending = recovery.promise.finally(() => { activeVerifications.delete(recovery.nodeId); inflight.delete(pending); });

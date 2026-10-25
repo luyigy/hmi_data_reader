@@ -89,7 +89,7 @@ export async function resourcesForRun(request: AcpxRunRequest, taskRunId: string
   for (const root of write) if (read.some(r => directoryContains(root, r) || directoryContains(r, root)) || existingRead.some(r => directoryContains(r, root))) throw new Error('补充目录读写范围重叠，需明确独立目录');
   {
     await prisma.$transaction(async tx => {
-      await reserveResourceWriters(tx, taskRunId, participantId, existingWrite, write);
+      if (existingWrite.length || write.length) await reserveResourceWriters(tx, taskRunId, participantId, existingWrite, write);
       for (const id of resolved.approvalIds.slice().sort()) {
         const approval = await lockResourceApproval(tx, id);
         if (approval.status !== 'approved') throw new Error('资源授权已撤销，禁止挂载');

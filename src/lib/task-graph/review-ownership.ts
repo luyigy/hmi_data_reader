@@ -1,3 +1,4 @@
+import { bindPhaseReplyIdentity } from './conversation-reply-identity';
 import { graphRunCanStartTx, requireGraphRunActiveTx } from './run-control';
 import type { Prisma } from '@prisma/client';
 import { observeTaskRunWriter } from './writer-ownership';
@@ -71,6 +72,7 @@ export async function bindGraphReviewTaskRun(tx: Prisma.TransactionClient, args:
   const run = await tx.taskRun.findUniqueOrThrow({ where: { id: taskRunId } });
   await tx.taskRun.update({ where: { id: taskRunId }, data: { controlMetadata: JSON.stringify({ ...JSON.parse(run.controlMetadata || '{}'),
     reviewCandidates: node.executions.map(job => ({ id: job.id, commit: job.commit })) }) } });
+  await bindPhaseReplyIdentity(tx, taskRunId, { nodeId: node.id, phase: args.phase, candidates: node.executions.map(job => [job.id, job.commit, executionProgress(job.dispatchMetadata)?.replyEpoch || null]).sort() });
   await tx.taskGraphEvent.create({ data: { runId: args.runId, nodeId: node.id, kind: 'review_dispatched',
     idempotencyKey: `review-dispatched:${taskRunId}`, payload: { ...args, taskRunId } } });
 }

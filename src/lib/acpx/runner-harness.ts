@@ -189,7 +189,7 @@ export const executeViaLocalHarness = async (
       ? [workspaceRoot, ...(request.extraReadOnlyPaths || [])].flatMap(linkedWorktreeGitDirectories)
       : []),
   ]));
-  const declaredRuntime = output && workspaceRoot ? await prepareTaskDeclaredRuntime({ taskId: request.taskId, taskRunId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
+  const declaredRuntime = !request.graphConversation && output && workspaceRoot ? await prepareTaskDeclaredRuntime({ taskId: request.taskId, taskRunId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
   if (declaredRuntime) { task.description += declaredRuntime.instructions; extraReadOnlyPaths.push(...declaredRuntime.readOnlyPaths); }
   if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
   const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'
@@ -241,7 +241,7 @@ export const executeViaLocalHarness = async (
   return withTaskProjectCapabilities({ taskId: request.taskId, taskRunId, workspace: workspaceRoot || request.workingDirectory || process.cwd(), ...('workflowPermissionSnapshot' in permissionConfig ? { allowedReadOnlyRoots: extraReadOnlyPaths } : {}) }, async capabilities => {
   extraReadOnlyPaths.push(...capabilities.readOnlyPaths);
   task.description += capabilities.instructions;
-  return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
+  return withGraphTaskServices(graphRuntime && !request.graphConversation ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
   const taskEnvironment = { ...(resourceAccess.approvalIds.length ? { AP_RESOURCE_SCOPE: '1' } : {}), ...capabilities.env, ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };

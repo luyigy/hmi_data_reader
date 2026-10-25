@@ -347,6 +347,13 @@ export async function submitNodeVerification(args: {
         kind: args.review.decision ? 'decision_required' : args.review.outcome === 'platform_failure' ? 'platform_failure' : 'protocol_exhausted',
         failure: args.review.decision || { code: args.review.outcome === 'platform_failure' ? 'review_platform_failure' : 'invalid_review_result', detail: args.evidence.summary } });
     }
+    if (args.review && !allPassed) {
+      await tx.taskRunFeishuRelay.updateMany({ where: { taskRunId: args.review.taskRunId }, data: { lastStatus: 'publication_pending' } });
+      const replyRun = await tx.taskRun.findUniqueOrThrow({ where: { id: args.review.taskRunId } });
+      await tx.taskRun.update({ where: { id: replyRun.id }, data: { controlMetadata: JSON.stringify({ ...JSON.parse(replyRun.controlMetadata || '{}'),
+        graphReplyFailure: { kind: args.review.outcome === 'classified' && !args.review.decision ? 'formal_acceptance' : 'review_execution',
+          phase: args.review.phase, evidence: args.evidence.summary } }) } });
+    }
     const updated = await tx.taskGraphNode.update({ where: { id: node.id }, data: { status,
       evidence: args.evidence as unknown as Prisma.InputJsonValue, passedAt: status === 'passed' ? new Date() : undefined } });
     await tx.taskGraphEvent.create({

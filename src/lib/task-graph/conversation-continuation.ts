@@ -15,7 +15,19 @@ export async function conversationContinuation(executionId: string, target?: Con
   if (run.taskId !== target.taskId || run.taskSessionId !== target.taskSessionId) throw new Error('Original conversation identity changed');
   const original = run.participants.find(p => p.role === target.role);
   if (!original) throw new Error('Original conversation participant unavailable');
-  const native = getContinuationSession(original);
+  let native = getContinuationSession(original);
+  if (!native.sessionId && ['failed', 'interrupted', 'stopped'].includes(run.status)) {
+    const requested = JSON.parse(original.controlMetadata || '{}').resumeSessionId;
+    if (typeof requested === 'string' && requested === target.nativeSessionId) {
+      const history = await prisma.taskRunParticipant.findMany({ where: {
+        role: original.role, harnessType: original.harnessType, executionBackend: original.executionBackend,
+        gatewayId: original.gatewayId, agentId: original.agentId,
+        taskRun: { taskId: run.taskId, taskSessionId: run.taskSessionId, createdAt: { lt: run.createdAt } },
+      }, orderBy: { taskRun: { createdAt: 'desc' } } });
+      const prior = history.map(getContinuationSession).find(session => session.sessionId === requested);
+      if (prior) native = prior;
+    }
+  }
   if (!native.sessionId || target.nativeSessionId && native.sessionId !== target.nativeSessionId) throw new Error('原生会话身份不可用；消息已保留，不能改送新会话。');
   const snapshot = job.node.run.snapshot;
   const nodes = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot.nodes : null;

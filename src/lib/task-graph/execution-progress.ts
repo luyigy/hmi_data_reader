@@ -1,3 +1,4 @@
+import { bindPhaseReplyIdentity } from './conversation-reply-identity';
 import { observeTaskRunExit, taskRunExitMatches, type TaskRunExitProof } from './task-run-exit-proof';
 import { requireGraphNodeActiveTx } from './run-control';
 import { parseGraphWriter, type GraphWriter } from './writer-ownership';
@@ -23,6 +24,7 @@ export type ExecutionProgress = {
   workerReleasedAt?: string;
   state: 'active' | 'ready' | 'waiting_for_user' | 'waiting_decision' | 'exhausted' | 'ownership_attention';
   conversationOwnerRunId?: string;
+  replyEpoch?: string;
   waitingMessage?: string;
   waitingKind?: 'question' | 'answered';
   conversation?: { kind: 'reserved'; reservationId: string } | { kind: 'running'; reservationId: string; taskRunId: string };
@@ -93,6 +95,7 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
   if (runtimeDirectory) progress.runtimeDirectory = runtimeDirectory;
   if (value.conflictRepair !== undefined) progress.conflictRepair = parseConflictRepair(value.conflictRepair);
   if (taskRunId) progress.taskRunId = taskRunId;
+  if (value.replyEpoch !== undefined) progress.replyEpoch = optionalText(value.replyEpoch);
   if (value.conversationOwnerRunId !== undefined) progress.conversationOwnerRunId = optionalText(value.conversationOwnerRunId);
   if (value.waitingMessage !== undefined) progress.waitingMessage = optionalText(value.waitingMessage);
   if (value.waitingKind !== undefined) progress.waitingKind = enumeration<'question' | 'answered'>(value.waitingKind, ['question', 'answered']);
@@ -218,6 +221,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     } else if (outcome.kind === 'admitted') {
       if (!admission || !outcome.requestId.trim() || before.state === 'ownership_attention') throw new Error('Invalid admission identity');
       progress.phase = outcome.stage.phase;
+      progress.replyEpoch = outcome.requestId;
       delete progress.lastFailure; delete progress.waitingKind; delete progress.waitingMessage; delete progress.conversation;
       if (outcome.stage.kind === 'review') {
         if (!current.commit || !['architecture', 'acceptance'].includes(before.phase)) throw new Error('Admission requires fixed review candidate');
@@ -362,6 +366,7 @@ export async function bindExecutionTaskRun(tx: Prisma.TransactionClient, args: {
   const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
   const progress = executionProgress(current.dispatchMetadata);
   if (!progress || progress.revision !== args.revision || current.status !== 'claimed' || current.claimToken !== args.claimToken || current.taskRunId) throw new Error('TaskRun execution binding is stale or occupied');
+  await bindPhaseReplyIdentity(tx, taskRunId, { executionId: job.id, phase: 'implement', repair: progress.repairAttempts, epoch: progress.replyEpoch || null });
   await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
     taskRunId, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, { ...progress, taskRunId, conversationOwnerRunId: taskRunId }),
   } });
