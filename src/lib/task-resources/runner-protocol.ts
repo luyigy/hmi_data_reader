@@ -6,7 +6,7 @@ import type { AcpxParticipantRequest, AcpxRunRequest } from '../acpx/types';
 import type { ResourceInput } from './model';
 
 export const resourceRequestInstructions = `
-需要当前任务尚未授权的额外目录时，直接在最终答复输出唯一的结构化申请：
+需要当前任务尚未授权的额外目录时，最终答复只能包含下面这一份结构化申请，不加说明文字或 Markdown 代码围栏：
 <resource-request>{"purpose":"说明用途","resources":[{"path":"/absolute/directory","access":"read"}]}</resource-request>
 access 可为 read 或 write；一次列出已知缺项。平台生成补充授权卡，批准后挂载并继续原会话。
 申请只包含用途和目录，不填写用户、任务或会话身份。输出申请后结束当前轮次，等待平台处理。
@@ -14,12 +14,16 @@ access 可为 read 或 write；一次列出已知缺项。平台生成补充授�
 `;
 
 export function parseResourceRequest(output: string): { purpose: string; resources: ResourceInput[] } | null {
-  const matches = Array.from(output.matchAll(/<resource-request>([\s\S]*?)<\/resource-request>/g));
+  const source = output.trim();
+  // Only a whole-message envelope is a command. Prose, quotes and code examples are conversation.
+  if (!source.startsWith('<resource-request>') || !source.slice('<resource-request>'.length).trimStart().startsWith('{')) return null;
+  const matches = Array.from(source.matchAll(/<resource-request>([\s\S]*?)<\/resource-request>/g));
   if (!matches.length) {
-    if (output.includes('<resource-request>')) throw new Error('资源申请缺少结束标记');
-    return null;
+    throw new Error('资源申请缺少结束标记');
   }
+  if (!source.endsWith('</resource-request>')) return null;
   if (matches.length !== 1) throw new Error('每轮只能提交一份完整的资源申请');
+  if (matches[0][0] !== source) return null;
   const value: unknown = JSON.parse(matches[0][1]);
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).some(key => !['purpose', 'resources'].includes(key)) ||

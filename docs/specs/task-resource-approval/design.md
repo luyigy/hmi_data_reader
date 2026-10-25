@@ -70,7 +70,7 @@ Agent 最终输出：
 <resource-request>{"purpose":"读取参考仓","resources":[{"path":"/data/references","access":"read"}]}</resource-request>
 ```
 
-这是一段运行协议，不是飞书聊天命令。Codex 原生结构化越界请求也复用该入口。没有新增用户身份或授权令牌的模型输入字段。
+这是一段运行协议，不是飞书聊天命令。申请必须独占最终答复，不带说明文字或 Markdown 代码围栏；普通正文、行内引用、引用块和围栏示例中的标记不作为申请。独立 JSON 申请缺少结束标记或字段不合法时仍报协议错误。Codex 原生结构化越界请求也复用该入口。没有新增用户身份或授权令牌的模型输入字段。
 
 - `src/lib/task-resources/access.ts` / `model.ts`：范围、身份、去重、决定和持续授权。
 - `cards.ts` / `delivery.ts`：卡片、版本化编辑及原话题/管理员路由。
