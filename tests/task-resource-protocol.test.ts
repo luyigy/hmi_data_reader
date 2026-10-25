@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parseResourceRequest, submitRunnerResourceRequest } from '../src/lib/task-resources/runner-protocol';
 import { prisma } from '../src/lib/prisma';
 import { AgentProtocolOutput } from '../src/lib/agent-protocol-output';
+import { parseAgentMessageInfo } from '../src/lib/agent-reply-state';
 
 async function main() {
   const value = { purpose: '读取相邻仓库', resources: [{ path: '/tmp/fixture', access: 'read' }] };
@@ -26,6 +27,9 @@ async function main() {
   reclassified.append(command, { id: 'one', phase: null, operation: 'replace' });
   assert.equal(reclassified.finalOutput(command), null, 'An unknown completed phase does not inherit earlier final authority');
   assert.equal(new AgentProtocolOutput().finalOutput(command), command, 'Unphased adapters retain the whole-output contract');
+  const future = new AgentProtocolOutput();
+  future.append(command, parseAgentMessageInfo({ id: 'future', phase: 'future_protocol_phase' }));
+  assert.equal(future.finalOutput(command), null, 'An unrecognized structured phase must not downgrade to legacy action parsing');
   const explanations = [
     '现在资源申请仍通过最终答复里的 `<resource-request>` 解析，交付也有文本标记。这只是过渡实现。',
     '`<resource-request>`',

@@ -6,8 +6,8 @@ export type AgentMessageInfo = {
 
 export function parseAgentMessageInfo(value: unknown): AgentMessageInfo | undefined {
   if (!value || typeof value !== 'object' || !('id' in value) || typeof value.id !== 'string' || !value.id || !('phase' in value)) return;
-  const phase = value.phase;
-  if (phase !== null && phase !== 'commentary' && phase !== 'partial_answer' && phase !== 'final_answer' && phase !== 'reasoning_summary') return;
+  // A future/unknown phase is still a structured message, never legacy unphased output.
+  const phase = value.phase === 'commentary' || value.phase === 'partial_answer' || value.phase === 'final_answer' || value.phase === 'reasoning_summary' ? value.phase : null;
   return { id: value.id, phase, ...('operation' in value && value.operation === 'replace' ? { operation: 'replace' as const } : {}) };
 }
 
