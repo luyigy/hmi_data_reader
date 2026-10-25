@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { buildRunReplyCard } from './run-reply-card';
 import { readSessionSize } from '../session-size';
 import { deliverProgressCard } from './progress-card-delivery';
+import { graphNodeForTask } from './task-binding';
 
 async function runBinding(taskId: string) {
   const direct = await prisma.feishuConversationBinding.findFirst({
@@ -31,7 +32,7 @@ async function runBinding(taskId: string) {
 export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = false) {
   const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId },
     include: { participants: true, task: { select: { name: true } } } });
-  if (!run.taskId.startsWith('task-graph-')) return false;
+  if (!await graphNodeForTask(run.taskId)) return false;
   const binding = await runBinding(run.taskId);
   if (!binding) return false;
   const rootMessageId = binding.rootMessageId;
@@ -105,7 +106,9 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
 }
 
 export async function relayTaskGraphReplies() {
-  const runs = await prisma.taskRun.findMany({ where: { taskId: { startsWith: 'task-graph-' },
+  const runs = await prisma.taskRun.findMany({ where: { AND: [{ OR: [
+    { task: { taskGraphExecutions: { some: {} } } }, { taskId: { startsWith: 'task-graph-' } },
+  ] }],
     NOT: { feishuRelay: { lastStatus: 'superseded' } },
     OR: [{ feishuRelay: null }, { status: { in: ['running', 'waiting_for_input', 'pending'] } },
       { feishuRelay: { lastStatus: { notIn: ['completed', 'failed', 'stopped', 'interrupted'] } } },

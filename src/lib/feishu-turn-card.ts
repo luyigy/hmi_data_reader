@@ -7,6 +7,7 @@ import { resolveFeishuMessageTarget, sendFeishuInteractiveMessage } from './feis
 import { updateFeishuTaskEntryCard } from './feishu-task-entry-api';
 import { safeFeishuCard } from './feishu-card-markdown';
 import { agentReplyElements, turnReplyElements } from './agent-reply-card';
+import { graphNodeForTask } from './task-graph/task-binding';
 
 export type TurnCardIdentity = { sourceMessageId: string; memberId: string; bindingId: string };
 const key = (identity: TurnCardIdentity) => createHash('sha256').update(JSON.stringify([identity.sourceMessageId, identity.memberId, identity.bindingId])).digest('hex').slice(0, 48);
@@ -19,7 +20,7 @@ async function currentOwner() {
 
 export async function prepareRoomTurnCard(sourceMessageId: string, memberId: string) {
   const source = await prisma.liveRoomMessage.findUniqueOrThrow({ where: { id: sourceMessageId }, include: { room: true } });
-  if (source.room.sourceTaskId?.startsWith('task-graph-')) return null;
+  if (await graphNodeForTask(source.room.sourceTaskId)) return null;
   const metadata = JSON.parse(source.metadata || '{}');
   const bindings = await prisma.feishuConversationBinding.findMany({ where: { liveRoomId: source.roomId } });
   const binding = bindings.find(row => row.id === metadata.feishuBindingId) || bindings.find(row => row.chatId === metadata.feishuChatId) || (bindings.length === 1 ? bindings[0] : undefined);
@@ -38,11 +39,12 @@ export async function prepareRoomTurnCard(sourceMessageId: string, memberId: str
 
 export async function reserveTurnCard(identity: TurnCardIdentity) {
   const [source, member, binding] = await Promise.all([
-    prisma.liveRoomMessage.findUniqueOrThrow({ where: { id: identity.sourceMessageId } }),
+    prisma.liveRoomMessage.findUniqueOrThrow({ where: { id: identity.sourceMessageId }, include: { room: { select: { sourceTaskId: true } } } }),
     prisma.liveRoomMember.findUniqueOrThrow({ where: { id: identity.memberId } }),
     prisma.feishuConversationBinding.findUniqueOrThrow({ where: { id: identity.bindingId } }),
   ]);
   if (source.roomId !== member.roomId || source.roomId !== binding.liveRoomId) throw new Error('Reply card recipient or topic changed');
+  if (await graphNodeForTask(source.room.sourceTaskId)) throw new Error('Graph-bound replies belong to the graph conversation');
   const ownerJson = await currentOwner();
   return prisma.feishuTurnCard.upsert({ where: { id: key(identity) }, create: { id: key(identity), ...identity,
     targetJson: JSON.stringify(resolveFeishuMessageTarget(binding)), ownerJson, createdAt: source.createdAt }, update: {} });
@@ -145,7 +147,7 @@ export async function relayPendingTurnCards() {
       if (alive) continue;
       const run = await prisma.taskRun.findUnique({ where: { id: row.taskRunId! }, include: { participants: true } });
       if (!run || !['completed', 'failed', 'stopped', 'interrupted'].includes(run.status)) continue;
-      const { buildRunReplyCard } = await import('./task-graph/run-reply-card');
+      const { buildRunReplyCard } = await import('./task-run-reply-card');
       const events = await prisma.taskRunEvent.findMany({ where: { taskRunId: run.id }, orderBy: { sequence: 'asc' } });
       const card = buildRunReplyCard(run, events.filter(event => !['stdout_chunk', 'stderr_chunk', 'summary'].includes(event.eventType)), [], events.filter(event => event.eventType === 'stdout_chunk'));
       const member = await prisma.liveRoomMember.findUniqueOrThrow({ where: { id: row.memberId } });

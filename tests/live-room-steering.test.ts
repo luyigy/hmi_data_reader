@@ -78,7 +78,8 @@ async function main() {
   });
   Object.assign(prismaModule.prisma as object, {
     liveRoom:{findUnique:async()=>({id:'room'})},
-    liveRoomMessage:{findUnique:async()=>message},
+    liveRoomMessage:{findUnique:async()=>message, findUniqueOrThrow:async()=>({...message, roomId:'room', room:{sourceTaskId:null}})},
+    feishuConversationBinding:{findMany:async()=>[]},
   });
   const unregisterCodex=registerLiveRoomSteering('codex','room','session',async id=>{
     assert.equal(rows.get(id)?.deliveryStatus,'running','claim persisted before injection');

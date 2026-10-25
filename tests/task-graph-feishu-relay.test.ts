@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { prisma } from '../src/lib/prisma';
+import { prepareRoomTurnCard, reserveTurnCard } from '../src/lib/feishu-turn-card';
 import { relayTaskGraphReplies, relayTaskGraphRunReply } from '../src/lib/task-graph/run-reply-relay';
 
 async function main() {
@@ -16,11 +17,22 @@ async function main() {
   let rejectUpdate = false;
   api.sendFeishuInteractiveMessage = async (args: { threadRootMessageId: string; card: unknown }) => { sent.push(args); return `reply-${sent.length}`; };
   cards.updateFeishuTaskEntryCard = async (id: string, card: unknown) => { if (rejectUpdate) throw new Error('update failed'); updated.push({ id, card }); };
-  const task = await prisma.task.create({ data: { id: `task-graph-relay-${randomUUID()}`, name: 'S03 · mold' } });
+  const task = await prisma.task.create({ data: { name: 'S03 · mold' } });
+  const parent = await prisma.task.create({ data: { name: 'Confirmed graph parent' } });
+  const graph = await prisma.taskGraphRun.create({ data: { parentTaskId: parent.id, version: 1,
+    requestKey: randomUUID(), snapshotHash: 'a'.repeat(64), snapshot: {} } });
+  const node = await prisma.taskGraphNode.create({ data: { runId: graph.id, key: 'S03', dependsOn: [], acceptance: 'automatic' } });
+  await prisma.taskGraphExecution.create({ data: { nodeId: node.id, key: 'mold', repository: '/fixture/mold',
+    gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', childTaskId: task.id } });
   const room = await prisma.liveRoom.create({ data: { title: task.name, sourceTaskId: task.id } });
   try {
-    await prisma.feishuConversationBinding.create({ data: { scopeKey: task.id, liveRoomId: room.id,
+    const binding = await prisma.feishuConversationBinding.create({ data: { scopeKey: task.id, liveRoomId: room.id,
       appId: 'test', chatId: 'science-chat', chatType: 'group', rootMessageId: 'child-root', threadId: 'child-thread' } });
+    const member = await prisma.liveRoomMember.create({ data: { roomId: room.id, displayName: 'Graph agent' } });
+    const source = await prisma.liveRoomMessage.create({ data: { roomId: room.id, content: 'Graph topic reply' } });
+    assert.equal(await prepareRoomTurnCard(source.id, member.id), null, 'Real graph binding excludes chat ownership, regardless of task name');
+    await assert.rejects(reserveTurnCard({ sourceMessageId: source.id, memberId: member.id, bindingId: binding.id }), /Graph-bound replies/);
+    assert.equal(await prisma.feishuTurnCard.count({ where: { bindingId: binding.id } }), 0);
     const run = await prisma.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'running', startedAt: new Date(), participants: {
       create: { gatewayNameSnapshot: 'Platform Local', runner: 'codex', harnessType: 'codex', harnessNameSnapshot: 'Codex', role: 'implementer', status: 'running' } }, events: { create: [
       { sequence: 1, eventType: 'runner_started', content: '运行开始' },
@@ -34,7 +46,8 @@ async function main() {
     assert.match(json, /实施者.*Codex/); assert.match(json, /正在实现 S03/); assert.match(json, /运行开始/);
     const progress = sent[0].card as { body: { elements: { tag: string; expanded?: boolean; header?: { title: { content: string } }; elements?: unknown[] }[] } };
     const panels = progress.body.elements.filter(element => element.tag === 'collapsible_panel');
-    assert.equal(panels.length, 3);
+    assert.equal(panels.length, 4);
+    assert.match(JSON.stringify(panels[2]), /工作区与保留条件/);
     assert.equal(panels[0].expanded, false); assert.equal(panels[1].expanded, false);
     assert.match(panels[0].header?.title.content || '', /思考过程/);
     assert.match(panels[1].header?.title.content || '', /工具调用/);
@@ -128,6 +141,8 @@ async function main() {
   } finally {
     api.sendFeishuInteractiveMessage = original.send; cards.updateFeishuTaskEntryCard = original.update; api.replyFeishuMessage = original.reply;
     await prisma.liveRoom.delete({ where: { id: room.id } });
+    await prisma.taskGraphRun.delete({ where: { id: graph.id } });
+    await prisma.task.delete({ where: { id: parent.id } });
     await prisma.task.delete({ where: { id: task.id } });
     await prisma.$disconnect();
   }

@@ -1,5 +1,4 @@
 import { relayGraphOverviews } from '../src/lib/task-graph/overview';
-import { relayPendingTurnCards } from '../src/lib/feishu-turn-card';
 import { relayGraphNotifications } from '../src/lib/task-graph/notifications';
 import { prisma } from '../src/lib/prisma';
 import { relayTaskGraphReplies } from '../src/lib/task-graph/run-reply-relay';
@@ -10,7 +9,6 @@ process.on('SIGINT', () => { stopped = true; });
 process.on('SIGTERM', () => { stopped = true; });
 (async () => {
   while (!stopped) {
-    await relayPendingTurnCards();
     await relayGraphNotifications();
     await relayTaskGraphReplies();
     await relayGraphOverviews();

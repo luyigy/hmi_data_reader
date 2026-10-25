@@ -1,5 +1,6 @@
 import { handleGraphOverviewAction } from '@/lib/task-graph/overview';
 import { cleanupFeishuOwnedStaleTaskRuns } from './feishu-startup-task-cleanup';
+import { startChatCardRecovery } from './feishu-chat-card-runtime';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { startFeishuConnectionSupervisor, stopFeishuConnectionSupervisor } from '@/lib/feishu-connection-supervisor';
 import { prisma } from '@/lib/prisma';
@@ -70,6 +71,8 @@ type FeishuLongConnectionState = {
   lastError?: string;
   startPromise?: Promise<void>;
   messageIds: Map<string, number>;
+  stopCardRecovery?: () => Promise<void>;
+  watchdog?: ReturnType<typeof setInterval>;
 };
 
 const AP_COMMAND_FORMS = {
@@ -757,7 +760,8 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
 
     // Periodic watchdog: reap deliveries stuck in 'running' for > 12 minutes.
     // Extracted to feishu-runtime-cleanup.ts for long-file compliance.
-    startPeriodicWatchdog(prefix);
+    state.watchdog = startPeriodicWatchdog(prefix);
+    state.stopCardRecovery = startChatCardRecovery(prefix);
   })()
     .catch((error) => {
       state.status = 'error';
@@ -794,7 +798,13 @@ export async function startFeishuLongConnectionRuntime() {
  * before the process exits. Must complete within the systemd TimeoutStopSec window.
  */
 export async function shutdownFeishuRuntime() {
+  const state = getState();
   stopFeishuConnectionSupervisor();
+  if (state.watchdog) clearInterval(state.watchdog);
+  await state.stopCardRecovery?.();
+  state.stopCardRecovery = undefined;
+  state.watchdog = undefined;
+  state.status = 'idle';
   console.log('[FeishuRuntime] shutting down — cleaning up in-flight deliveries...');
   try {
     // Kill any running claude/codex child processes tracked in the process registry
