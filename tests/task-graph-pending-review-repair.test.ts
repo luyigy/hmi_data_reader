@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
@@ -10,11 +14,19 @@ import { recoverPendingReviewRepairs } from '../src/lib/task-graph/pending-revie
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
+  const root = mkdtempSync(path.join(tmpdir(), 'pending-review-fixture-'));
+  const git = (repo: string, ...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const repository = (key: string, name: string) => {
+    const directory = path.join(root, key + '-' + name); mkdirSync(directory);
+    git(directory, 'init', '-b', 'main'); git(directory, 'config', 'user.name', 'Test'); git(directory, 'config', 'user.email', 'fixture@example.test');
+    writeFileSync(path.join(directory, 'identity'), key + '/' + name); git(directory, 'add', '.'); git(directory, 'commit', '-m', 'candidate');
+    return { repository: directory, baseCommit: git(directory, 'rev-parse', 'HEAD') };
+  };
   const parent = await prisma.task.create({ data: { name: 'Completed review repair handoff' } });
   const keys = ['AUTO', 'HUMAN', 'INVALID', 'CANDIDATE', 'REVIEW_ALIVE', 'UNKNOWN', 'PHASE_ALIVE', 'EXHAUSTED', 'STALE', 'EVIDENCE'];
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
     specRef: 'test://pending-review-repair', nodes: keys.map(key => ({ key, goal: key, dependsOn: [], acceptance: { mode: 'automatic', checks: ['ticket-behavior'] },
-      executions: ['target', 'sibling'].map(name => ({ key: name, repository: `/tmp/${key}/${name}`, gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', instructions: name })) })) } });
+      executions: ['target', 'sibling'].map(name => ({ key: name, ...repository(key, name), gitRef: 'refs/heads/main', agentSelector: 'local:codex', instructions: name })) })) } });
   const writer = await createGraphWriter();
   const fixtures: { key: string; nodeId: string; targetId: string; siblingId: string; implRunId: string }[] = [];
   try {
@@ -33,10 +45,10 @@ async function main() {
       if (key !== 'REVIEW_ALIVE') await releaseTaskRunWriter(reviewRun.id, writer.nonce);
       if (key === 'UNKNOWN') await prisma.taskRun.update({ where: { id: reviewRun.id }, data: { controlMetadata: '{}' } });
       for (const job of node.executions) {
-        const commit = (job.key === 'target' ? 'b' : 'c').repeat(40);
+        const commit = job.baseCommit;
         await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', commit, claimToken: `original-${job.id}`, taskRunId: implRun.id,
           dispatchMetadata: metadataWithProgress({}, { ...initialExecutionProgress(), revision: 8, phase: 'acceptance', state: key === 'EXHAUSTED' ? 'exhausted' : 'active', candidateCommit: commit,
-            workspaceBase: 'a'.repeat(40), repairAttempts: key === 'AUTO' && job.key === 'sibling' ? 2 : 0, worker: writer, ...(key === 'PHASE_ALIVE' ? {} : { workerReleasedAt: new Date().toISOString() }),
+            workspaceBase: job.baseCommit, repairAttempts: key === 'AUTO' && job.key === 'sibling' ? 2 : 0, worker: writer, ...(key === 'PHASE_ALIVE' ? {} : { workerReleasedAt: new Date().toISOString() }),
             review: { kind: 'running', phase: 'acceptance', claimKey: `review-${node.id}`, taskRunId: reviewRun.id, candidateCommit: key === 'CANDIDATE' ? 'd'.repeat(40) : commit } }), evidence: { preserved: job.id } } });
       }
       const evidence = { summary: 'Independent reviewer found scoped defect', checks: [{ name: 'ticket-behavior', passed: false, evidence: 'Observed required behavior mismatch' }] };
@@ -71,7 +83,7 @@ async function main() {
   } finally {
     await prisma.taskGraphRun.delete({ where: { id: run.id } });
     await prisma.task.deleteMany({ where: { OR: [{ id: parent.id }, { name: { in: ['independent reviewer', 'implementation owner'] } }] } });
-    await prisma.$disconnect();
+    await prisma.$disconnect(); rmSync(root, { recursive: true, force: true });
   }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

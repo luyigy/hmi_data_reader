@@ -1,8 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { isDeepStrictEqual } from 'node:util';
 import { executionProgress } from './execution-progress';
-import { observeExecutionWriter } from './phase-worker';
-import { observeTaskRunWriter } from './writer-ownership';
 import { classifyReview, graphReviewChecks } from './review-contract';
 import type { GraphDefinition } from './domain';
 import type { VerificationEvidence } from './store';
@@ -25,7 +23,7 @@ function verificationEvidence(value: unknown): VerificationEvidence | null {
   return { summary: value.summary, checks };
 }
 
-/** Current execution review bindings, never historical events, identify an unfinished repair handoff. */
+/** Select the current handoff from ledger data only; scheduleGraphRepair proves writer exit outside the transaction. */
 export async function pendingReviewRepairTx(tx: Prisma.TransactionClient, nodeId: string) {
   const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true, run: true } });
   if (node.status !== 'attention' || !['running', 'attention'].includes(node.run.status) || !node.executions.length || node.executions.some(job => job.status !== 'integrated')) return null;
@@ -54,8 +52,6 @@ export async function pendingReviewRepairTx(tx: Prisma.TransactionClient, nodeId
   const evidence = verificationEvidence(node.evidence);
   const required = definition.nodes.find(item => item.key === node.key)?.acceptance.checks;
   if (!evidence || !required || required.some(name => !evidence.checks.some(check => check.name.trim() === name.trim() && check.evidence.trim())) || evidence.checks.every(check => check.passed)) return null;
-  if ((await observeTaskRunWriter(first.taskRunId)).kind !== 'exited') throw new Error(`Pending review repair ${node.key}: reviewer writer has not proven exit`);
-  for (const job of node.executions) if ((await observeExecutionWriter(job)).kind !== 'exited') throw new Error(`Pending review repair ${node.key}/${job.key}: phase or implementation writer has not proven exit`);
   const binding: PendingReviewRepairBinding = { phase: first.phase, claimKey: first.claimKey, taskRunId: first.taskRunId, executions: executions.sort((a, b) => a.id.localeCompare(b.id)) };
   return { binding, decision, evidence };
 }

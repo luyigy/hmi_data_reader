@@ -14,6 +14,7 @@ export async function prepareResourceWorkspaces(request: AcpxRunRequest, resourc
   const mappings: { repository: string; commit: string; checkout: string; approvalPath: string }[] = [];
   const protectedPaths: string[] = [];
   const write: string[] = [];
+  const candidateInstructions: string[] = [];
   for (const resource of resources.filter(item => item.access === 'write')) {
     const input = manifests.flatMap(manifest => manifest.inputs).find(item => item.repository === resource.canonicalPath);
     if (!request.graphExecution || !input) { write.push(resource.canonicalPath); continue; }
@@ -46,9 +47,12 @@ export async function prepareResourceWorkspaces(request: AcpxRunRequest, resourc
       return directory;
     });
     mappings.push({ repository: input.repository, commit: input.commit, checkout, approvalPath: resource.path });
+    candidateInstructions.push(input.replacement
+      ? `${input.repository} 的正式交付候选已登记为 ${input.commit}（${input.replacement.eventId}），允许主仓消费并提交验收；实际校验使用固定 sourcePath ${input.sourcePath}。checkout 仅供获批回修；新增修改须由平台另行固化再验证，不自行提交或汇合。`
+      : `${input.repository} 保留未提交修改，不提交或汇合额外仓，正式交付范围另行确认。`);
     write.push(checkout);
     protectedPaths.push(resource.canonicalPath, path.join(checkout, '.git'), ...linkedWorktreeGitDirectories(checkout));
   }
   return { write, protectedPaths, mappings,
-    instructions: mappings.length ? `\n已批准目录对应的可写隔离源码：${JSON.stringify(mappings)}。请在 checkout 编辑和验证，原 repository 和固定输入 sourcePath 保持只读。工作目录和 Native Session 不变；保留未提交修改，本轮不提交或汇合额外仓，正式交付范围另行确认。` : '' };
+    instructions: mappings.length ? `\n已批准目录对应的可写隔离源码：${JSON.stringify(mappings)}。请在 checkout 编辑和验证，原 repository 和固定输入 sourcePath 保持只读。工作目录和 Native Session 不变。${candidateInstructions.join('\n')}` : '' };
 }
