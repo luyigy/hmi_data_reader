@@ -343,7 +343,7 @@ def published(tmp_path, monkeypatch):
     response = client.post(url + "/publish", json=dict(expected_revision=1, expected_version="0.1.0",
                                                        confirmation="publish_confirmed"), headers=headers)
     assert response.status_code == 200, response.text
-    frozen = client.get(f"/api/v1/page-templates/{P11}/package?version=1.0.0")
+    frozen = client.get(f"/api/v1/page-templates/{P11}/package?version={package['version']}")
     assert frozen.status_code == 200, frozen.text
     assert frozen.json() == package
     record_evidence("published-package", frozen.json())
@@ -358,12 +358,12 @@ def test_a17_a18_publish_export_offline_definition_and_new_client_reopen(publish
     app = FastAPI()
     app.include_router(admin.router)
     with TestClient(app) as reopened:
-        assert reopened.get(f"/api/v1/page-templates/{P11}/package?version=1.0.0").json() == package
+        assert reopened.get(f"/api/v1/page-templates/{P11}/package?version={package['version']}").json() == package
         old = reopened.get(f"/api/v1/page-templates/{P11}/package?version=0.1.0")
         assert old.status_code == 200
         assert old.json()["package_schema"] == "hmi_page_package.v1"
-    assert export_page_package(P11, "1.0.0", root) == package
-    process = subprocess.run([sys.executable, str(ROOT / "scripts/export_page_package.py"), P11, "1.0.0"],
+    assert export_page_package(P11, package["version"], root) == package
+    process = subprocess.run([sys.executable, str(ROOT / "scripts/export_page_package.py"), P11, package["version"]],
                              cwd=ROOT, capture_output=True, text=True, timeout=60)
     assert process.returncode == 0, process.stderr
     assert json.loads(process.stdout) == package
@@ -372,6 +372,7 @@ def test_a17_a18_publish_export_offline_definition_and_new_client_reopen(publish
 @pytest.mark.parametrize("tamper", ["definition", "source", "ocr", "manifest"])
 def test_a07_frozen_package_tampering_is_rejected(tmp_path, tamper):
     package = copy.deepcopy(yizumi_package())
+    version = package["version"]
     if tamper == "definition":
         package["raw_field_definition"]["fields"][0]["role"] = "setting"
     elif tamper == "source":
@@ -380,17 +381,17 @@ def test_a07_frozen_package_tampering_is_rejected(tmp_path, tamper):
         package["samples"][0]["ocr"]["lines"][0]["text"] = "tampered"
     else:
         package["samples"][0]["manifest"]["original_size"] = [1, 1]
-    path = tmp_path / "templates/packages" / P11 / "1.0.0.json"
+    path = tmp_path / "templates/packages" / P11 / f"{version}.json"
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(package))
     with pytest.raises(ValueError, match="HASH_MISMATCH|OCR_MISMATCH|MANIFEST_MISMATCH"):
-        yizumi_package(tmp_path)
+        yizumi_package(tmp_path, version=version)
 
 
 def test_a07_a18_pinned_binding_conflict_disable_and_rollback(published, real_images):
     root, client, package = published
     hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
-                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+                binding_revision=1, pages=[dict(profile_id=P11, version=package["version"], package_sha256=canonical_hash(package))])
 
     def collect(binding):
         return extract_one("development", real_images[1], None, None, root / "templates", controller_hint=binding)
@@ -411,7 +412,10 @@ def test_a07_a18_pinned_binding_conflict_disable_and_rollback(published, real_im
     registry_path.write_text(json.dumps(registry))
     headers = {"Authorization": "Bearer r6-isolated"}
     url = f"/api/v1/page-templates/drafts/{P11}"
-    for revision, base, version, enabled in [(2, "1.0.0", "1.0.1", False), (3, "1.0.1", "1.0.2", True)]:
+    patch = int(package["version"].split(".")[-1])
+    for revision, base, version, enabled in [
+            (2, package["version"], f"1.0.{patch + 1}", False),
+            (3, f"1.0.{patch + 1}", f"1.0.{patch + 2}", True)]:
         template = {**package["template"], "version": version, "enabled": enabled}
         response = client.put(url, json=dict(expected_version=base, expected_revision=revision - 1,
                                              template=template, samples=package["samples"]), headers=headers)
@@ -423,7 +427,7 @@ def test_a07_a18_pinned_binding_conflict_disable_and_rollback(published, real_im
         assert result["compatibility"]["code"] == ("PAGE_COMPATIBLE" if enabled else "PAGE_TEMPLATE_DISABLED")
         assert not result.get("fields")
         assert not any("GENERIC_FALLBACK" in warning for warning in result["warnings"])
-        assert client.get(f"/api/v1/page-templates/{P11}/package?version=1.0.0").json() == package
+        assert client.get(f"/api/v1/page-templates/{P11}/package?version={package['version']}").json() == package
     record_evidence("disable-rollback-pinned-binding", result)
 
 
@@ -441,7 +445,7 @@ def test_live_http_cli_v2_binding_and_a07_wrong_hash(published, real_images, mon
     temporary.mkdir(exist_ok=True)
     monkeypatch.setattr(tempfile, "tempdir", str(temporary))
     hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
-                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+                binding_revision=1, pages=[dict(profile_id=P11, version=package["version"], package_sha256=canonical_hash(package))])
 
     async def upload(binding):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app), base_url="http://reader") as client:
@@ -495,7 +499,7 @@ def test_a07_missing_count_landmarks_cli_rejects_with_original_evidence(publishe
     (directory / "development.rectify.json").write_text(json.dumps(original["transform"]))
     shutil.copyfile(real_images[1] / "development.png", directory / "development.png")
     hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
-                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+                binding_revision=1, pages=[dict(profile_id=P11, version=package["version"], package_sha256=canonical_hash(package))])
     hint_path = root / "hint.json"
     hint_path.write_text(json.dumps(hint))
     command = [sys.executable, str(ROOT / "scripts/extract_fields.py"), "development", "--rectified-dir", str(directory),
@@ -548,7 +552,7 @@ def test_a07_masked_count_labels_real_http_returns_actionable_rejection(publishe
     masked = OUTPUT / "synthetic-missing-count-labels.jpg"
     assert cv2.imwrite(str(masked), photo)
     hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
-                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+                binding_revision=1, pages=[dict(profile_id=P11, version=package["version"], package_sha256=canonical_hash(package))])
 
     async def upload():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app), base_url="http://reader") as client:
