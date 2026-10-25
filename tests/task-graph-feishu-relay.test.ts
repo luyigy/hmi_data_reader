@@ -1,3 +1,4 @@
+import { conversationHandoffReplyRegression } from './task-graph-conversation-handoff-reply.fixture';
 import { replyOwnershipRegression } from './task-graph-reply-ownership.fixture';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -139,6 +140,7 @@ async function main() {
     assert.equal(await relayTaskGraphRunReply(run.id), false, 'An older TaskRun must not overwrite the current task card');
     assert.deepEqual(updated.at(-1)?.card, latestCard);
     await replyOwnershipRegression(task.id, node.id, sent, updated);
+    await conversationHandoffReplyRegression(task.id, node.id, sent, updated);
     console.log('Each TaskRun owns a new topic card; legacy shared cursors migrate, current output updates once, and superseded runs cannot overwrite it');
   } finally {
     api.sendFeishuInteractiveMessage = original.send; cards.updateFeishuTaskEntryCard = original.update; api.replyFeishuMessage = original.reply;

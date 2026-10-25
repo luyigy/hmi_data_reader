@@ -1,3 +1,4 @@
+import { conversationHandoffPending } from './conversation-handoff-reply';
 import { conversationReplyOwner } from './conversation-reply-identity';
 import { deliverRunReplyImages } from './reply-images';
 import { queueGraphNotification } from './notifications';
@@ -59,6 +60,8 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
       await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded' } });
       return false;
     }
+    const continuing = await conversationHandoffPending(tx, run);
+    const displayStatus = continuing ? 'continuing' : run.status;
     const latest = await tx.taskRunEvent.findFirst({ where: { taskRunId: run.id }, orderBy: { sequence: 'desc' } });
     const sequence = latest?.sequence || 0;
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
@@ -70,7 +73,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
         startedAt: run.startedAt?.getTime() || participant.startedAt?.getTime() || Date.now() });
       return sample && sample.observedAt > cursor.updatedAt.getTime();
     });
-    if (!forceRefresh && !sharedCard && !sizeChanged && cursor.deliveredSequence === sequence && (cursor.lastStatus === run.status || older && cursor.lastStatus === 'superseded') && !expiredSinceDelivery) {
+    if (!forceRefresh && !sharedCard && !sizeChanged && cursor.deliveredSequence === sequence && (cursor.lastStatus === displayStatus || older && cursor.lastStatus === 'superseded') && !expiredSinceDelivery) {
       if (older && cursor.lastStatus !== 'superseded' && !['running', 'pending', 'waiting_for_input'].includes(run.status)) {
         await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded' } });
       }
@@ -85,13 +88,17 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     }, select: { id: true } });
     const card = buildRunReplyCard({ ...run, ...(execution ? { graphWorkspace: { repository: execution.repository, executionId: execution.id, branch: execution.worktreeBranch, path: execution.worktreePath } } : {}),
       ...(conversation ? { replyKind: 'conversation' } : {}) }, history.reverse(), requests, output);
+    if (continuing) {
+      card.header.title.content = card.header.title.content.replace('执行完成', '正在继续');
+      card.header.template = 'blue';
+    }
     card.header.title.content = `${run.task.name} · ${card.header.title.content}`;
     const messageId = await deliverProgressCard({ bindingId: binding.id, runId: execution?.node.runId,
       childTaskId: execution?.childTaskId || undefined, chatId: binding.chatId, rootMessageId, card,
       taskRunId: run.id, replyIdentity: replyOwner?.identity, messageId: replyOwner?.messageId || (sharedCard ? null : cursor.messageId), firstRun: cursor });
     if (!messageId) throw new Error('Reply card send returned no message id');
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
-      data: { messageId, deliveredSequence: sequence, lastStatus: older && !['running', 'pending', 'waiting_for_input'].includes(run.status) ? 'superseded' : run.status } });
+      data: { messageId, deliveredSequence: sequence, lastStatus: older && !['running', 'pending', 'waiting_for_input'].includes(run.status) ? 'superseded' : displayStatus } });
     return true;
   }, { timeout: 25_000 });
   if (!['running', 'pending', 'waiting_for_input'].includes(run.status)) {
