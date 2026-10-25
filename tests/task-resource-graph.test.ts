@@ -103,8 +103,17 @@ async function main() {
     return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"dependent task ran","evidence":["next.txt"]}',
       sessionId: nativeSession, sessionKind: 'codex_thread', executionTime: 1 };
   };
-  adapter.execute = run;
-  adapter.resume = run;
+  const phasedRun = async (args: HarnessExecuteArgs | HarnessResumeArgs) => {
+    const result = await run(args);
+    if (result.output.startsWith('<resource-request>')) {
+      await args.context.streamCallbacks?.onStdoutChunk?.('发现额外目录需求', { id: 'progress', phase: 'commentary' });
+      await args.context.streamCallbacks?.onStdoutChunk?.(result.output, { id: 'final', phase: 'final_answer', operation: 'replace' });
+      return { ...result, output: '发现额外目录需求\n\n' + result.output };
+    }
+    return result;
+  };
+  adapter.execute = phasedRun;
+  adapter.resume = phasedRun;
 
   const owner = await prisma.user.create({ data: { username: `resource-${Date.now()}`, passwordHash: 'fixture', role: 'user' } });
   const parent = await prisma.task.create({ data: { name: 'resource graph', ownerUserId: owner.id } });

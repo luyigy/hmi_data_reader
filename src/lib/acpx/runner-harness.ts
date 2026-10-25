@@ -1,6 +1,7 @@
 import { recordResourceMountPlan, recordResourceSession, ResourceApplicationError } from '../task-resources/mount-plan';
 import { assertResourceUseActive, withResourceProcessGuard } from '../task-resources/process-guard';
 import { resourceRequestInstructions, submitRunnerResourceRequest } from '../task-resources/runner-protocol';
+import { AgentProtocolOutput } from '../agent-protocol-output';
 import { resourcesForRun, markResourceRunEffective } from '../task-resources/runtime';
 import type { HarnessExecutionContext, HarnessSandbox } from '../harness/types';
 import { withSandbox, type ManagedProcessControl, type SandboxIdentity } from '../sandbox-manager';
@@ -197,14 +198,19 @@ export const executeViaLocalHarness = async (
   const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
     : participant.codexHome;
+  const protocol = new AgentProtocolOutput();
+  const protocolCallbacks: HarnessStreamCallbacks = { ...callbacks, onStdoutChunk: (chunk, message) => {
+    protocol.append(chunk, message);
+    return callbacks.onStdoutChunk?.(chunk, message);
+  } };
   const harnessCallbacks = participant.harnessType === 'codex'
     ? {
-        ...callbacks,
+        ...protocolCallbacks,
         onCodexRateLimits: (event: Parameters<NonNullable<HarnessStreamCallbacks['onCodexRateLimits']>>[0]) => {
           updateCodexQuotaCache({ codexHome, ...event });
         },
       }
-    : callbacks;
+    : protocolCallbacks;
   if (workspaceRoot && !['codex', 'claude', 'claude-haha', 'kimi-code', 'antigravity', 'deepseek', 'pi-agent'].includes(participant.harnessType)) {
     throw new Error(`受限 Feishu 工作区暂不支持 harness: ${participant.harnessType}`);
   }
@@ -354,7 +360,8 @@ export const executeViaLocalHarness = async (
   }
 
   return {
-    output: await submitRunnerResourceRequest({ request, taskRunId, participantId, participant, output: result.output || `${adapter.displayName} completed` }),
+    output: await submitRunnerResourceRequest({ request, taskRunId, participantId, participant,
+      output: result.output || `${adapter.displayName} completed`, protocolOutput: protocol.finalOutput(result.output || '') }),
     filesModified: result.filesModified ?? [],
     executionTime: result.executionTime,
     liveStreaming: result.liveStreaming ?? false,

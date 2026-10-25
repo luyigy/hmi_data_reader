@@ -1,4 +1,5 @@
 import { resourceWorkspaceRegression } from './task-resource-workspace.fixture';
+import { finalOutputRegression } from './task-resource-final-output.fixture';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -65,7 +66,13 @@ async function main() {
     await args.context.onSessionStarted?.({ sessionId: native, sessionKind: 'codex_thread', threadId: native });
     const [code] = await exited;
     assert.equal(code, 0, stderr);
-    return { success: true, output: turns === 1 ? `<resource-request>${JSON.stringify({ purpose: 'Read library and write task result', resources: [{ path: source, access: 'read' }, { path: output, access: 'write' }] })}</resource-request>` : 'continued with approved resources',
+    const final = turns === 1 ? `<resource-request>${JSON.stringify({ purpose: 'Read library and write task result', resources: [{ path: source, access: 'read' }, { path: output, access: 'write' }] })}</resource-request>` : 'continued with approved resources';
+    const stream = args.context.streamCallbacks?.onStdoutChunk;
+    await stream?.('已检查目录，准备申请。', { id: 'progress', phase: 'commentary' });
+    await stream?.(final.slice(0, 20), { id: 'final', phase: 'final_answer' });
+    await stream?.(final.slice(20), { id: 'final', phase: 'final_answer' });
+    await stream?.(final, { id: 'final', phase: 'final_answer', operation: 'replace' });
+    return { success: true, output: '已检查目录，准备申请。\n\n' + final,
       sessionId: native, sessionKind: 'codex_thread', threadId: native, executionTime: 1 };
   };
   adapter.execute = execute; adapter.resume = execute;
@@ -81,6 +88,7 @@ async function main() {
     const rows = (await prisma.feishuAdminApproval.findMany({ where: { kind: 'task_resources' } })).filter(row => JSON.parse(row.payloadJson || '{}').launch?.taskId === task.id);
     assert.equal(rows.length, 1, 'Final resource protocol persists exactly one approval');
     const id = rows[0].id;
+    assert.equal(published.filter(value => value === id).length, 1, 'Commentary plus final publishes one initial card intent');
     let approval = await getResourceApproval(id);
     assert.equal(approval.status, 'pending'); assert.equal(approval.payload.resources.length, 2);
     assert.deepEqual(await resolveResourceAccess(launch), { approvalIds: [], resources: [] });
@@ -100,8 +108,11 @@ async function main() {
     assert.equal(runs[1].participants[0].role, runs[0].participants[0].role);
     assert.equal(requests[1].native, native); assert.equal(requests[1].cwd, requests[0].cwd); assert.equal(requests[1].role, requests[0].role);
     assert.equal(await readFile(join(output, 'result.txt'), 'utf8'), 'mounted and continued');
-    assert(published.includes(id));
+    assert.deepEqual(Array.from(new Set(published)), [id], 'Approval updates retain the same card identity');
+    const stdout = await prisma.taskRunEvent.findMany({ where: { taskRunId: first.taskRunId, eventType: 'stdout_chunk' } });
+    assert.ok(stdout.some(event => event.content.includes('已检查目录')), 'Protocol selection preserves process commentary');
     await resourceWorkspaceRegression();
+    await finalOutputRegression(cwd, source);
     console.log('task-resource-runtime passed: real read/write sandbox, native-session continuity, writer exit proof and approval replay dedupe');
   } finally {
     await drainResourceApprovals();

@@ -42,9 +42,9 @@ export function parseResourceRequest(output: string): { purpose: string; resourc
 }
 
 export async function submitRunnerResourceRequest(args: {
-  request: AcpxRunRequest; taskRunId: string; participantId: string; participant: AcpxParticipantRequest; output: string;
+  request: AcpxRunRequest; taskRunId: string; participantId: string; participant: AcpxParticipantRequest; output: string; protocolOutput?: string | null;
 }): Promise<string> {
-  const proposal = parseResourceRequest(args.output);
+  const proposal = parseResourceRequest(args.protocolOutput === undefined ? args.output : args.protocolOutput || '');
   const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: args.taskRunId }, include: { task: true } });
   const existingId: unknown = JSON.parse(run.controlMetadata || '{}').resourceRequestId;
   if (!proposal && typeof existingId !== 'string') return args.output;
