@@ -11,6 +11,7 @@ import { pauseGraphImplementation } from '../src/lib/task-graph/implementation-r
 import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
 import { releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker';
 import { admitNode } from '../src/lib/task-graph/preparation-recovery';
+import { implementationConversationInputs } from '../src/lib/task-graph/conversation-routing';
 import { currentWaitCause } from '../src/lib/task-graph/waiting-cause';
 import { receiveGraphTaskMessage, handoffConversationMaterials, conversationInputs } from '../src/lib/task-graph/conversation-inbox';
 
@@ -112,13 +113,37 @@ async function main() {
       assert.equal(current.status, 'ready'); assert.equal(current.worktreePath, workspace);
       assert.equal((await conversationInputs(job.id)).length, inputs.length, 'Admission alone does not consume input');
     });
-    for (const code of ['permission_required', 'scope_change', 'resource_application_failed', 'agent_capability_missing']) {
+    for (const code of ['permission_required', 'scope_change']) {
       await check(`ordinary conversation cannot approve ${code}`, async () => {
         await reset({ state: 'waiting_decision', lastFailure: { code, detail: 'approval still required' } });
         const inputs = await conversationInputs(job.id);
         const result = await admitNode(job.nodeId, { source: 'conversation', id: `unapproved-${code}`, executionIds: [job.id], inputIds: inputs.map(input => input.id) });
         assert.equal(result.kind, 'deferred'); assert.equal('reason' in result && result.reason, 'human_input_required');
         assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).status, 'attention');
+      });
+    }
+    for (const code of ['agent_capability_missing', 'resource_application_failed']) {
+      await check(`fresh input resumes ${code}, condition polling does not`, async () => {
+        await reset({ revision: saved.revision + (code === 'agent_capability_missing' ? 30 : 40), state: 'waiting_decision', lastFailure: { code, detail: 'runtime capability unavailable', requiresUserDecision: false } });
+        const condition = await admitNode(job.nodeId, { source: 'conditions', id: `poll-${code}` });
+        assert.equal(condition.kind, 'deferred');
+        assert.equal('reason' in condition && condition.reason, code === 'agent_capability_missing' ? 'agent_capability_unresolved' : 'resource_application_unresolved');
+        const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+        const inputs = await conversationInputs(job.id);
+        const direct = await implementationConversationInputs(prisma, current, inputs);
+        assert.deepEqual(direct.map(input => input.id), inputs.map(input => input.id), 'Fresh authorized input must reach the original implementer');
+        const result = await admitNode(job.nodeId, { source: 'conversation', id: `retry-${code}`, executionIds: [job.id], inputIds: direct.map(input => input.id) });
+        assert.equal(result.kind, 'admitted', JSON.stringify(result));
+        const admitted = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+        assert.equal(admitted.status, 'ready'); assert.equal(admitted.childTaskId, current.childTaskId);
+        assert.equal(admitted.worktreePath, current.worktreePath); assert.equal(admitted.commit, current.commit);
+        assert.deepEqual(admitted.launchConfig, current.launchConfig, 'Routing cannot grant runtime permissions');
+        assert.equal((await conversationInputs(job.id)).length, inputs.length, 'Admission does not replay or consume input');
+      });
+      await check(`${code} with explicit decision remains blocked`, async () => {
+        await reset({ state: 'waiting_decision', lastFailure: { code, detail: 'explicit decision needed', requiresUserDecision: true } });
+        const result = await admitNode(job.nodeId, { source: 'conversation', id: `decision-${code}`, executionIds: [job.id], inputIds: (await conversationInputs(job.id)).map(input => input.id) });
+        assert.equal(result.kind, 'deferred'); assert.equal('reason' in result && result.reason, 'human_input_required');
       });
     }
     await check('ordinary conversation cannot start acceptance', async () => {

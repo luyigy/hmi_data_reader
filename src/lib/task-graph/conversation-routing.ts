@@ -9,7 +9,7 @@ export function conversationImplementationHold(progress: ExecutionProgress): str
   if (!['implement', 'collect_result'].includes(progress.phase)) return 'implementation_phase_required';
   if (progress.state === 'ownership_attention' || progress.lastFailure?.code === 'ownership_mismatch') return 'ownership_unresolved';
   if (progress.conflictRepair || progress.lastFailure?.code === 'integration_conflict') return 'controlled_conflict_required';
-  if (progress.lastFailure?.requiresUserDecision || ['permission_required', 'scope_change', 'resource_application_failed', 'agent_capability_missing'].includes(progress.lastFailure?.code || '')) return 'human_input_required';
+  if (progress.lastFailure?.requiresUserDecision || ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '')) return 'human_input_required';
 }
 
 /** Keep one source message per turn, and leave other roles/older sessions on their read-only path. */
