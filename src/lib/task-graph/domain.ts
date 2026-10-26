@@ -1,3 +1,4 @@
+import type { AcceptanceModels } from './acceptance-models';
 import { parseProjectCapabilityScope } from '../project-capabilities/policy';
 import type { ProjectCapabilityScope } from '../project-capabilities/policy';
 import { validateExtraRepositories, type ExtraRepository } from './extra-repositories';
@@ -10,6 +11,7 @@ import type { IssueSource } from './issue-source';
 export type Acceptance = {
   mode: 'automatic' | 'agent' | 'human';
   selfCheckExecution?: string;
+  models?: AcceptanceModels;
   reviewerId?: string;
   reviewLaunchConfig?: unknown;
   integrationChecks?: { name: string; repository: string; argv: string[] }[];

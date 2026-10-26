@@ -1,7 +1,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-export async function listKimiCodeModels(cwd?: string | null): Promise<string> {
+export async function loadKimiCodeModelCatalog(cwd?: string | null) {
   let catalog: { models?: Record<string, { displayName?: string; capabilities?: string[]; supportEfforts?: string[]; defaultEffort?: string }> };
   try {
     const { stdout } = await promisify(execFile)(process.env.KIMI_CODE_CLI_PATH?.trim() || 'kimi', ['provider', 'list', '--json'], {
@@ -13,7 +13,12 @@ export async function listKimiCodeModels(cwd?: string | null): Promise<string> {
     throw new Error('无法读取本机 Kimi 模型目录（CLI 不支持、查询超时或返回异常）。');
   }
 
-  const rows = Object.entries(catalog.models).map(([alias, model]) => {
+  return catalog.models;
+}
+
+export async function listKimiCodeModels(cwd?: string | null): Promise<string> {
+  const models = await loadKimiCodeModelCatalog(cwd);
+  const rows = Object.entries(models).map(([alias, model]) => {
     const efforts = Array.isArray(model.supportEfforts) && model.supportEfforts.length
       ? model.supportEfforts.join(' / ')
       : model.capabilities?.includes('always_thinking') ? '始终思考（未列出档位）'

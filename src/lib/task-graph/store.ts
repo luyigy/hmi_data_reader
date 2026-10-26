@@ -1,3 +1,4 @@
+import { validAcceptanceReceipt, type AcceptanceReceipt } from './acceptance-evidence';
 import { assertCandidateInputsIntegrated } from './candidate-integration';
 import { implementationQuality } from './implementation-quality';
 import { graphRunCanStartTx, graphRunBusinessStatus } from './run-control';
@@ -264,6 +265,7 @@ export async function markNodeIntegrationsReady(runId: string, nodeKey: string, 
 }
 
 export type VerificationEvidence = {
+  reviewReceipt?: AcceptanceReceipt;
   checks: { name: string; passed: boolean; evidence: string }[];
   summary: string;
   inputs?: { executionId: string; commit: string | null }[];
@@ -315,6 +317,13 @@ export async function submitNodeVerification(args: {
       if (node.acceptance !== 'agent' && args.actorId !== 'system') throw new Error('Wrong verification actor');
       const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
       if (!jobs.length || jobs.some(job => job.status !== 'integrated' || !job.commit) || !isDeepStrictEqual(args.evidence.inputs, verificationInputs(jobs))) throw new Error('Verification input commits changed');
+      if (node.acceptance === 'agent' && planned.acceptance.models && args.evidence.checks.every(item => item.passed)) {
+        const receipt = args.evidence.reviewReceipt;
+        const commits = receipt?.commits || [];
+        if (commits.length !== new Set(jobs.map(job => job.repository)).size || new Set(commits.map(item => item.repository)).size !== commits.length ||
+            commits.some(item => !jobs.some(job => job.repository === item.repository && job.commit === item.commit)) ||
+            !validAcceptanceReceipt(receipt, planned, verificationInputs(jobs), commits, true)) throw new Error('Independent acceptance receipt is missing or does not match fixed inputs');
+      }
       if (node.acceptance !== 'agent') {
         const quality = implementationQuality(planned, jobs);
         if (!quality || args.evidence.checks.some(item => item.passed && !quality.decision.approved)) throw new Error('Approved implementor Ticket verification is missing or not passed');

@@ -59,7 +59,7 @@ async function main() {
     writeFileSync(path.join(context.workingDirectory!, `${key}.txt`), value);
     if (key === 'D' && !resumeReceipt || key === 'A' && count === 1 || key === 'E' && count === 1 || key === 'F' && count < 4 || key === 'G' && count < 3 || key === 'H' && count < 5) return reply('TASK_GRAPH_IMPLEMENTATION {"status":"blocked","note":"required skills missing","evidence":["resume-receipt.json"]}');
     if (key === 'E' && count < 4) return reply('TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"evidence field missing"}');
-    if (key === 'A' && count === 2 || key === 'C' || key === 'G' && count < 6) return reply('No delivery conclusion; continuing normal engineering work');
+    if (key === 'A' && count === 2 || key === 'C' || key === 'G' && count < 6) return reply('TASK_GRAPH_IMPLEMENTATION {"status":"working","note":"continuing normal engineering work"}');
     return reply(`TASK_GRAPH_IMPLEMENTATION ${JSON.stringify({ status: 'delivered', note: `${key} implemented`, evidence: [`${key}.txt`] })}`);
   };
   adapter.execute = execute; adapter.resume = execute;
@@ -104,7 +104,7 @@ async function main() {
     assert.equal(implementation.status, 'delivered');
     assert.equal(evidence.taskRunId, delivered.taskRunId);
     const correctionOutcomes = await prisma.taskGraphEvent.findMany({ where: { nodeId: delivered.nodeId, kind: 'execution_outcome', payload: { path: ['outcome', 'kind'], equals: 'result_incomplete' } } });
-    assert.equal(correctionOutcomes.length, 1, 'Marker-free progress after format correction returns to normal implementation');
+    assert.equal(correctionOutcomes.length, 1, 'Explicit working after format correction returns to normal implementation');
     assert.equal(calls.get('D'), 3, 'Malformed blocked receipts with fresh evidence paths stop instead of spinning');
     const invalid = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: run.id, key: 'D' } } });
     assert.equal(executionProgress(invalid.dispatchMetadata)?.lastFailure?.code, 'invalid_result');
@@ -130,7 +130,7 @@ async function main() {
     assert.match(resumedCorrectionDescription, /实施阻塞结论缺少有效 blockerKind/, 'Admission clears stale wait reasons, but the bound malformed receipt must still yield its concrete error');
     assert.doesNotMatch(resumedCorrectionDescription, /回执格式错误：undefined/);
     assert.equal(calls.get('D'), 4);
-    console.log('Real coordinator: ordinary output continues implementation; two unchanged format corrections, ordinary work and changed errors/inputs continue; final candidate binds delivery; successor once; admitted legacy correction retains concrete format error');
+    console.log('Real coordinator: explicit working continues implementation; two unchanged format corrections, ordinary work and changed errors/inputs continue; final candidate binds delivery; successor once; admitted legacy correction retains concrete format error');
   } finally {
     await drain(); adapter.execute = original.execute; adapter.resume = original.resume;
     const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, select: { childTaskId: true } });

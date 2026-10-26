@@ -1,3 +1,5 @@
+import { assertAcceptanceModels } from './acceptance-models';
+import { acceptanceReceiptInstructions, validAcceptanceReceipt, type AcceptanceReceipt } from './acceptance-evidence';
 import { reconcileResourceApprovals, drainResourceApprovals } from '../task-resources/reconcile';
 import { implementationQuality } from './implementation-quality';
 import { selfCheckExecution, verificationInputs } from './domain';
@@ -124,6 +126,7 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   const plannedNode = definition.nodes.find((item) => item.key === nodeKey);
   const plannedExecution = plannedNode?.executions.find((item) => item.key === execution.key);
   if (!plannedNode || !plannedExecution) throw new Error('Execution instructions are missing from frozen graph');
+  await assertAcceptanceModels(plannedNode);
   const taskId = `task-graph-${execution.id}`;
   const taskName = `${nodeKey} · ${execution.key}`;
   const repair = await latestGraphRepair(execution.nodeId);
@@ -294,6 +297,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     if (activeReviews.has(node.id)) return;
     activeReviews.add(node.id);
     try {
+    await assertAcceptanceModels(plannedNode);
     const review = policy.reviewLaunchConfig as { participant?: AcpxParticipantRequest } | undefined;
     if (!review?.participant || !policy.reviewerId) throw new Error(`Review agent missing for ${nodeKey}`);
     const fallbackClaimKey = `node:${nodeKey}:review_claimed:${verificationAttempt}`;
@@ -332,8 +336,10 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
       '\n失败必须区分 in_scope_defect（原范围内代码或测试缺口）与 blocked_require_human（图片模糊、材料缺失、范围变化或权限越界）。缺少有效结构化结论时不会自动回修。' +
-      reviewResultInstructions('TASK_GRAPH_REVIEW', reviewChecks);
+      reviewResultInstructions('TASK_GRAPH_REVIEW', reviewChecks) +
+      (agentOwned && policy.models ? acceptanceReceiptInstructions(plannedNode, verificationInputs(node.executions), commits) : '');
     const reviewed = await collectGraphReview({ runId, nodeId: node.id, claimKey, marker: 'TASK_GRAPH_REVIEW', checks: reviewChecks,
+      ...(agentOwned && policy.models ? { validateVerification: (value: unknown, approved: boolean): value is AcceptanceReceipt => validAcceptanceReceipt(value, plannedNode, verificationInputs(node.executions), commits, approved) } : {}),
       request: { graphReview: { runId, nodeId: node.id, phase: 'acceptance', claimKey },
         taskId: task.id, taskName: task.name, taskDescription: prompt,
         orchestrationMode: 'single', participants: [review.participant],
@@ -344,12 +350,13 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const response = decision?.note || (reviewed.kind !== 'classified' ? reviewed.note : '无有效结论');
     reviewDecision = decision || { failureKind: reviewed.kind, note: response };
     const approved = decision?.approved === true;
+    if (reviewed.kind === 'classified' && reviewed.verification) evidence.reviewReceipt = reviewed.verification;
     evidence.checks = evidence.checks.map((item) => ({
       ...item, passed: agentOwned ? approved : item.passed && approved,
       evidence: `${item.evidence}\nAgent review ${reviewed.taskRunId}: ${response}`,
     }));
     evidence.checks.push({ name: 'acceptance:decision', passed: approved, evidence: response });
-    evidence.summary = `Agent 复核 ${approved ? '通过' : '未通过'}：${response}`;
+    evidence.summary = `${policy.models ? `其他模型独立验收（${policy.models.reviewer.model}）` : 'Agent 复核'} ${approved ? '通过' : '未通过'}：${response}`;
     try { await assertReviewWorkspacesClean(workspaces); } catch (error) {
       reviewDecision = { failureKind: 'ownership_mismatch', note: String(error) };
       evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,

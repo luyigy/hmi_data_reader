@@ -53,6 +53,7 @@ function acceptanceSummary(node: GraphNode) {
   if (node.executionMode === 'implement') return '未验收';
   if (node.acceptance.mode === 'automatic') return '自动';
   if (node.acceptance.mode === 'human') return '人工';
+  if (node.acceptance.models) return `其他模型独立验收:${node.acceptance.models.reviewer.model}（实施:${node.acceptance.models.implementations.map(item => item.model).join('、')}）`;
   return node.acceptance.reviewerId ? shortSelector(node.acceptance.reviewerId) : '未配置';
 }
 

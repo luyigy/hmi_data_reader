@@ -6,7 +6,7 @@ import type { GraphDefinition } from './domain';
 export type RoleOption = { value: string; label: string; role: string; participant: AcpxParticipantRequest };
 
 type RoomRoleMember = { joinStatus: string; backend: string | null; gatewayId: string | null;
-  harnessType: string | null; role: string; displayName: string; userNickname?: string | null };
+  harnessType: string | null; role: string; displayName: string; userNickname?: string | null; codexModel?: string | null; codexReasoningEffort?: string | null };
 
 function matchingRoomMember(agent: { backend: string; gatewayId: string; harnessType: string }, members: RoomRoleMember[]) {
   return members.find((item) => item.joinStatus === 'joined' && item.backend === agent.backend &&
@@ -32,6 +32,8 @@ export async function graphRoleOptions(parentTaskId: string): Promise<RoleOption
       role: member?.role || 'custom', participant: { gatewayId: agent.gatewayId,
         ...(agent.gatewayName ? { gatewayName: agent.gatewayName } : {}),
         executionBackend: 'platform_local', harnessType: agent.harnessType,
+        ...(member?.codexModel ? { model: member.codexModel } : {}),
+        ...(member?.codexReasoningEffort ? { reasoningEffort: member.codexReasoningEffort } : {}),
         ...(agent.runtimeAgentId ? { agentId: agent.runtimeAgentId } : {}),
         ...(agent.agentName ? { agentName: agent.agentName } : {}), role: 'implementer' } };
   });

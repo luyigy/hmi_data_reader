@@ -43,7 +43,8 @@ export async function updateGraphProposalRole(args: {
     if (!agent || agent.backend !== 'platform_local') {
       throw new Error('首版任务图角色只能选择已登记的本机 Agent');
     }
-    participant = { gatewayId: agent.gatewayId, ...(agent.gatewayName ? { gatewayName: agent.gatewayName } : {}),
+    const option = (await graphRoleOptions(args.parentTaskId)).find(item => item.value === agentId);
+    participant = { ...option?.participant, gatewayId: agent.gatewayId, ...(agent.gatewayName ? { gatewayName: agent.gatewayName } : {}),
       executionBackend: 'platform_local', harnessType: agent.harnessType,
       ...(agent.runtimeAgentId ? { agentId: agent.runtimeAgentId } : {}),
       ...(agent.agentName ? { agentName: agent.agentName } : {}),
@@ -233,7 +234,7 @@ export async function handleGraphProposalCardAction(args: {
     if (taskGraphSnapshotHash(definition) !== proposal.snapshotHash) throw new Error('路线快照校验失败');
     await Promise.all(definition.nodes.map(node => prepareExtraRepositories(node.extraRepositories)));
     await assertSpecPackage(definition.specPackage);
-    await validateExecutionTargets(definition);
+    await validateExecutionTargets(definition, 'verify');
     const run = await createTaskGraphRun({
       parentTaskId: proposal.parentTaskId, version: proposal.version,
       requestKey: `feishu-proposal:${proposal.id}`, definition,

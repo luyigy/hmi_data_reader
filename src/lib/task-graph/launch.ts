@@ -1,3 +1,4 @@
+import { configureAcceptanceModels } from './acceptance-models';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolveWorkspaceDirectory } from '../feishu-workspace';
@@ -15,7 +16,7 @@ type LaunchConfig = {
   checks?: { name: string; argv: string[] }[];
 };
 
-export const validateExecutionTargets = async (definition: GraphDefinition) => {
+export const validateExecutionTargets = async (definition: GraphDefinition, modelMode: 'pin' | 'verify' = 'pin') => {
   if (definition.adoptRun) { await assertExistingIssueAdoption(definition); return []; }
   const issueRoute = await assertIssueSource(definition.issueSource);
   if (issueRoute) {
@@ -102,6 +103,7 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
     }
   }
   if (definition.issueSource && participants.some((participant) => !['codex', 'kimi-code'].includes(participant.harnessType))) throw new Error('本轮 Issue 路线只支持已实测的 Codex / Kimi Code 沙箱；请调整角色');
+  await configureAcceptanceModels(definition, modelMode);
   return participants;
 };
 

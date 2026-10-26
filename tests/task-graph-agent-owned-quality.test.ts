@@ -1,3 +1,6 @@
+import { configureAcceptanceModels } from '../src/lib/task-graph/acceptance-models';
+import { acceptanceCommands } from '../src/lib/task-graph/acceptance-evidence';
+import { createHash } from 'node:crypto';
 import { setGraphRunPaused } from '../src/lib/task-graph/run-control';
 import { buildGraphOverview, loadGraphOverview } from '../src/lib/task-graph/overview';
 import { buildGraphNodeCard } from '../src/lib/task-graph/node-card';
@@ -15,23 +18,27 @@ import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-gr
 import { validateTaskGraphDefinition, taskGraphSnapshotHash, type GraphDefinition } from '../src/lib/task-graph/domain';
 import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/types';
 
-async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' | 'cross' | 'self-defect' | 'multi' | 'conflict' | 'tester' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
+const fixtureRoot = mkdtempSync(path.join(tmpdir(), 'agent-owned-quality-session-'));
+
+async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' | 'cross' | 'self-defect' | 'multi' | 'conflict' | 'tester' | 'tester-missing' | 'tester-sha' | 'tester-dirty' | 'tester-model-drift' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
+  const rejectedReview = ['tester-missing', 'tester-sha', 'tester-dirty', 'tester-model-drift'].includes(mode);
+  const explicitReview = mode === 'tester' || mode === 'repair' || rejectedReview;
   const multiple = mode === 'multi' || mode === 'conflict' || mode === 'cross';
   let conflictResolutions = 0, jointRuns = 0;
-  const root = mkdtempSync(path.join(tmpdir(), 'agent-owned-quality-'));
+  const root = mkdtempSync(path.join(fixtureRoot, 'case-'));
   const repository = path.join(root, 'repo'); mkdirSync(repository);
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
   git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.test');
   writeFileSync(path.join(repository, 'value'), 'base'); if (mode === 'conflict') writeFileSync(path.join(repository, 'shared'), 'base\n'); git('add', '.'); git('commit', '-m', 'base');
   process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'runtime'); process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
-  const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
-  const tester = { ...participant, harnessType: 'kimi-code', role: 'tester' };
+  const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer', model: 'fixture-codex' };
+  const tester = { ...participant, harnessType: 'kimi-code', role: 'tester', model: 'fixture-kimi' };
   const command = [process.execPath, '-e', 'if(require("node:fs").readFileSync("value","utf8")!=="good")throw Error("behavior missing")'];
   const definition: GraphDefinition = { deliveryContract: 'agent_owned_v1', specRef: 'fixture://quality', nodes: [{
     key: 'A', goal: 'required behavior', dependsOn: [], executionMode: mode === 'implement' ? 'implement' : mode === 'full' || mode === 'architecture' ? 'full' : 'lean',
     ...((mode === 'full' || mode === 'architecture') ? { architectureReview: { reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: { ...tester, role: 'reviewer' } } } } : {}),
-    acceptance: { mode: mode === 'tester' || mode === 'repair' ? 'agent' : mode === 'human' ? 'human' : 'automatic',
-      ...(mode === 'tester' || mode === 'repair' ? { reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: tester } } : mode === 'human' ? { reviewerId: 'fixture-human' } : {}),
+    acceptance: { mode: explicitReview ? 'agent' : mode === 'human' ? 'human' : 'automatic',
+      ...(explicitReview ? { reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: tester } } : mode === 'human' ? { reviewerId: 'fixture-human' } : {}),
       checks: ['behavior'], integrationChecks: [{ name: 'joint', repository, argv: command }] },
     executions: [{ key: 'repo', instructions: 'implement behavior', repository, gitRef: 'refs/heads/main', baseCommit: git('rev-parse', 'HEAD'), agentSelector: 'local:codex', launchConfig: { participant, checks: [{ name: 'behavior', argv: command }] } }],
   }] };
@@ -55,11 +62,17 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
         'const fs=require("fs"),p=require("path"),ms=JSON.parse(process.env.TASK_GRAPH_UPSTREAM_INPUTS_JSON); const input=ms.flatMap(m=>m.inputs).find(i=>i.repository!==process.env.AP_PROJECT_REPOSITORY); if(!input||fs.readFileSync(p.join(input.sourcePath,"value"),"utf8")!=="good"||fs.readFileSync("value","utf8")!=="good")throw Error("joint input missing");'] }];
     }
   }
+  const priorHomes = { CODEX_HOME: process.env.CODEX_HOME, KIMI_CODE_HOME: process.env.KIMI_CODE_HOME };
+  process.env.CODEX_HOME = path.join(root, 'codex'); process.env.KIMI_CODE_HOME = path.join(root, 'kimi');
+  mkdirSync(process.env.CODEX_HOME); mkdirSync(process.env.KIMI_CODE_HOME);
+  writeFileSync(path.join(process.env.CODEX_HOME, 'config.toml'), 'model = "fixture-codex"');
+  writeFileSync(path.join(process.env.KIMI_CODE_HOME, 'config.toml'), 'default_model = "fixture-kimi"\n[models.fixture-kimi]\nmodel = "kimi-other"\nprovider = "fixture"\n[providers.fixture]\ntype = "kimi"');
+  await configureAcceptanceModels(definition);
   const parent = await prisma.task.create({ data: { name: 'agent-owned fixture' } });
   let run;
-  if (mode === 'default') {
+  if (mode === 'default' || mode === 'tester') {
     const previousRoots = process.env.SCHEDULED_JOB_WORKSPACE_ROOTS;
-    process.env.SCHEDULED_JOB_WORKSPACE_ROOTS = root;
+    process.env.SCHEDULED_JOB_WORKSPACE_ROOTS = fixtureRoot;
     delete definition.deliveryContract;
     definition.nodes.forEach(slice => { delete slice.executionMode; });
     const require = createRequire(__filename);
@@ -78,12 +91,23 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
       const proposal = await createGraphProposal({ parentTaskId: parent.id, definition, createdBy: 'fixture' });
       const approved = proposal.definition as unknown as GraphDefinition;
       assert.equal(approved.deliveryContract, 'agent_owned_v1');
-      assert.ok(approved.nodes.every(slice => slice.executionMode === 'lean' && slice.acceptance.mode === 'automatic' && !slice.acceptance.reviewerId));
+      assert.ok(approved.nodes.every(slice => slice.executionMode === 'lean'));
+      if (mode === 'default') assert.ok(approved.nodes.every(slice => slice.acceptance.mode === 'automatic' && !slice.acceptance.reviewerId));
+      else assert.equal(approved.nodes[0].acceptance.models?.reviewer.model, 'kimi-other');
       assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0);
       const action = { proposalId: proposal.id, decision: 'approve', hash: proposal.snapshotHash,
         openId: 'fixture-human', chatId: parent.id, messageId: proposal.cardMessageId };
       assert.equal((await handleGraphProposalCardAction({ ...action, openId: 'intruder' })).toast.type, 'warning');
       assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0);
+      if (mode === 'tester') {
+        const configFile = path.join(process.env.KIMI_CODE_HOME!, 'config.toml');
+        const config = readFileSync(configFile, 'utf8');
+        writeFileSync(configFile, config.replace('kimi-other', 'fixture-codex'));
+        await assert.rejects(() => handleGraphProposalCardAction(action), /同模型|已变化/);
+        assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0);
+        assert.equal((await prisma.taskGraphProposal.findUniqueOrThrow({ where: { id: proposal.id } })).status, 'pending');
+        writeFileSync(configFile, config);
+      }
       assert.equal((await handleGraphProposalCardAction(action)).toast.type, 'success');
       await handleGraphProposalCardAction(action);
       assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 1);
@@ -112,9 +136,9 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
       return { success: true, output: 'TASK_GRAPH_ARCH_REVIEW ' + JSON.stringify({ approved: !failed, note: 'approved architecture scope verified', ...(failed ? { failureKind: 'in_scope_defect', failureKey: 'architecture:scope', executionIds: jobs.map(job => job.id) } : {}) }), executionTime: 1 };
     }
     if (task.id.startsWith('task-graph-review-')) {
-      assert.ok(mode === 'tester' || mode === 'repair', 'Self-check and Human modes must not start a Review TaskRun');
+      assert.ok(explicitReview, 'Self-check and Human modes must not start a Review TaskRun');
       const a = task.name.startsWith('A'); if (a) reviews++;
-      if ((mode === 'tester' || mode === 'repair') && a) testerReviews++;
+      if (explicitReview && a) testerReviews++;
       const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id, key: a ? 'A' : 'B' } } });
       const checks = JSON.parse(prompt.match(/稳定检查 ID 和可回修执行：(\[[^\n]+\])。/)![1]);
       const workspaces = JSON.parse(prompt.match(/仓库检出目录: (\[[^\n]+\])\n证据:/)![1]);
@@ -122,11 +146,21 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
       assert.match(prompt, /批准的仓内检查/);
       assert.ok(prompt.includes(JSON.stringify(command)), 'The exact approved argv is delivered to the quality owner');
       if (a) reviewedCommits.push(workspace.commit);
-      let passed = true;
-      try { commands++; execFileSync(command[0], command.slice(1), { cwd: workspace.path, stdio: 'pipe' }); } catch { passed = false; }
+      assert.equal(context.model, 'fixture-kimi', 'Approved model reaches the harness');
+      const receiptChecks = acceptanceCommands(definition.nodes[0]).map(check => {
+        let exitCode = 0, log = '';
+        try { commands++; log = execFileSync(check.argv[0], check.argv.slice(1), { cwd: workspace.path, encoding: 'utf8', stdio: 'pipe' }); }
+        catch (error) { exitCode = Number((error as any).status) || 1; log = String((error as any).stderr || 'failed'); }
+        return { id: check.id, argv: check.argv, exitCode, log: `actual fixture command exit=${exitCode}: ${log}`, environmentFingerprint: createHash('sha256').update(JSON.stringify({ node: process.version, platform: process.platform })).digest('hex') };
+      });
+      const passed = receiptChecks.every(check => check.exitCode === 0);
+      const verification = { inputs: jobs.map(job => ({ executionId: job.id, commit: job.commit })), commits: [{ repository, commit: workspace.commit }], checks: receiptChecks };
       assert.ok(!checks.some((check: { id: string }) => check.id === 'architecture:scope'), 'Acceptance must not require architecture evidence again');
-      const decision = { approved: passed, note: `fixed behavior ${passed}`,
+      const decision = { approved: passed, verification, note: `fixed behavior ${passed}`,
         ...(!passed ? { failureKind: 'in_scope_defect', failureKey: 'acceptance:behavior', executionIds: jobs.map(job => job.id) } : {}) };
+      if (mode === 'tester-missing') delete (decision as any).verification;
+      if (mode === 'tester-sha') decision.verification.commits[0].commit = 'c'.repeat(40);
+      if (mode === 'tester-dirty') writeFileSync(path.join(workspace.path, 'pollution'), 'must block');
       return { success: true, output: `TASK_GRAPH_REVIEW ${JSON.stringify(decision)}`, executionTime: 1 };
     }
     const a = task.name.startsWith('A'); if (a) starts++; else successorStarts++;
@@ -152,6 +186,10 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
       try { execFileSync(command[0], command.slice(1), { cwd: context.workingDirectory, stdio: 'pipe' }); } catch { passed = false; }
       if (!passed) return { success: true, sessionId: native, sessionKind, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"working","note":"self-check failed; fixing in the same Coding Session"}', executionTime: 1 };
     }
+    if (mode === 'tester-model-drift' && a) {
+      const configFile = path.join(process.env.KIMI_CODE_HOME!, 'config.toml');
+      writeFileSync(configFile, readFileSync(configFile, 'utf8').replace('kimi-other', 'fixture-codex'));
+    }
     if (multiple) writeFileSync(path.join(context.workingDirectory, `${executionKey}-report.json`), JSON.stringify({ time: Date.now(), turns }));
     const ownsQuality = !multiple || executionKey === (mode === 'cross' ? 'repo' : 'other');
     const manifests = JSON.parse(context.taskEnvironment?.TASK_GRAPH_UPSTREAM_INPUTS_JSON || '[]');
@@ -175,6 +213,7 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
     for (let i = 0; i < 400; i++) {
       await runTaskGraphCycle();
       const current = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
+      if (rejectedReview && current.status === 'attention') break;
       if (mode === 'human' && current.status === 'awaiting_human') {
         assert.equal(successorStarts, 0);
         const evidence = current.evidence;
@@ -197,11 +236,18 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
     }
     await drain();
     const after = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
+    if (rejectedReview) {
+      assert.equal(after.status, 'attention', JSON.stringify(await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id }, orderBy: { createdAt: 'asc' } }))); assert.equal(successorStarts, 0); assert.equal(starts, 1);
+      assert.equal(reviews, mode === 'tester-model-drift' ? 0 : mode === 'tester-dirty' ? 1 : 2, 'Invalid receipt only gets one bounded recollection');
+      if (mode !== 'tester-model-drift') assert.ok((after.evidence as any).checks.some((check: any) => !check.passed));
+      console.log(`agent-owned ${mode}: rejected; no successor, no implementation restart, platform commands=0`);
+      return;
+    }
     assert.equal(after.status, mode === 'implement' ? 'delivered_unverified' : 'passed', JSON.stringify((await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'execution_outcome' }, orderBy: { createdAt: 'asc' } })).filter(event => (event.payload as any)?.outcome?.failure?.detail !== 'conditions_unchanged').map(event => event.payload)));
     if (mode === 'plain-delivery' || mode === 'history') assert.equal(starts, 2, 'Plain delivered evidence must request a formal Ticket conclusion in the original Session');
     else if (multiple) assert.ok(starts >= 2); else assert.equal(starts, ['repair', 'format', 'self-repair', 'self-defect', 'architecture'].includes(mode) ? 2 : 1);
     assert.equal(reviews, mode === 'repair' ? 2 : mode === 'tester' ? 1 : 0, 'Only the configured Tester starts a review');
-    assert.equal(testerReviews, mode === 'tester' || mode === 'repair' ? reviews : 0);
+    assert.equal(testerReviews, explicitReview ? reviews : 0);
     assert.ok(successorStarts >= definition.nodes[1].executions.length);
     if (mode === 'default') {
       for (let i = 0; i < 3; i++) { await releaseReadyNodes(run.id); await runTaskGraphCycle(); }
@@ -240,7 +286,17 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
     if (mode === 'conflict') { assert.equal(conflictResolutions, 1); const final = await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } }); assert.equal(git('show', `${final.commit}:shared`), 'repo\nother'); }
     if (mode === 'cross') assert.equal(jointRuns, 2, 'Both Tickets run actual joint commands against the pinned sibling repository');
     if (mode === 'history') { const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: node.executions[0].id } }); assert.equal((job.dispatchMetadata as any).progress.repairAttempts, 3); }
-    assert.equal(commands, reviews, 'Platform never executes the approved business command');
+    assert.equal(commands, reviews * 2, 'Platform never executes the approved business command');
+    if (mode === 'tester') {
+      const evidence = after.evidence as any;
+      assert.match(evidence.summary, /其他模型独立验收/);
+      assert.equal(evidence.reviewReceipt.checks.length, 2);
+      assert.equal(evidence.reviewReceipt.commits[0].commit, reviewedCommits[0]);
+      await assert.rejects(() => submitNodeVerification({ runId: run.id, nodeKey: 'A', actorId: 'local:kimi-code', evidence: { ...evidence, reviewReceipt: undefined } }), /receipt/);
+      for (let i = 0; i < 3; i++) { await releaseReadyNodes(run.id); await runTaskGraphCycle(); }
+      await drain(); assert.equal(reviews, 1); assert.equal(successorStarts, 1);
+      console.log(`explicit acceptance A -> B: reviews=${reviews}, Agent commands=${commands}, platform commands=0, fixed candidate=${reviewedCommits[0]}`);
+    }
     if (mode === 'repair') assert.notEqual(reviewedCommits[0], reviewedCommits[1]);
     if (mode !== 'implement') await assert.rejects(() => completeUnverifiedNode(run.id, 'A'), /approved implement-only/i);
     console.log(`agent-owned ${mode}: fixed quality, repair, human boundary, successor verified`);
@@ -249,6 +305,7 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
     await prisma.taskGraphRun.delete({ where: { id: run.id } });
     await prisma.liveRoom.deleteMany({ where: { sourceTaskId: parent.id } });
     await prisma.taskGraphProposal.deleteMany({ where: { parentTaskId: parent.id } });
+    for (const [key, value] of Object.entries(priorHomes)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     rmSync(root, { recursive: true, force: true });
   }
 }
@@ -257,9 +314,11 @@ async function main() {
   const require = createRequire(__filename), notices = require('../src/lib/task-graph/feishu');
   notices.ensureGraphChildTopic = async () => null; notices.postGraphParentProgress = async () => {}; notices.postGraphChildProgress = async () => {}; notices.sendGraphHumanReviewCard = async () => {};
   require('../src/lib/task-graph/check-environment').runSandboxedGraphCheck = async () => { throw new Error('Agent-owned contracts must not execute platform business checks'); };
+  require('../src/lib/real-agents/kimi-code-model-catalog').loadKimiCodeModelCatalog = async () => ({ 'fixture-kimi': {} });
+  require('../src/lib/codex-model-catalog').loadCodexModelCatalog = async () => [{ id: 'fixture-codex', efforts: [], defaultEffort: null }];
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  try { for (const mode of ['default', 'self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE === mode) await scenario(mode); }
-  finally { await prisma.$disconnect(); }
+  try { for (const mode of ['default', 'self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'tester-missing', 'tester-sha', 'tester-dirty', 'tester-model-drift', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE.split(',').includes(mode)) await scenario(mode); }
+  finally { await prisma.$disconnect(); rmSync(fixtureRoot, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
