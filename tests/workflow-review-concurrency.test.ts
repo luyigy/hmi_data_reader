@@ -8,7 +8,7 @@ async function main() {
     projects: [{
       id: 'project',
       feishu: { chat_id: 'chat', approver_open_ids: ['approver'] },
-      jobs: [{ id: 'workflow', type: 'workflow_watcher' }],
+      jobs: [{ id: 'workflow', type: 'workflow_watcher', config: {} }],
     }],
   });
 

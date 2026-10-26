@@ -8,6 +8,22 @@ projects:
       approver_open_ids:
         - ou_16b82bdefeb4944108d62068e88a2f0c
     jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "* * * * *"
+        enabled: false
+        mode: active
+        config:
+          active_side_effects_enabled: false
+          coding_bot_chat_id: oc_b634823504e29e6220de0cfb5108a216
+          coding_bot_chat_type: p2p
+          coding_bot_app_id: cli_a8e5326f4e7f901c
+          contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: .
+          initial_cursor_commit: 84d7bfe62d56acdf80025a72b124f8bb0464263d
+          workflow_autonomy: manual
+          execution_policy:
+            preset: workspace
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"

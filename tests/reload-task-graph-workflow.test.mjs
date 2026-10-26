@@ -13,7 +13,7 @@ try {
   writeFileSync(loader, `
     export async function resolve(specifier, context, nextResolve) {
       if (specifier !== '@prisma/client') return nextResolve(specifier, context);
-      const source = 'export class PrismaClient { taskRun = { count: async () => 0 }; async $disconnect() { console.log("TEST_DB_DISCONNECTED"); } }';
+      const source = 'export class PrismaClient { taskRun = { count: async () => 0 }; scheduledJobRun = { count: async () => { console.log("TEST_JOBS_CHECKED"); return 0; } }; deliveries = 0; liveRoomDelivery = { count: async () => { console.log("TEST_DELIVERIES_CHECKED"); return this.deliveries++ === 0 ? 1 : 0; } }; async $disconnect() { console.log("TEST_DB_DISCONNECTED"); } }';
       return { url: 'data:text/javascript,' + encodeURIComponent(source), shortCircuit: true };
     }
   `);
@@ -37,9 +37,11 @@ try {
   `);
   chmodSync(systemctl, 0o755);
 
-  for (const mode of ['reloaded', 'unchanged', 'zero', 'restart-failed', 'inactive']) {
+  for (const mode of ['reloaded', 'unchanged', 'zero', 'restart-failed', 'inactive', 'handover']) {
+    const expectedServices = mode === 'handover'
+      ? ['agent-platform-feishu.service', 'agent-platform-scheduled-jobs.service'] : services;
     const callsFile = path.join(directory, `${mode}.calls`);
-    const result = spawnSync(process.execPath, ['--no-warnings', '--experimental-loader', loader, path.join(root, 'scripts/reload-task-graph-workflow-when-idle.mjs')], {
+    const result = spawnSync(process.execPath, ['--no-warnings', '--experimental-loader', loader, path.join(root, 'scripts/reload-task-graph-workflow-when-idle.mjs'), ...(mode === 'handover' ? ['--handover'] : [])], {
       cwd: root,
       encoding: 'utf8',
       timeout: 10_000,
@@ -47,15 +49,19 @@ try {
     });
     assert.ifError(result.error);
     const calls = readFileSync(callsFile, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-    assert.deepEqual(calls.find((args) => args[1] === 'restart'), ['--user', 'restart', ...services], 'Restart must include the dedicated task graph Feishu relay');
+    assert.deepEqual(calls.find((args) => args[1] === 'restart'), ['--user', 'restart', ...expectedServices]);
     assert.match(result.stdout, /TEST_DB_DISCONNECTED/, 'Always disconnect the database');
-    if (mode === 'reloaded') {
+    if (mode === 'reloaded' || mode === 'handover') {
       assert.equal(result.status, 0, result.stderr);
-      for (const service of services) {
+      for (const service of expectedServices) {
         assert(calls.some((args) => JSON.stringify(args) === JSON.stringify(['--user', 'is-active', service])));
         assert.equal(calls.filter((args) => args[1] === 'show' && args[2] === service).length, 2);
       }
       assert.match(result.stdout, /Workflow runtimes reloaded/);
+      if (mode === 'handover') {
+        assert.match(result.stdout, /TEST_JOBS_CHECKED/);
+        assert.equal(result.stdout.match(/TEST_DELIVERIES_CHECKED/g)?.length, 2, 'Wait for the outgoing reply before reloading');
+      }
     } else {
       assert.notEqual(result.status, 0, `Must reject ${mode}`);
       assert.doesNotMatch(result.stdout, /Workflow runtimes reloaded/);

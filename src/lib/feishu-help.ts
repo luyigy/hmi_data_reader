@@ -49,6 +49,10 @@ const HELP_PAGES = [
   ['任务图 / Jobs', [
     '/ap graph propose [Spec 路径]  请当前 Agent 提出路线并发送飞书确认卡',
     '/ap graph status  在父任务话题查看依赖放行、执行与验收状态',
+    '/ap workflow status  查看 HANDOVER 接力状态',
+    '/ap plan [--host=<成员>] <需求>  生成待审批 PLAN',
+    '/ap workflow autonomy show  查看自动推进模式',
+    '/ap job activate workflow-watcher --plan=<路径> --head=<40位HEAD>  提审指定 PLAN',
     '/ap jobs',
     '/ap branch status  查询当前仓库实际分支、监控分支与漂移警告',
     '/ap branch apply [new_branch] [--branch-space=name]  确认并申请同步分支',
@@ -88,6 +92,7 @@ const CODEX_CONFIG_HELP = {
 };
 
 export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
+  '/ap workflow status',
   '/ap members',
   '/ap status',
   '/ap gateways',
@@ -121,6 +126,7 @@ const QUICK_ACTIONS = [
     ['提出任务路线', '/ap graph propose'],
     ['任务图进度', '/ap graph status'],
     ['分支状态', '/ap branch status'],
+    ['HANDOVER 接力状态', '/ap workflow status'],
     ['Jobs', '/ap jobs'],
   ],
   [
@@ -366,7 +372,8 @@ export const buildFeishuCommandCenterCard = (
     : categoryView === 'runtime'
       ? [callbackButton('切换工作区…', { cmd: 'ap-menu', view: 'form-workspace', chatType })]
       : categoryView === 'workflow'
-        ? []
+        ? [callbackButton('创建 PLAN…', { cmd: 'ap-menu', view: 'form-plan', chatType }),
+          callbackButton('接力执行档位…', { cmd: 'ap-menu', view: 'form-workflow-level', chatType })]
         : categoryView === 'admin'
           ? [callbackButton('权限约束…', { cmd: 'ap-room-control', view: 'permission', chatType })]
         : [];

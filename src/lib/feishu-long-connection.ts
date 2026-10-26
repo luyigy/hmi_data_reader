@@ -1,3 +1,5 @@
+import { handleWorkflowCardAction } from './feishu-workflow-card-action';
+import { resolveWorkflowRevisionFeedback } from './scheduled-jobs/workflow-review';
 import { handleGraphOverviewAction } from '@/lib/task-graph/overview';
 import { cleanupFeishuOwnedStaleTaskRuns } from './feishu-startup-task-cleanup';
 import { startChatCardRecovery } from './feishu-chat-card-runtime';
@@ -299,6 +301,11 @@ export function buildCardActionHandler(prefix: string) {
       };
     }
 
+    const workflowResult = await handleWorkflowCardAction({
+      value: action.value || {}, formValue: action.form_value, openId, chatId, messageId, prefix,
+    });
+    if (workflowResult !== null) return workflowResult;
+
     if (cmd === 'markdown-picker') return handleMarkdownPickerCardCallback({ action, openId, chatId, messageId, prefix });
     if (cmd === 'graph-spec-picker') return handleGraphSpecPicker({ value: action.value || {},
       formValue: action.form_value || {}, openId, chatId, messageId });
@@ -527,6 +534,15 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
         }
 
         if (!await checkFeishuDirectMessageAccess(message)) return;
+        const revisionFeedback = await resolveWorkflowRevisionFeedback({
+          chatId: message.chatId, actorOpenId: message.senderOpenId,
+          parentMessageId: message.parentId, feedback: message.text,
+        });
+        if (revisionFeedback.status === 'applied') {
+          await replyToFeishuConversation({ chatId: message.chatId, messageId: message.messageId,
+            text: '✅ 修改意见已收到，正在通知 Coding Agent 修订 PLAN。', topicScoped });
+          return;
+        }
         const command = parseFeishuCommand(message);
         if (!command) {
           // Not a /ap command — check if the chat is bound to a live room and relay

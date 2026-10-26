@@ -81,6 +81,7 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
       ? 'runtime'
       : [
           '/ap dashboard',
+          '/ap workflow status',
           '/ap jobs',
           '/ap graph status',
           '/ap graph propose',
@@ -94,7 +95,8 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   );
 }
 assert.match(JSON.stringify(workflowCard), /任务图进度/);
-assert.doesNotMatch(JSON.stringify(workflowCard), /创建 PLAN/);
+assert.match(JSON.stringify(workflowCard), /创建 PLAN/);
+assert.match(JSON.stringify(workflowCard), /HANDOVER 接力状态/);
 const menuCard = buildFeishuCommandCenterCard('group');
 assert.match(JSON.stringify(menuCard), /功能开发…/);
 assert.match(JSON.stringify(menuCard), /发现 Agents/);

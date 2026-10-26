@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parse } from 'yaml';
 import { validateWorkflowExecutionPolicy } from '../workflow-execution-policy';
 
-export const REGISTERED_JOB_TYPES = new Set(['long_file_detector', 'noop_test']);
+export const REGISTERED_JOB_TYPES = new Set(['workflow_watcher', 'long_file_detector', 'noop_test']);
 
 export type JobMode = 'shadow' | 'active';
 

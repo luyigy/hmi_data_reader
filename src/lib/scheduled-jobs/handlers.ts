@@ -32,6 +32,10 @@ export const noopTestHandler: JobHandler = async ({ cursor, job, signal }) => {
 };
 
 export const jobHandlers = new Map<string, JobHandler>([
+  ['workflow_watcher', async (context) => {
+    const { workflowWatcherHandler } = await import('./workflow-watcher');
+    return workflowWatcherHandler(context);
+  }],
   ['noop_test', noopTestHandler],
   ['long_file_detector', longFileDetectorHandler],
 ]);

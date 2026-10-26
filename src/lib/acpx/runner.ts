@@ -7,6 +7,7 @@ import { bindExecutionTaskRun } from '../task-graph/execution-progress';
 import { bindConversationInputs, completeConversationTurn, registerConversationSteering } from '../task-graph/conversation-inbox';
 import { bindReadOnlyConversation } from '../task-graph/conversation-followup';
 import { prisma } from '@/lib/prisma';
+import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import { getHarnessCapabilities } from './capabilities';
 import { publishTaskRunEvent } from './event-bus';
 import { getLongFileRuntimeContext } from './long-file-runtime-context';
@@ -301,6 +302,12 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       summaries: participantResults,
     },
   });
+
+  if (runStatus === 'completed' && !request.graphExecution && !request.graphReview && !request.graphConversation
+    && request.participants.some(participant => participant.executionBackend === 'platform_local')) {
+    void wakeWorkflowWatcherForTaskRun(prisma, request.taskId, taskRun.id)
+      .catch(error => console.error('[ACPX] workflow watcher wakeup failed:', error));
+  }
 
   const conversationExecution = graphExecution || request.graphConversation;
   if (conversationExecution) await completeConversationTurn(conversationExecution.executionId, taskRun.id);

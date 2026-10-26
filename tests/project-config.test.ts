@@ -35,12 +35,22 @@ ${overrides}`;
   assert.equal(findProjectByChatId(valid, 'chat-1')?.id, 'example');
   assert.equal(findJob(valid, 'example', 'scan')?.type, 'long_file_detector');
 
+  const watcher = await load(config(`      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "* * * * *"
+        enabled: false
+        mode: active
+        config:
+          execution_policy:
+            preset: workspace`));
+  assert.equal(findJob(watcher, 'example', 'workflow-watcher')?.enabled, false);
+
   for (const [name, source] of [
     ['duplicate chat', `${config()}\n  - id: second\n    name: Second\n    path: ${root}\n    ref: refs/heads/main\n    feishu: { chat_id: chat-1, approver_open_ids: [] }\n    jobs: []`],
     ['unknown type', config().replace('long_file_detector', 'shell')],
     ['relative path', config().replace(root, 'relative/path')],
     ['invalid cron', config().replace('*/10 * * * *', 'sometimes')],
-    ['retired watcher', config('      - id: old\n        type: workflow_watcher\n        schedule: "* * * * *"\n        enabled: true\n        mode: active\n        config: {}')],
+    ['watcher without execution policy', config('      - id: old\n        type: workflow_watcher\n        schedule: "* * * * *"\n        enabled: true\n        mode: active\n        config: {}')],
   ] as const) {
     await assert.rejects(load(source), name);
   }

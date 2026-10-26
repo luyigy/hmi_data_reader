@@ -10,6 +10,9 @@ import {
 } from '@/lib/feishu-access-approval';
 import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
+import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
+import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
+import { handleWorkflowInboxCommand } from '@/lib/feishu-workflow-inbox';
 import { handleFeishuDocumentCommand } from '@/lib/feishu-document-command';
 import { handleFeishuMarkdownCommand } from '@/lib/feishu-markdown-picker';
 import { formatFeishuHelp, sendFeishuCommandCenter } from '@/lib/feishu-help';
@@ -124,7 +127,7 @@ export async function handleFeishuCommand(args: {
     case 'chat':
       return handleChatCommand(args.command, args.baseUrl, args.context);
     case 'plan':
-      return '旧 PLAN 文档接力已退役。请让 Agent 先提出原型、定稿 Spec 和任务图，再在父任务确认整条路线。';
+      return handleFeishuPlanCommand(args.command, args.context);
     case 'doc':
       return handleFeishuDocumentCommand(args.command, args.context);
     case 'md':
@@ -149,11 +152,11 @@ export async function handleFeishuCommand(args: {
     case 'job':
       return handleScheduledJobCommand(args.command, args.context);
     case 'workflow':
-      return '旧 workflow-watcher 已退役；请在父任务话题让 Agent 提出路线，并在飞书确认卡上启动。';
+      return handleWorkflowPolicyCommand(args.command, args.context);
     case 'graph':
       return handleFeishuTaskGraphCommand(args.command, args.context);
     case 'inbox':
-      return '旧 Workflow Inbox 已退役；请在父任务中整理 Spec 与任务图。';
+      return handleWorkflowInboxCommand(args.command, args.context);
     case 'new-session':
       return handleNewSessionCommand(args.command, args.context);
     case 'stop': return handleStopAgentCommand(args.command, args.context);
