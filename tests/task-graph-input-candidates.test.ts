@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, renameSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { prisma } from '../src/lib/prisma';
@@ -91,10 +91,30 @@ async function main() {
     assert.deepEqual(input.quality, ['candidate_unverified']); assert.deepEqual(input.resultsDirectories, []); assert.deepEqual(input.executions, []);
     assert.deepEqual(input.replacement, { eventId: registered[0].eventId, previousCommit: reader.commit });
     assert.equal(readFileSync(path.join(input.sourcePath, 'value.js'), 'utf8'), 'module.exports = 2;\n');
-    for (const taskId of [child.id, `task-graph-review-${consumer.id}`, `task-graph-architecture-${consumer.id}`]) {
+    const runResults = path.join(root, '.agent-platform-task-graph-results', createHash('sha256').update(run.id).digest('hex').slice(0, 16));
+    const foreignResults = path.join(root, '.agent-platform-task-graph-results', 'another-run');
+    const archive = path.join(runResults, 'validation', 'producer', 'cpu-model');
+    mkdirSync(archive, { recursive: true }); mkdirSync(foreignResults, { recursive: true });
+    writeFileSync(path.join(archive, 'weights'), 'fixed model'); writeFileSync(path.join(foreignResults, 'private'), 'other run');
+    symlinkSync(path.join(foreignResults, 'private'), path.join(archive, 'escape'));
+    const replay = await prepareUpstreamInputs(job.id);
+    assert.equal(replay.manifest.hash, prepared.manifest.hash, 'Run archive access does not rewrite the claim-pinned evidence');
+    assert(replay.readOnlyPaths.includes(runResults), 'Replacement inputs must retain read access to their own run archives');
+    for (const taskId of [child.id, `task-graph-discussion-${job.id}`, `task-graph-review-${consumer.id}`, `task-graph-architecture-${consumer.id}`]) {
       const view = await graphInputsForTask(taskId); assert.equal(view.manifests[0].hash, prepared.manifest.hash);
       assert.match(view.instructions, /candidate_unverified/);
+      assert(view.paths.includes(runResults)); assert(!view.writablePaths.includes(runResults));
+      assert(!view.paths.includes(foreignResults));
     }
+    assert.deepEqual((await graphInputsForTask('unrelated-task')).paths, []);
+    const archiveCheck = await runSandboxedGraphCheck([process.execPath, '-e', `const fs=require('fs'),a=require('assert/strict');a.equal(fs.readFileSync(${JSON.stringify(path.join(archive, 'weights'))},'utf8'),'fixed model');a.throws(()=>fs.writeFileSync(${JSON.stringify(path.join(archive, 'weights'))},'bad'));a.throws(()=>fs.readFileSync(${JSON.stringify(path.join(foreignResults, 'private'))}));a.throws(()=>fs.readFileSync(${JSON.stringify(path.join(archive, 'escape'))}));console.log('own run archives read-only; foreign run hidden')`], mold.directory, replay.env, replay.readOnlyPaths);
+    assert.match(archiveCheck.stdout, /foreign run hidden/);
+    symlinkSync(foreignResults, path.join(runResults, 'foreign'));
+    await assert.rejects(prepareUpstreamInputs(job.id), /归档目录.*链接/);
+    unlinkSync(path.join(runResults, 'foreign'));
+    renameSync(runResults, runResults + '-saved'); symlinkSync(foreignResults, runResults);
+    await assert.rejects(prepareUpstreamInputs(job.id), /归档目录.*链接/);
+    unlinkSync(runResults); renameSync(runResults + '-saved', runResults);
     const check = await runSandboxedGraphCheck([process.execPath, '-e', `const fs=require('fs'),a=require('assert/strict');a.equal(require(${JSON.stringify(path.join(input.sourcePath, 'value.js'))}),2);a.throws(()=>fs.writeFileSync(${JSON.stringify(path.join(input.sourcePath, 'value.js'))},'bad'));console.log('fixed candidate consumed read-only')`], mold.directory, prepared.env, prepared.readOnlyPaths);
     assert.match(check.stdout, /consumed read-only/);
     const resource = await prepareResourceWorkspaces({ taskId: child.id, taskName: 'consumer', participants: [], orchestrationMode: 'single', workingDirectory: mold.directory,

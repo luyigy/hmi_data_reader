@@ -1,6 +1,6 @@
 import { executionProgress } from './execution-progress';
 import { prepareExtraRepositories } from './extra-repositories';
-import { realpath } from 'node:fs/promises';
+import { realpath, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -28,8 +28,20 @@ function closure(graph: GraphDefinition, key: string) {
   visit(key); return result;
 }
 
-async function hydrate(manifest: TaskInputManifest): Promise<PreparedInputs> {
-  const readOnlyPaths: string[] = [];
+async function hydrate(manifest: TaskInputManifest, runId: string, graph: GraphDefinition): Promise<PreparedInputs> {
+  // Archive visibility belongs to the approved run, not to a candidate's delivery evidence.
+  const roots = new Set(graph.nodes.flatMap(node => node.executions.map(job => path.join(
+    path.dirname(job.repository), '.agent-platform-task-graph-results', createHash('sha256').update(runId).digest('hex').slice(0, 16),
+  ))));
+  const archives: string[] = [];
+  for (const root of Array.from(roots)) {
+    if (!existsSync(root)) continue;
+    if (await realpath(root) !== root || (await readdir(root, { withFileTypes: true })).some(entry => entry.isSymbolicLink())) {
+      throw new Error(`任务路线归档目录不能使用链接：${root}`);
+    }
+    archives.push(root);
+  }
+  const readOnlyPaths: string[] = [...archives];
   for (const input of manifest.inputs) {
     const directory = await withRepositoryLock(input.repository, () => materializeUpstream(input.repository, input.commit));
     if (directory !== input.sourcePath) throw new Error('上游固定源码目录配置改变，不能静默换输入');
@@ -40,7 +52,7 @@ async function hydrate(manifest: TaskInputManifest): Promise<PreparedInputs> {
   }
   return { manifest, readOnlyPaths: Array.from(new Set(readOnlyPaths)),
     env: { TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify([manifest]), AP_PROJECT_REPOSITORY: manifest.primaryRepository },
-    instructions: `\n本轮固定输入清单 ${manifest.hash}：${JSON.stringify(manifest)}\n清单含已完成前置及整票责任人本轮可用的同票集成源码；同票 integrated 不表示验收通过。replacement 是用户授权后由平台登记的补充候选，candidate_unverified 不代表已验收或汇合；正式入口和独立验收必须消费清单中的新 commit/sourcePath，不继承旧版通过证据。输入源码和环境只读；跨仓调用使用对应 sourcePath 和 pythonExecutable。默认环境只归主仓，不能拼接多仓 PYTHONPATH。源码副本无 .git，Git 历史操作走平台。归档仅列已绑定交付版本的路径，缺少路径不等于从未验证；不能把旧报告冒充当前版本证据。输入不可用报告平台输入/环境阻塞，不要求用户重复发图。` };
+    instructions: `\n本轮固定输入清单 ${manifest.hash}：${JSON.stringify(manifest)}\n清单含已完成前置及整票责任人本轮可用的同票集成源码；同票 integrated 不表示验收通过。replacement 是用户授权后由平台登记的补充候选，candidate_unverified 不代表已验收或汇合；正式入口和独立验收必须消费清单中的新 commit/sourcePath，不继承旧版通过证据。输入源码和环境只读；跨仓调用使用对应 sourcePath 和 pythonExecutable。默认环境只归主仓，不能拼接多仓 PYTHONPATH。源码副本无 .git，Git 历史操作走平台。清单内 resultsDirectories 仅表示绑定交付版本的证据。当前路线归档只读目录：${JSON.stringify(archives)}；可复用资源，但不能把旧报告冒充当前候选的通过证据。输入不可用报告平台输入/环境阻塞，不要求用户重复发图。` };
 }
 
 /** Resolve approved dependency relations once per execution claim, then replay the same recorded input. */
@@ -53,7 +65,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
   await prepareExtraRepositories(planned.extraRepositories);
   const eventKey = `execution:${execution.id}:inputs:${execution.claimToken || 'legacy'}`;
   const existing = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: eventKey } } });
-  if (existing) return hydrate(parseInputManifest(existing.payload));
+  if (existing) return hydrate(parseInputManifest(existing.payload), node.runId, graph);
   const required = closure(graph, node.key);
   const canonical = (repository: string) => realpath(repository).catch(() => repository);
   const primaryRepository = await canonical(execution.repository);
@@ -123,7 +135,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
       payload: { executionId, previousHash: String(previous.payload.hash), currentHash: manifest.hash } }], skipDuplicates: true });
     return recorded;
   });
-  return hydrate(parseInputManifest(event.payload));
+  return hydrate(parseInputManifest(event.payload), node.runId, graph);
 }
 
 /** Readonly QA and all native roles receive the same claim-pinned manifests. */
