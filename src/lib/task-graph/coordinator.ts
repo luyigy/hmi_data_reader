@@ -282,11 +282,11 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const note = String((result.payload as { note?: string }).note || '架构复核未通过');
     // Architecture is a separate gate; its failure does not revise business-test history.
     evidence.checks.push({ name: 'architecture:scope', passed: false, evidence: note });
-    const incomplete = isRecord(result.payload) && ['platform_failure', 'protocol_exhausted'].includes(String(result.payload.failureKind));
+    const incomplete = isRecord(result.payload) && ['platform_failure', 'protocol_exhausted', 'environment_failed', 'blocked_require_human'].includes(String(result.payload.failureKind));
     evidence.summary = `架构复核${incomplete ? '未完成，已有测试结果保留' : '未通过'}：${note}`;
     const owner = isRecord(result.payload) && typeof result.payload.claimKey === 'string' && typeof result.payload.taskRunId === 'string'
       ? { phase: 'architecture' as const, claimKey: result.payload.claimKey, taskRunId: result.payload.taskRunId, outcome: result.payload.failureKind === 'protocol_exhausted' ? 'protocol_exhausted' as const : result.payload.failureKind === 'platform_failure' ? 'platform_failure' as const : 'classified' as const,
-        ...(['blocked_require_human', 'ownership_mismatch'].includes(String(result.payload.failureKind)) ? { decision: { code: result.payload.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: note } } : {}) } : undefined;
+        ...(['blocked_require_human', 'ownership_mismatch', 'environment_failed'].includes(String(result.payload.failureKind)) ? { decision: { code: result.payload.failureKind as 'blocked_require_human' | 'ownership_mismatch' | 'environment_failed', detail: note } } : {}) } : undefined;
     await submitNodeVerification({ runId, nodeKey, review: owner,
       actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: verificationAttempt });
     const decision = result.payload && typeof result.payload === 'object' && !Array.isArray(result.payload) ? result.payload : {};
@@ -336,7 +336,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       `\n话题原图材料（平台获取，只读输入）：${materials.join('\n')}` +
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
-      '\n失败必须区分 in_scope_defect（原范围内代码或测试缺口）与 blocked_require_human（图片模糊、材料缺失、范围变化或权限越界）。缺少有效结构化结论时不会自动回修。' +
+      '\n失败必须区分 in_scope_defect（原范围内代码或测试缺口）、environment_failed（环境、认证或工具不可用）与 blocked_require_human（必须由人补材料、裁定范围或批准权限）。缺少有效结构化结论时不会自动回修。' +
       reviewResultInstructions('TASK_GRAPH_REVIEW', reviewChecks) +
       (agentOwned && policy.models ? acceptanceReceiptInstructions(plannedNode, verificationInputs(node.executions), commits) : '');
     const reviewed = await collectGraphReview({ runId, nodeId: node.id, claimKey, marker: 'TASK_GRAPH_REVIEW', checks: reviewChecks,
@@ -353,12 +353,13 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const approved = decision?.approved === true;
     if (reviewed.kind === 'classified' && reviewed.verification) evidence.reviewReceipt = reviewed.verification;
     // An absent verdict cannot turn completed tests into failures (or approvals).
-    if (reviewed.kind === 'classified') evidence.checks = evidence.checks.map((item) => ({
+    const incomplete = reviewed.kind !== 'classified' || ['blocked_require_human', 'environment_failed'].includes(String(decision && !decision.approved ? decision.failureKind : ''));
+    if (!incomplete) evidence.checks = evidence.checks.map((item) => ({
       ...item, passed: agentOwned ? approved : item.passed && approved,
       evidence: `${item.evidence}\nAgent review ${reviewed.taskRunId}: ${response}`,
     }));
     evidence.checks.push({ name: 'acceptance:decision', passed: approved, evidence: response });
-    evidence.summary = `${policy.models ? `其他模型独立验收（${policy.models.reviewer.model}）` : 'Agent 复核'} ${reviewed.kind !== 'classified' ? '未完成，已有测试结果保留' : approved ? '通过' : '未通过'}：${response}`;
+    evidence.summary = `${policy.models ? `其他模型独立验收（${policy.models.reviewer.model}）` : 'Agent 复核'} ${incomplete ? '未完成，已有测试结果保留' : approved ? '通过' : '未通过'}：${response}`;
     try { await assertReviewWorkspacesClean(workspaces); } catch (error) {
       reviewDecision = { failureKind: 'ownership_mismatch', note: String(error) };
       evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
@@ -366,7 +367,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     }
     await assertGraphReviewOwnership(node.id, 'acceptance', claimKey, reviewed.taskRunId);
     reviewOwner = { phase: 'acceptance', claimKey, taskRunId: reviewed.taskRunId, outcome: reviewed.kind,
-      ...(['blocked_require_human', 'ownership_mismatch'].includes(String(reviewDecision.failureKind)) ? { decision: { code: reviewDecision.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: String(reviewDecision.note) } } : {}) };
+      ...(['blocked_require_human', 'ownership_mismatch', 'environment_failed'].includes(String(reviewDecision.failureKind)) ? { decision: { code: reviewDecision.failureKind as 'blocked_require_human' | 'ownership_mismatch' | 'environment_failed', detail: String(reviewDecision.note) } } : {}) };
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       if (await graphRunIsPaused(runId)) return;
@@ -393,8 +394,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   await refreshTaskGraphRunStatus(runId);
   const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? `${selfChecked ? '已交付，实施自测通过，无独立验收' : '验收通过'}，Slice 已完成；符合条件的后继将自动启动。`
     : updated.status === 'awaiting_human' ? `${selfChecked ? '实施自测已通过' : '自动检查已结束'}，等待已配置的人工验收。`
-    : reviewDecision.failureKind === 'in_scope_defect' ? '回修未产生新的进展，已停止空转并保留原会话和各轮报告；后继继续等待。'
-    : reviewDecision.failureKind === 'platform_failure' ? '验收未完成，复核执行失败；已有测试结果保留，后继继续等待。'
+    : reviewDecision.failureKind === 'in_scope_defect' ? definition.deliveryContract === 'agent_owned_v1' ? '业务验证失败，已保留原因与证据；本轮结束，后继继续等待。' : '回修未产生新的进展，已停止空转并保留原会话和各轮报告；后继继续等待。'
+    : ['platform_failure', 'environment_failed'].includes(String(reviewDecision.failureKind)) ? '验收未完成，复核执行失败；已有测试结果保留，后继继续等待。'
     : reviewDecision.failureKind === 'protocol_exhausted' ? '复核结论补收已耗尽，交付现场保留，需要明确处理方案后再排期。'
     : reviewDecision.failureKind === 'blocked_require_human' ? '需补材料、裁定范围或权限；原因见复核结论。补齐后在这里说继续验收即可。'
     : '验收未通过，结论尚不足以自动回修；后继继续等待。';
@@ -627,6 +628,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     if (conclusion.status !== 'delivered') {
       if (conclusion.status === 'working') {
         await outcome({ kind: 'continue_work', note: conclusion.note, fingerprint: await continuationWorkFingerprint(execution.id, candidate) });
+      } else if (conclusion.status === 'failed') {
+        await outcome({ kind: 'business_stopped', result: 'failed', failure: { code: 'implementation_failed', detail: conclusion.note, owner: 'implementer', requiresUserDecision: false } });
       } else if (conclusion.status === 'waiting_for_user' || conclusion.status === 'answered') {
         await outcome({ kind: 'waiting_for_user', note: conclusion.note, result: conclusion.status === 'answered' ? 'answered' : 'question' });
       } else if (conclusion.status === 'invalid') {

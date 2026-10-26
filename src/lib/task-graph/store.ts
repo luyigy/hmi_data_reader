@@ -358,7 +358,16 @@ export async function submitNodeVerification(args: {
     if (args.review && (args.review.outcome !== 'classified' || args.review.decision)) {
       status = await applyReviewFailureTx(tx, node.id, { phase: args.review.phase, claimKey: args.review.claimKey, identity: args.review.taskRunId,
         kind: args.review.decision ? 'decision_required' : args.review.outcome === 'platform_failure' ? 'platform_failure' : 'protocol_exhausted',
-        failure: args.review.decision || { code: args.review.outcome === 'platform_failure' ? 'review_platform_failure' : 'invalid_review_result', detail: args.evidence.summary } });
+        failure: args.review.decision ? { ...args.review.decision, requiresUserDecision: args.review.decision.code !== 'environment_failed', owner: args.review.decision.code === 'environment_failed' ? 'platform' : 'user' }
+          : { code: args.review.outcome === 'platform_failure' ? 'review_platform_failure' : 'invalid_review_result', detail: args.evidence.summary } });
+    } else if (agentOwned && !allPassed) {
+      const quality = !args.review ? implementationQuality(planned, await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } })) : null;
+      const blocked = quality && !quality.decision.approved && quality.decision.failureKind !== 'in_scope_defect' ? quality.decision : null;
+      status = await applyReviewFailureTx(tx, node.id, { phase: args.review?.phase || 'acceptance',
+        claimKey: args.review?.claimKey || `node:${node.key}:self-check`, identity: args.review?.taskRunId || `self-check:${args.attempt || 'initial'}`,
+        kind: blocked ? 'decision_required' : 'business_failed', failure: blocked
+          ? { code: blocked.failureKind, detail: blocked.note, owner: blocked.failureKind === 'blocked_require_human' ? 'user' : 'platform', requiresUserDecision: blocked.failureKind === 'blocked_require_human' }
+          : { code: 'business_verification_failed', detail: args.evidence.summary, owner: 'implementer', requiresUserDecision: false } });
     }
     if (args.review && !allPassed) {
       await tx.taskRunFeishuRelay.updateMany({ where: { taskRunId: args.review.taskRunId }, data: { lastStatus: 'publication_pending' } });

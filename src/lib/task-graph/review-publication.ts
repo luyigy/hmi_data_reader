@@ -13,16 +13,20 @@ import { applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, m
 export type ReviewPublication = {
   phase: 'architecture' | 'acceptance'; claimKey: string; taskRunId: string;
   outcome: 'classified' | 'protocol_exhausted' | 'platform_failure';
-  decision?: { code: 'blocked_require_human' | 'ownership_mismatch'; detail: string };
+  decision?: { code: 'blocked_require_human' | 'ownership_mismatch' | 'environment_failed'; detail: string };
 };
 
 /** Caller holds graph-control before node; a platform retry never dispatches implementation again. */
 export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId: string, args: {
   phase: 'architecture' | 'acceptance'; claimKey: string; identity: string;
-  failure: ExecutionFailure; kind: 'platform_failure' | 'protocol_exhausted' | 'decision_required';
+  failure: ExecutionFailure; kind: 'platform_failure' | 'protocol_exhausted' | 'decision_required' | 'business_failed';
 }) {
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
   const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+  const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: node.runId }, select: { snapshot: true } });
+  const snapshot = run.snapshot;
+  const businessBlocked = args.kind === 'decision_required' && ['blocked_require_human', 'environment_failed'].includes(args.failure.code) &&
+    snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) && snapshot.deliveryContract === 'agent_owned_v1';
   if (node.status !== 'verifying' || !node.executions.length) throw new Error('Review failure no longer owns verification');
   const exhausted = args.kind === 'protocol_exhausted' || args.kind === 'platform_failure' && node.executions.some(job => (executionProgress(job.dispatchMetadata)?.platformAttempts || 0) >= executionRetryLimits.platformAttempts);
   const failure: ExecutionFailure = args.kind === 'platform_failure' ? { ...args.failure, owner: 'platform', requiresUserDecision: false } : args.failure;
@@ -38,7 +42,9 @@ export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId:
     if (!executionProgress(job.dispatchMetadata)) await tx.taskGraphExecution.update({ where: { id: job.id }, data: { claimToken: token, dispatchMetadata: metadataWithProgress(job.dispatchMetadata, progress) } });
     else if (!job.claimToken) throw new Error('Versioned review has no claim token');
     await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: token, expectedRevision: progress.revision,
-      outcomeId: `review-failure:${args.identity}`, outcome: exhausted ? { kind: 'retry_exhausted', failure }
+      outcomeId: `review-failure:${args.identity}`, outcome: args.kind === 'business_failed' ? { kind: 'business_stopped', result: 'failed', failure }
+        : businessBlocked ? { kind: 'business_stopped', result: 'blocked', failure }
+        : exhausted ? { kind: 'retry_exhausted', failure }
         : args.kind === 'decision_required' ? { kind: 'decision_required', failure }
         : { kind: 'review_retry', failure, claimKey: nextClaim, phase: args.phase } });
   }

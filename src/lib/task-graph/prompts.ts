@@ -13,6 +13,7 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
     '在原会话直接处理用户补充，按原授权读取、修改和测试，不需要聊天转实施交接。普通文字答复会保存本轮并等待新消息；需要平台继续下一轮工作时，明确返回 TASK_GRAPH_IMPLEMENTATION {"status":"working","note":"下一步具体工作"}。明确等待用户时返回 status=waiting_for_user；范围或权限需要人决定时返回 status=blocked，并注明 scope_change 或 permission_required。',
     '必需运行能力确实不可用时返回 TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"environment_failed","blockerCause":"missing_capability","note":"缺少的能力和实际探针结果"}。只读资源是否授权由平台校验，不自行扩大挂载；不要仅更换报告路径重复相同失败探针。',
+    ...(graph.deliveryContract === 'agent_owned_v1' ? ['业务问题由你在当前会话与预算内修复并自测。最终结果使用 delivered、blocked 或 failed；失败返回 TASK_GRAPH_IMPLEMENTATION {"status":"failed","note":"实际失败原因和验证结果"}。blocked/failed 会停止本轮，平台不按业务错误分类重派实施者。working 仅表示你明确请求继续尚未结束的工作；waiting_for_user 仅用于确需用户输入。'] : []),
     graph.deliveryContract === 'agent_owned_v1' && node.executionMode !== 'implement'
       ? `质量责任已冻结：${node.acceptance.mode === 'agent' ? '配置的 Tester 对固定版本独立验证' : `各 execution 负责本仓自查；整票自查由 ${selfCheckExecution(node)} 在原 Coding Session 完成，以 delivered.ticketVerification 提交正式结论`}${node.acceptance.mode === 'human' ? '，之后等待人工批准' : ''}。批准的验收项：${JSON.stringify(node.acceptance.checks)}。平台只检查协议、身份、证据和版本一致性，不代跑业务检查。`
       : node.executionMode === 'implement'

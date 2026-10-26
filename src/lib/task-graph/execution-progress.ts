@@ -20,6 +20,7 @@ export function completeExecutionFailure(failure: ExecutionFailure): ExecutionFa
 export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string; candidateCommit: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
+  businessResult?: 'blocked' | 'failed';
   review?: GraphReviewBinding;
   worker?: GraphWriter;
   workerReleasedAt?: string;
@@ -36,6 +37,7 @@ export type ExecutionProgress = {
   conflictRepair?: ConflictRepair;
 };
 export type ExecutionOutcome =
+  | { kind: 'business_stopped'; result: 'blocked' | 'failed'; failure: ExecutionFailure }
   | { kind: 'admission_deferred'; retryAt: string; failure: ExecutionFailure }
   | { kind: 'admitted'; requestId: string; stage: { kind: 'implementation'; phase: ExecutionPhase } | { kind: 'review'; phase: 'architecture' | 'acceptance'; claimKey: string } }
   | { kind: 'continue_work'; note: string; fingerprint: string }
@@ -84,6 +86,7 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
     state: enumeration(value.state, ['active', 'ready', 'waiting_for_user', 'waiting_decision', 'exhausted', 'ownership_attention']),
     repairAttempts: count(value.repairAttempts), formatAttempts: count(value.formatAttempts), platformAttempts: count(value.platformAttempts), integrationAttempts: value.integrationAttempts === undefined ? 0 : count(value.integrationAttempts),
   };
+  if (value.businessResult !== undefined) progress.businessResult = enumeration(value.businessResult, ['blocked', 'failed'] as const);
   if (value.continuation !== undefined) {
     const saved = record(value.continuation);
     if (typeof saved.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(saved.fingerprint)) throw new Error('Invalid work continuation fingerprint');
@@ -203,7 +206,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const admission = ['admitted', 'admission_deferred'].includes(args.outcome.kind) && !!expectedExecution && ['attention', 'integrated'].includes(current.status) && ['attention', 'claimed'].includes(current.node.status) &&
       (['waiting_decision', 'waiting_for_user', 'exhausted'].includes(before.state) || current.status === 'integrated' && ['architecture', 'acceptance'].includes(before.phase) && ['active', 'ready'].includes(before.state)) && !before.conflictRepair;
     const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
-    const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
+    const reviewRepair = current.status === 'integrated' && ['business_stopped', 'repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     const conflictRecovery = current.status === 'attention' && before.state === 'waiting_decision' && before.lastFailure?.code === 'integration_conflict' &&
       (args.outcome.kind === 'repair_required' && !!args.outcome.conflictRepair || args.outcome.kind === 'decision_required' && args.outcome.failure.code === 'integration_conflict');
     if ((!admission && !conflictRecovery && !reviewRepair && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
@@ -213,7 +216,13 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         args.outcome.kind === 'result_incomplete' && !['implement', 'collect_result', 'check'].includes(before.phase)) throw new Error('Execution outcome does not belong to current phase');
     const progress: ExecutionProgress = { ...before, revision: before.revision + 1, state: 'active' };
     delete progress.nextRetryAt;
-    const outcome = args.outcome;
+    let outcome = args.outcome;
+    if (outcome.kind === 'repair_required' && !outcome.conflictRepair && outcome.failure.code !== 'verification_input_changed') {
+      const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: current.node.runId }, select: { snapshot: true } });
+      if (record(run.snapshot).deliveryContract === 'agent_owned_v1') outcome = {
+        kind: 'business_stopped', result: 'failed', failure: { ...outcome.failure, owner: 'implementer', requiresUserDecision: false },
+      };
+    }
     let status = current.status;
     let issueKind: string | null = null;
     if (outcome.kind === 'admission_deferred') {
@@ -223,6 +232,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       if (!admission || !outcome.requestId.trim() || before.state === 'ownership_attention') throw new Error('Invalid admission identity');
       progress.phase = outcome.stage.phase;
       progress.replyEpoch = outcome.requestId;
+      delete progress.businessResult;
       delete progress.lastFailure; delete progress.waitingKind; delete progress.waitingMessage; delete progress.conversation;
       if (outcome.stage.kind === 'review') {
         if (!current.commit || !['architecture', 'acceptance'].includes(before.phase)) throw new Error('Admission requires fixed review candidate');
@@ -231,6 +241,12 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         if (['architecture', 'acceptance'].includes(before.phase)) throw new Error('Review cannot be admitted as implementation');
         status = 'ready'; progress.state = 'ready'; delete progress.review;
       }
+    } else if (outcome.kind === 'business_stopped') {
+      status = current.status === 'integrated' ? 'integrated' : 'attention';
+      issueKind = outcome.failure.code; progress.state = 'waiting_decision'; progress.businessResult = outcome.result;
+      progress.lastFailure = completeExecutionFailure({ ...outcome.failure,
+        action: outcome.failure.action || (outcome.failure.requiresUserDecision ? '补充所述材料或通过已有入口决定范围与权限后接续' : '按已记录原因处理后明确接续；平台不按业务分类自动重做') });
+      delete progress.waitingKind; delete progress.waitingMessage;
     } else if (outcome.kind === 'continue_work') {
       if (!['implement', 'collect_result'].includes(before.phase) || !/^[a-f0-9]{64}$/.test(outcome.fingerprint) || !outcome.note.trim()) throw new Error('Invalid normal work continuation');
       const unchangedTurns = before.lastFailure?.code !== 'invalid_result' && before.continuation?.fingerprint === outcome.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
@@ -338,7 +354,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       ...(status === 'ready' ? { claimToken: null, claimedAt: null, taskRunId: null, sessionId: null } : {}),
       ...(outcome.kind === 'integrated' ? { commit: outcome.commit, evidence: outcome.evidence } : {}),
     } });
-    if (status === 'attention' && outcome.kind !== 'admission_deferred') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
+    if (outcome.kind === 'business_stopped' || status === 'attention' && outcome.kind !== 'admission_deferred') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
     if (status === 'ready' && outcome.kind !== 'admitted') {
       await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed' } });
       await tx.taskGraphRun.updateMany({ where: { id: current.node.runId, status: { not: 'paused' } }, data: { status: 'running' } });
@@ -354,7 +370,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     }
     await tx.taskGraphEvent.create({ data: { runId: current.node.runId, nodeId: job.nodeId, idempotencyKey,
       kind: outcome.kind === 'integrated' ? 'execution_integrated' : 'execution_outcome',
-      payload: { ...(outcome.kind === 'integrated' ? { commit: outcome.commit } : {}), executionId: job.id, claimToken: args.claimToken, expectedRevision: args.expectedRevision, outcome, progress } as unknown as Prisma.InputJsonValue,
+      payload: { ...(outcome.kind === 'integrated' ? { commit: outcome.commit } : {}), executionId: job.id, claimToken: args.claimToken, expectedRevision: args.expectedRevision, outcome: args.outcome, progress } as unknown as Prisma.InputJsonValue,
     } });
     return progress;
 }

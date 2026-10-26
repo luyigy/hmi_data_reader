@@ -17,6 +17,7 @@ export type { ReviewDecision } from './review-contract';
 export async function scheduleGraphRepair(runId: string, nodeKey: string, decision: ReviewDecision, evidence: VerificationEvidence, expectedReview?: PendingReviewRepairBinding) {
   if (decision.approved === true || decision.failureKind !== 'in_scope_defect' || typeof decision.note !== 'string' || !decision.note.trim()) return false;
   const observedNode = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, include: { run: true, executions: true } });
+  if ((observedNode.run.snapshot as unknown as GraphDefinition).deliveryContract === 'agent_owned_v1') return false;
   const proposed = classifyReview({ ...decision, approved: false }, graphReviewChecks(observedNode.run.snapshot as unknown as GraphDefinition, nodeKey, observedNode.executions));
   if (observedNode.status !== 'attention' || !proposed || proposed.approved || proposed.failureKind !== 'in_scope_defect') return false;
   const observed = observedNode.executions.filter(job => proposed.executionIds.includes(job.id));

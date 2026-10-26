@@ -8,9 +8,39 @@ import { prisma } from '../src/lib/prisma';
 import { applyExecutionOutcome, executionProgress, metadataWithProgress, type ExecutionOutcomeRequest } from '../src/lib/task-graph/execution-progress';
 import { claimExecution, claimNode, createTaskGraphRun, releaseReadyNodes, recordExecutionDispatch } from '../src/lib/task-graph/store';
 import { scheduleImplementationRecovery } from '../src/lib/task-graph/implementation-result';
+import { admitNode } from '../src/lib/task-graph/preparation-recovery';
+
+async function agentOwnedFailure() {
+  const parent = await prisma.task.create({ data: { name: 'agent-owned outcome fixture' } });
+  const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
+    deliveryContract: 'agent_owned_v1', specRef: 'test://business-stop', nodes: [{ key: 'A', goal: 'A', dependsOn: [], executionMode: 'lean',
+      acceptance: { mode: 'automatic', checks: ['behavior'] }, executions: [{ key: 'repo', repository: '/tmp/business-stop-fixture',
+        gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', instructions: 'fixture' }] }],
+  } });
+  try {
+    await releaseReadyNodes(run.id); await claimNode(run.id, 'A', 'business');
+    const job = await claimExecution(run.id, 'A', 'repo', 'business'); assert(job);
+    await applyExecutionOutcome({ executionId: job.id, claimToken: 'business', expectedRevision: 0,
+      outcomeId: 'checkpoint', outcome: { kind: 'checkpoint', phase: 'check', candidateCommit: 'b'.repeat(40), workspaceBase: 'a'.repeat(40) } });
+    const request: ExecutionOutcomeRequest = { executionId: job.id, claimToken: 'business', expectedRevision: 1,
+      outcomeId: 'business-defect', outcome: { kind: 'repair_required', failure: { code: 'test_failed', detail: 'Actual behavior assertion failed', tree: 'c'.repeat(40), fingerprint: 'd'.repeat(64) } } };
+    const stopped = await applyExecutionOutcome(request);
+    assert.equal(stopped.businessResult, 'failed'); assert.equal(stopped.phase, 'check'); assert.equal(stopped.repairAttempts, 0);
+    assert.deepEqual(await applyExecutionOutcome(request), stopped, 'Duplicate raw outcome preserves its identity after business stop projection');
+    await assert.rejects(applyExecutionOutcome({ ...request, outcome: { ...request.outcome, kind: 'decision_required', failure: { code: 'other', detail: 'conflicting duplicate' } } }), /Conflicting/);
+    const changed = await admitNode(job.nodeId, { source: 'conditions', id: 'changed-environment' });
+    assert.equal('reason' in changed && changed.reason, 'business_result_stopped');
+    assert.equal(await claimExecution(run.id, 'A', 'repo', 'unwanted-retry'), null);
+    assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).commit, null);
+    console.log('Agent-owned failed checks stop without repair counters, duplicate events or environment scans restarting implementation');
+  } finally {
+    await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.task.delete({ where: { id: parent.id } });
+  }
+}
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
+  await agentOwnedFailure();
   for (const progress of [{}, { version: 2 }, { version: 1, revision: -1 },
     { version: 1, revision: 0, phase: 'bogus', state: 'ready', repairAttempts: 0, formatAttempts: 0, platformAttempts: 0 }]) {
     assert.throws(() => executionProgress({ progress }));

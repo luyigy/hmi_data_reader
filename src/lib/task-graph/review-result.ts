@@ -41,7 +41,7 @@ export async function collectGraphReview(args: {
     const decision = classifyReview(raw, args.checks);
     const verification = raw && typeof raw === 'object' && 'verification' in raw ? raw.verification : undefined;
     const verified = args.validateVerification?.(verification, decision?.approved === true);
-    const valid = !args.validateVerification || (decision?.approved === false && decision.failureKind === 'blocked_require_human') || verified;
+    const valid = !args.validateVerification || (decision?.approved === false && ['blocked_require_human', 'environment_failed'].includes(decision.failureKind)) || verified;
     if (decision && valid) return { kind: 'classified', decision, ...(verified ? { verification: verification as AcceptanceReceipt } : {}), taskRunId: result.taskRunId };
     await prisma.taskGraphEvent.createMany({ data: [{ runId: args.runId, nodeId: args.nodeId,
       idempotencyKey: `review-result:${key}:${attempt}`, kind: attempt ? 'review_result_exhausted' : 'review_result_recollection',

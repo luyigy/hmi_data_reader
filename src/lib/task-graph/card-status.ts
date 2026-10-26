@@ -14,6 +14,9 @@ export function graphCardStatus(status: string | undefined, progresses: (Executi
   if (status === 'awaiting_human') return display('yellow', '待人工确认');
   if (status === 'attention') {
     const waiting = progresses.filter(p => p && !['ready', 'active'].includes(p.state));
+    if (waiting.some(p => p?.businessResult === 'failed')) return display('red', '任务失败 · 原因已记录');
+    const blocked = waiting.find(p => p?.businessResult === 'blocked');
+    if (blocked) return display('yellow', blocked.lastFailure?.requiresUserDecision ? '任务阻塞 · 需你补充或决定' : '任务阻塞 · 原因已记录');
     const incomplete = waiting.find(p => p?.lastFailure && ['review_platform_failure', 'invalid_review_result', 'environment_failed'].includes(p.lastFailure.code) && ['acceptance', 'architecture'].includes(p.phase));
     if (incomplete) return display('red', incomplete.phase === 'acceptance' ? '验收未完成 · 执行异常' : '架构审查未完成 · 执行异常');
     if (waiting.some(p => p?.lastFailure && p.phase === 'acceptance')) return display('red', '验收未通过');

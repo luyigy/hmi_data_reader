@@ -8,6 +8,7 @@ import type { GraphDefinition } from './domain';
 import { redactSensitiveText } from '../redact-sensitive';
 
 export type ImplementationResult =
+  | { status: 'failed'; note: string }
   | { status: 'delivered'; note: string; evidence: string[]; ticketVerification?: ClassifiedReview }
   | { status: 'waiting_for_user'; note: string }
   | { status: 'answered'; note: string }
@@ -36,7 +37,7 @@ function decodeImplementationResult(output: string, checks: ReviewCheck[] = []):
   catch { throw new Error('实施结论 JSON 格式无效'); }
   if (!isRecord(value) || typeof value.note !== 'string' || !value.note.trim()) throw new Error('实施结论缺少有效说明');
   const note = value.note.trim();
-  if (value.status === 'waiting_for_user' || value.status === 'answered' || value.status === 'working') return { status: value.status, note };
+  if (value.status === 'failed' || value.status === 'waiting_for_user' || value.status === 'answered' || value.status === 'working') return { status: value.status, note };
   if (value.status === 'delivered' && Array.isArray(value.evidence) && value.evidence.length &&
       value.evidence.every(item => typeof item === 'string' && item.trim())) {
     const decision = value.ticketVerification === undefined ? undefined : classifyReview(value.ticketVerification, checks);
@@ -52,7 +53,7 @@ function decodeImplementationResult(output: string, checks: ReviewCheck[] = []):
   }
   if (value.status === 'blocked') throw new Error('实施阻塞结论缺少有效 blockerKind：须为 missing_business_material、missing_upstream_input、environment_failed、scope_change 或 permission_required');
   if (value.status === 'delivered') throw new Error('实施交付结论缺少有效 evidence 证据：须为非空字符串数组');
-  throw new Error('实施结论无效：status 须为 delivered、working、waiting_for_user、answered 或 blocked');
+  throw new Error('实施结论无效：status 须为 delivered、failed、working、waiting_for_user、answered 或 blocked');
 }
 
 export async function pauseGraphImplementation(args: {
@@ -66,6 +67,17 @@ export async function pauseGraphImplementation(args: {
     progress = await applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
       expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:paused-candidate`,
       outcome: { kind: 'checkpoint', phase: progress.phase, candidateCommit: args.checkpointCommit, workspaceBase: progress.workspaceBase || args.workspaceBase },
+    });
+  }
+  const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId } });
+  if (progress && (run.snapshot as unknown as GraphDefinition).deliveryContract === 'agent_owned_v1' && args.result.status === 'blocked' &&
+      (args.blockedPhase || 'implementation') === 'implementation') {
+    const requiresUserDecision = ['permission_required', 'scope_change', 'missing_business_material'].includes(args.result.blockerKind);
+    return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,
+      outcomeId: `${args.claimToken}:${progress.revision}:business-blocked`,
+      outcome: { kind: 'business_stopped', result: 'blocked', failure: { code: args.result.blockerKind, detail: args.result.note,
+        blockedPhase: 'implementation', owner: requiresUserDecision ? 'user' : 'platform', requiresUserDecision,
+        ...(args.result.blockerCause ? { blockerCause: args.result.blockerCause } : {}) } },
     });
   }
   if (progress && progress.phase === 'implement' && (args.blockedPhase || 'implementation') === 'implementation' && args.result.blockerKind === 'environment_failed') {

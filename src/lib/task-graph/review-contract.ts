@@ -5,6 +5,7 @@ export type ReviewCheck = { id: string; name: string; executionIds: string[] };
 export type ClassifiedReview =
   | { approved: true; note: string }
   | { approved: false; note: string; failureKind: 'blocked_require_human' }
+  | { approved: false; note: string; failureKind: 'environment_failed' }
   | { approved: false; note: string; failureKind: 'in_scope_defect'; failureKey: string; executionIds: string[] };
 
 export function graphReviewChecks(definition: GraphDefinition, nodeKey: string, executions: { id: string; repository: string }[]): ReviewCheck[] {
@@ -26,7 +27,7 @@ export function classifyReview(value: unknown, checks: ReviewCheck[]): Classifie
   if (!value || typeof value !== 'object' || !('approved' in value) || !('note' in value) || typeof value.note !== 'string' || !value.note.trim()) return null;
   if (value.approved === true) return { approved: true, note: value.note };
   if (value.approved !== false || !('failureKind' in value)) return null;
-  if (value.failureKind === 'blocked_require_human') return { approved: false, note: value.note, failureKind: 'blocked_require_human' };
+  if (value.failureKind === 'blocked_require_human' || value.failureKind === 'environment_failed') return { approved: false, note: value.note, failureKind: value.failureKind };
   if (value.failureKind !== 'in_scope_defect') return null;
   const check = resolveReviewCheck('failureKey' in value ? value.failureKey : null, checks);
   if (!check) return null;
@@ -37,5 +38,5 @@ export function classifyReview(value: unknown, checks: ReviewCheck[]): Classifie
 
 export function reviewResultInstructions(marker: string, checks: ReviewCheck[]) {
   return `\n稳定检查 ID 和可回修执行：${JSON.stringify(checks)}。失败时从这些 ID 和 executionIds 中精确选择，不得猜测名称或归属。` +
-    `\n最终答复仅用一行 ${marker} {"approved":true或false,"note":"实际证据与理由","failureKind":"in_scope_defect 或 blocked_require_human（失败时必填）","failureKey":"稳定检查 ID（范围内缺陷必填）","executionIds":["受影响执行 ID（范围内缺陷必填）"]}。`;
+    `\n最终答复仅用一行 ${marker} {"approved":true或false,"note":"实际证据与理由","failureKind":"in_scope_defect、environment_failed 或 blocked_require_human（失败时必填）","failureKey":"稳定检查 ID（范围内缺陷必填）","executionIds":["受影响执行 ID（范围内缺陷必填）"]}。环境、认证或工具不可用导致未完成验证时用 environment_failed；只有确需人补充材料、决定范围或批准权限时用 blocked_require_human。`;
 }
