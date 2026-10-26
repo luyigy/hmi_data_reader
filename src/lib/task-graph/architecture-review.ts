@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+import { executionProgress } from './execution-progress';
 import { verificationInputs } from './domain';
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
@@ -21,6 +23,16 @@ export async function runArchitectureReview(args: {
   if (!node) throw new Error(`Unknown graph node ${args.nodeKey}`);
   const review = effectiveArchitectureReview(args.definition, node);
   if (!review) return 'passed'; // Runs created before architecture review was introduced.
+  // Acceptance recovery must reuse the successful architecture generation, including a retry claim.
+  const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: args.nodeId } });
+  if (jobs.length && jobs.every(job => executionProgress(job.dispatchMetadata)?.phase === 'acceptance')) {
+    const latest = await prisma.taskGraphEvent.findFirst({ where: { nodeId: args.nodeId,
+      kind: { in: ['architecture_passed', 'architecture_failed'] } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    const payload = latest?.payload;
+    if (latest?.kind === 'architecture_passed' && payload && typeof payload === 'object' && !Array.isArray(payload) &&
+        payload.reviewerId === review.reviewerId && isDeepStrictEqual(payload.commits, args.commits) &&
+        (args.definition.deliveryContract !== 'agent_owned_v1' || isDeepStrictEqual(payload.inputs, verificationInputs(jobs)))) return 'passed';
+  }
   const basis = createHash('sha256').update(JSON.stringify(args.commits)).digest('hex').slice(0, 24);
   const fallbackClaimKey = `node:${args.nodeKey}:architecture_claimed:${basis}`;
   const claimKey = await graphReviewClaimKey(args.nodeId, 'architecture', fallbackClaimKey);

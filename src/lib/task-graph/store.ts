@@ -312,12 +312,13 @@ export async function submitNodeVerification(args: {
     const planned = definition.nodes.find(item => item.key === args.nodeKey);
     if (!planned) throw new Error('Acceptance policy missing from snapshot');
     const agentOwned = definition.deliveryContract === 'agent_owned_v1';
+    const reviewComplete = !args.review || args.review.outcome === 'classified' && !args.review.decision;
     if (node.acceptance === 'agent' && node.reviewerId !== args.actorId) throw new Error('Wrong review agent');
     if (agentOwned) {
       if (node.acceptance !== 'agent' && args.actorId !== 'system') throw new Error('Wrong verification actor');
       const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
       if (!jobs.length || jobs.some(job => job.status !== 'integrated' || !job.commit) || !isDeepStrictEqual(args.evidence.inputs, verificationInputs(jobs))) throw new Error('Verification input commits changed');
-      if (node.acceptance === 'agent' && planned.acceptance.models && args.evidence.checks.every(item => item.passed)) {
+      if (reviewComplete && node.acceptance === 'agent' && planned.acceptance.models && args.evidence.checks.every(item => item.passed)) {
         const receipt = args.evidence.reviewReceipt;
         const commits = receipt?.commits || [];
         if (commits.length !== new Set(jobs.map(job => job.repository)).size || new Set(commits.map(item => item.repository)).size !== commits.length ||
@@ -328,7 +329,7 @@ export async function submitNodeVerification(args: {
         const quality = implementationQuality(planned, jobs);
         if (!quality || args.evidence.checks.some(item => item.passed && !quality.decision.approved)) throw new Error('Approved implementor Ticket verification is missing or not passed');
       }
-      if (Array.isArray(args.evidence?.checks) && args.evidence.checks.every(item => item.passed) && effectiveArchitectureReview(definition, planned)) {
+      if (reviewComplete && Array.isArray(args.evidence?.checks) && args.evidence.checks.every(item => item.passed) && effectiveArchitectureReview(definition, planned)) {
         const architecture = await tx.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'architecture_passed' }, orderBy: { createdAt: 'desc' } });
         const payload = architecture?.payload;
         if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !isDeepStrictEqual(payload.inputs, verificationInputs(jobs))) throw new Error('Architecture result does not match fixed inputs');
@@ -351,7 +352,7 @@ export async function submitNodeVerification(args: {
         checks.some((check) => !results.some((item) => item.name === check && item.evidence?.trim()))) {
       throw new Error('Required verification evidence is missing');
     }
-    const allPassed = results.every(item => item.passed) && checks.every((check) => results.some((item) => item.name === check && item.passed));
+    const allPassed = reviewComplete && results.every(item => item.passed) && checks.every((check) => results.some((item) => item.name === check && item.passed));
     if (allPassed) await assertCandidateInputsIntegrated(tx, node.id);
     let status = allPassed ? (node.acceptance === 'human' ? 'awaiting_human' : 'passed') : 'attention';
     if (args.review && (args.review.outcome !== 'classified' || args.review.decision)) {

@@ -26,7 +26,7 @@ async function scenario(phase: 'acceptance' | 'architecture') {
         candidateCommit: commit, workspaceBase: commit, review: { kind: 'running', phase, claimKey, taskRunId: turn.id, candidateCommit: commit } }) } });
   };
   const request = { runId: graph.id, nodeKey: 'REVIEW', actorId: 'local:codex',
-    evidence: { checks: [{ name: 'file', passed: false, evidence: 'review environment unavailable' }], summary: 'failed review' },
+    evidence: { checks: [{ name: 'file', passed: true, evidence: 'business test completed successfully' }], summary: 'review process failed; business evidence retained' },
     review: { phase, claimKey, taskRunId: turn.id, outcome: 'platform_failure' as const } };
   const publish = (beforeTransaction?: () => Promise<void>) => submitNodeVerification(request, beforeTransaction ? new Proxy(prisma, {
     get(target, property, receiver) {
@@ -64,7 +64,8 @@ async function scenario(phase: 'acceptance' | 'architecture') {
     await unchanged(() => submitNodeVerification({ ...request, review: { ...request.review, claimKey: 'stale-claim' } }), /ownership changed/);
     const started = Date.now();
     const result = await publish();
-    assert.equal(result.status, 'verifying');
+    assert.equal(result.status, 'verifying', 'All successful business checks cannot bypass an unfinished review, even without a synthetic failed check');
+    assert.deepEqual(result.evidence, request.evidence);
     const after = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
     const progress = executionProgress(after.dispatchMetadata)!;
     assert.equal(after.commit, commit); assert.equal(after.claimToken, 'implementation-claim');

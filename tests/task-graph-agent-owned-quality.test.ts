@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { setGraphRunPaused } from '../src/lib/task-graph/run-control';
 import { buildGraphOverview, loadGraphOverview } from '../src/lib/task-graph/overview';
 import { buildGraphNodeCard } from '../src/lib/task-graph/node-card';
-import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
+import { executionProgress, initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -20,9 +20,9 @@ import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/t
 
 const fixtureRoot = mkdtempSync(path.join(tmpdir(), 'agent-owned-quality-session-'));
 
-async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' | 'cross' | 'self-defect' | 'multi' | 'conflict' | 'tester' | 'tester-missing' | 'tester-sha' | 'tester-dirty' | 'tester-model-drift' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
+async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' | 'cross' | 'self-defect' | 'multi' | 'conflict' | 'tester' | 'tester-auth' | 'architecture-auth' | 'tester-missing' | 'tester-sha' | 'tester-dirty' | 'tester-model-drift' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
   const rejectedReview = ['tester-missing', 'tester-sha', 'tester-dirty', 'tester-model-drift'].includes(mode);
-  const explicitReview = mode === 'tester' || mode === 'repair' || rejectedReview;
+  const explicitReview = mode === 'tester' || mode === 'tester-auth' || mode === 'repair' || rejectedReview;
   const multiple = mode === 'multi' || mode === 'conflict' || mode === 'cross';
   let conflictResolutions = 0, jointRuns = 0;
   const root = mkdtempSync(path.join(fixtureRoot, 'case-'));
@@ -35,8 +35,8 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
   const tester = { ...participant, harnessType: 'kimi-code', role: 'tester', model: 'fixture-kimi' };
   const command = [process.execPath, '-e', 'if(require("node:fs").readFileSync("value","utf8")!=="good")throw Error("behavior missing")'];
   const definition: GraphDefinition = { deliveryContract: 'agent_owned_v1', specRef: 'fixture://quality', nodes: [{
-    key: 'A', goal: 'required behavior', dependsOn: [], executionMode: mode === 'implement' ? 'implement' : mode === 'full' || mode === 'architecture' ? 'full' : 'lean',
-    ...((mode === 'full' || mode === 'architecture') ? { architectureReview: { reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: { ...tester, role: 'reviewer' } } } } : {}),
+    key: 'A', goal: 'required behavior', dependsOn: [], executionMode: mode === 'implement' ? 'implement' : mode === 'full' || mode === 'architecture' || mode === 'architecture-auth' ? 'full' : 'lean',
+    ...((mode === 'full' || mode === 'architecture' || mode === 'architecture-auth') ? { architectureReview: { reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: { ...tester, role: 'reviewer' } } } } : {}),
     acceptance: { mode: explicitReview ? 'agent' : mode === 'human' ? 'human' : 'automatic',
       ...(explicitReview ? { reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: tester } } : mode === 'human' ? { reviewerId: 'fixture-human' } : {}),
       checks: ['behavior'], integrationChecks: [{ name: 'joint', repository, argv: command }] },
@@ -126,11 +126,27 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
   const original = { execute: adapter.execute, resume: adapter.resume, tester: independent.execute, testerResume: independent.resume };
   let starts = 0, successorStarts = 0, reviews = 0, testerReviews = 0, commands = 0;
   const reviewedCommits: string[] = [];
+  let architectureStarts = 0;
+  let originalDelivery: unknown;
+  const rememberDelivery = async () => {
+    assert.equal(successorStarts, 0, 'An unfinished review must not launch the successor');
+    const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id }, orderBy: { id: 'asc' } });
+    const delivery = jobs.map(job => ({ id: job.id, commit: job.commit, evidence: job.evidence, taskRunId: job.taskRunId }));
+    if (originalDelivery) assert.deepEqual(delivery, originalDelivery, 'Review recovery preserves implementation evidence and candidate');
+    else originalDelivery = delivery;
+  };
   const codingTurns = new Map<string, number>();
   const execute = async (args: HarnessExecuteArgs | HarnessResumeArgs) => {
     const { task, context } = args;
     const prompt = 'continuationMessage' in args ? args.continuationMessage : task.description || '';
     if (task.id.startsWith('task-graph-architecture-')) {
+      if (task.name.startsWith('A')) {
+        architectureStarts++;
+        if (mode === 'architecture-auth') {
+          await rememberDelivery();
+          if (architectureStarts === 1) return { success: false, error: 'HTTP 401 Unauthorized: fixture login unavailable', output: 'HTTP 401 Unauthorized: fixture login unavailable', executionTime: 1 };
+        }
+      }
       const failed = mode === 'architecture' && task.name.startsWith('A') && starts === 1;
       const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } });
       return { success: true, output: 'TASK_GRAPH_ARCH_REVIEW ' + JSON.stringify({ approved: !failed, note: 'approved architecture scope verified', ...(failed ? { failureKind: 'in_scope_defect', failureKey: 'architecture:scope', executionIds: jobs.map(job => job.id) } : {}) }), executionTime: 1 };
@@ -147,6 +163,10 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
       assert.ok(prompt.includes(JSON.stringify(command)), 'The exact approved argv is delivered to the quality owner');
       if (a) reviewedCommits.push(workspace.commit);
       assert.equal(context.model, 'fixture-kimi', 'Approved model reaches the harness');
+      if (mode === 'tester-auth') {
+        await rememberDelivery();
+        if (reviews === 1) return { success: false, error: 'HTTP 401 Unauthorized: fixture login unavailable', output: 'HTTP 401 Unauthorized: fixture login unavailable', executionTime: 1 };
+      }
       const receiptChecks = acceptanceCommands(definition.nodes[0]).map(check => {
         let exitCode = 0, log = '';
         try { commands++; log = execFileSync(check.argv[0], check.argv.slice(1), { cwd: workspace.path, encoding: 'utf8', stdio: 'pipe' }); }
@@ -246,7 +266,7 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
     assert.equal(after.status, mode === 'implement' ? 'delivered_unverified' : 'passed', JSON.stringify((await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'execution_outcome' }, orderBy: { createdAt: 'asc' } })).filter(event => (event.payload as any)?.outcome?.failure?.detail !== 'conditions_unchanged').map(event => event.payload)));
     if (mode === 'plain-delivery' || mode === 'history') assert.equal(starts, 2, 'Plain delivered evidence must request a formal Ticket conclusion in the original Session');
     else if (multiple) assert.ok(starts >= 2); else assert.equal(starts, ['repair', 'format', 'self-repair', 'self-defect', 'architecture'].includes(mode) ? 2 : 1);
-    assert.equal(reviews, mode === 'repair' ? 2 : mode === 'tester' ? 1 : 0, 'Only the configured Tester starts a review');
+    assert.equal(reviews, mode === 'repair' || mode === 'tester-auth' ? 2 : mode === 'tester' ? 1 : 0, 'Only the configured Tester starts a review');
     assert.equal(testerReviews, explicitReview ? reviews : 0);
     assert.ok(successorStarts >= definition.nodes[1].executions.length);
     if (mode === 'default') {
@@ -286,7 +306,7 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
     if (mode === 'conflict') { assert.equal(conflictResolutions, 1); const final = await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } }); assert.equal(git('show', `${final.commit}:shared`), 'repo\nother'); }
     if (mode === 'cross') assert.equal(jointRuns, 2, 'Both Tickets run actual joint commands against the pinned sibling repository');
     if (mode === 'history') { const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: node.executions[0].id } }); assert.equal((job.dispatchMetadata as any).progress.repairAttempts, 3); }
-    assert.equal(commands, reviews * 2, 'Platform never executes the approved business command');
+    assert.equal(commands, (reviews - (mode === 'tester-auth' ? 1 : 0)) * 2, 'Platform never executes the approved business command');
     if (mode === 'tester') {
       const evidence = after.evidence as any;
       assert.match(evidence.summary, /其他模型独立验收/);
@@ -296,6 +316,27 @@ async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' 
       for (let i = 0; i < 3; i++) { await releaseReadyNodes(run.id); await runTaskGraphCycle(); }
       await drain(); assert.equal(reviews, 1); assert.equal(successorStarts, 1);
       console.log(`explicit acceptance A -> B: reviews=${reviews}, Agent commands=${commands}, platform commands=0, fixed candidate=${reviewedCommits[0]}`);
+    }
+    if (mode === 'tester-auth' || mode === 'architecture-auth') {
+      const failures = await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'verification_failed' } });
+      assert.equal(failures.length, 1);
+      const failed = (failures[0].payload as any).evidence;
+      assert.match(failed.summary, /未完成.*401/);
+      if (mode === 'architecture-auth') {
+        assert.equal(failed.checks.find((item: any) => item.name === 'behavior').passed, true, 'Architecture authentication failure preserves passed Agent self-check');
+        assert.equal(architectureStarts, 2);
+      } else {
+        assert.equal(after.evidence && (after.evidence as any).reviewReceipt.checks.length, 2);
+        assert.equal(reviewedCommits[0], reviewedCommits[1]);
+      }
+      assert.equal(starts, 1); assert.equal(successorStarts, 1);
+      assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } }), 0);
+      const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } });
+      assert.equal(executionProgress(jobs[0].dispatchMetadata)?.platformAttempts, 1);
+      for (let i = 0; i < 3; i++) { await releaseReadyNodes(run.id); await runTaskGraphCycle(); }
+      await drain(); assert.equal(starts, 1); assert.equal(successorStarts, 1);
+      assert.equal(mode === 'tester-auth' ? reviews : architectureStarts, 2, 'Duplicate scans cannot restart a completed phase');
+      console.log(`agent-owned ${mode}: 401 retained delivery, one stage retry, no implementation restart, platform business commands=0`);
     }
     if (mode === 'repair') assert.notEqual(reviewedCommits[0], reviewedCommits[1]);
     if (mode !== 'implement') await assert.rejects(() => completeUnverifiedNode(run.id, 'A'), /approved implement-only/i);
@@ -318,7 +359,7 @@ async function main() {
   require('../src/lib/codex-model-catalog').loadCodexModelCatalog = async () => [{ id: 'fixture-codex', efforts: [], defaultEffort: null }];
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  try { for (const mode of ['default', 'self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'tester-missing', 'tester-sha', 'tester-dirty', 'tester-model-drift', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE.split(',').includes(mode)) await scenario(mode); }
+  try { for (const mode of ['default', 'self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'tester-auth', 'architecture-auth', 'tester-missing', 'tester-sha', 'tester-dirty', 'tester-model-drift', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE.split(',').includes(mode)) await scenario(mode); }
   finally { await prisma.$disconnect(); rmSync(fixtureRoot, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

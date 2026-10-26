@@ -193,7 +193,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     return evidence?.checks || [];
   });
   const selfQuality = selfChecked ? implementationQuality(plannedNode, node.executions) : null;
-  const reviewPhase = effectiveArchitectureReview(definition, definition.nodes.find(item => item.key === nodeKey)!) ? 'architecture' : 'acceptance';
+  const reviewPhase = node.executions.every(job => executionProgress(job.dispatchMetadata)?.phase === 'acceptance')
+    ? 'acceptance' : effectiveArchitectureReview(definition, plannedNode) ? 'architecture' : 'acceptance';
   const reviewChecks = graphReviewChecks(definition, nodeKey, node.executions).filter(check => !agentOwned || check.id !== 'architecture:scope');
   const integrationResults: CheckResult[] = [];
   let platformDecision: ReviewDecision = {};
@@ -279,10 +280,10 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   if (architecture === 'failed') {
     const result = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: { in: ['architecture_passed', 'architecture_failed'] } }, orderBy: { createdAt: 'desc' } });
     const note = String((result.payload as { note?: string }).note || '架构复核未通过');
-    evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
-      evidence: `${item.evidence}\n架构复核：${note}` }));
+    // Architecture is a separate gate; its failure does not revise business-test history.
     evidence.checks.push({ name: 'architecture:scope', passed: false, evidence: note });
-    evidence.summary = `架构复核未通过：${note}`;
+    const incomplete = isRecord(result.payload) && ['platform_failure', 'protocol_exhausted'].includes(String(result.payload.failureKind));
+    evidence.summary = `架构复核${incomplete ? '未完成，已有测试结果保留' : '未通过'}：${note}`;
     const owner = isRecord(result.payload) && typeof result.payload.claimKey === 'string' && typeof result.payload.taskRunId === 'string'
       ? { phase: 'architecture' as const, claimKey: result.payload.claimKey, taskRunId: result.payload.taskRunId, outcome: result.payload.failureKind === 'protocol_exhausted' ? 'protocol_exhausted' as const : result.payload.failureKind === 'platform_failure' ? 'platform_failure' as const : 'classified' as const,
         ...(['blocked_require_human', 'ownership_mismatch'].includes(String(result.payload.failureKind)) ? { decision: { code: result.payload.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: note } } : {}) } : undefined;
@@ -351,12 +352,13 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     reviewDecision = decision || { failureKind: reviewed.kind, note: response };
     const approved = decision?.approved === true;
     if (reviewed.kind === 'classified' && reviewed.verification) evidence.reviewReceipt = reviewed.verification;
-    evidence.checks = evidence.checks.map((item) => ({
+    // An absent verdict cannot turn completed tests into failures (or approvals).
+    if (reviewed.kind === 'classified') evidence.checks = evidence.checks.map((item) => ({
       ...item, passed: agentOwned ? approved : item.passed && approved,
       evidence: `${item.evidence}\nAgent review ${reviewed.taskRunId}: ${response}`,
     }));
     evidence.checks.push({ name: 'acceptance:decision', passed: approved, evidence: response });
-    evidence.summary = `${policy.models ? `其他模型独立验收（${policy.models.reviewer.model}）` : 'Agent 复核'} ${approved ? '通过' : '未通过'}：${response}`;
+    evidence.summary = `${policy.models ? `其他模型独立验收（${policy.models.reviewer.model}）` : 'Agent 复核'} ${reviewed.kind !== 'classified' ? '未完成，已有测试结果保留' : approved ? '通过' : '未通过'}：${response}`;
     try { await assertReviewWorkspacesClean(workspaces); } catch (error) {
       reviewDecision = { failureKind: 'ownership_mismatch', note: String(error) };
       evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
@@ -392,6 +394,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? `${selfChecked ? '已交付，实施自测通过，无独立验收' : '验收通过'}，Slice 已完成；符合条件的后继将自动启动。`
     : updated.status === 'awaiting_human' ? `${selfChecked ? '实施自测已通过' : '自动检查已结束'}，等待已配置的人工验收。`
     : reviewDecision.failureKind === 'in_scope_defect' ? '回修未产生新的进展，已停止空转并保留原会话和各轮报告；后继继续等待。'
+    : reviewDecision.failureKind === 'platform_failure' ? '验收未完成，复核执行失败；已有测试结果保留，后继继续等待。'
     : reviewDecision.failureKind === 'protocol_exhausted' ? '复核结论补收已耗尽，交付现场保留，需要明确处理方案后再排期。'
     : reviewDecision.failureKind === 'blocked_require_human' ? '需补材料、裁定范围或权限；原因见复核结论。补齐后在这里说继续验收即可。'
     : '验收未通过，结论尚不足以自动回修；后继继续等待。';

@@ -35,3 +35,11 @@ const progressCard = buildRunReplyCard({ ...base, summary: "检查已完成" }, 
 const processPanel = progressCard.body.elements.find(element => element.tag === "collapsible_panel" && JSON.stringify(element).includes("思考过程"));
 assert.ok(processPanel, "Public progress remains discoverable after the final answer");
 assert.match(JSON.stringify(processPanel), /正在检查字段定位/);
+
+for (const phase of ['acceptance', 'architecture'] as const) {
+  const incomplete = buildGraphNodeCard({ ...node, executions: [{ key: 'reader', dispatchMetadata: { progress: {
+    ...initialExecutionProgress(), phase, state: 'exhausted', lastFailure: { code: 'review_platform_failure', detail: '401 Unauthorized', owner: 'platform', requiresUserDecision: false },
+  } } }] });
+  assert.match(incomplete.header.title.content, /未完成/);
+  assert.doesNotMatch(incomplete.header.title.content, /未通过|待你确认/);
+}
