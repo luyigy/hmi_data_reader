@@ -6,7 +6,11 @@ import { graphGit } from './git-command';
 export type RuntimeResource = { kind: 'path'; path: string; sha256: string } | { kind: 'output'; eventId: string; relativePath: string; sha256: string };
 export type SkillDependency = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[] };
 export type SkillRequirement = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[]; checkScript: string; dependencies?: SkillDependency[] };
-export type RuntimeDeclaration = { version: 1; postgres?: { resource: Extract<RuntimeResource, { kind: 'path' }> }; browser?: { module: RuntimeResource; executable: RuntimeResource }; ocr?: { weights: RuntimeResource; requiredFiles: string[] }; skills?: SkillRequirement[] };
+export type LegacyRuntimeDeclaration = { version: 1; postgres?: { resource: Extract<RuntimeResource, { kind: 'path' }> }; browser?: { module: RuntimeResource; executable: RuntimeResource }; ocr?: { weights: RuntimeResource; requiredFiles: string[] }; skills?: SkillRequirement[] };
+export type ProjectRuntimeDeclaration = { version: 2; resources: { id: string; resource: RuntimeResource }[];
+  validation: { interpreter: string; script: string; args: string[] };
+  postgres?: never; browser?: never; ocr?: never; skills?: never };
+export type RuntimeDeclaration = LegacyRuntimeDeclaration | ProjectRuntimeDeclaration;
 const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 function resource(value: unknown): RuntimeResource {
   const item = record(value);
@@ -21,6 +25,20 @@ function resource(value: unknown): RuntimeResource {
 }
 export function parseRuntimeDeclaration(value: unknown): RuntimeDeclaration {
   const item = record(value);
+  if (item.version === 2) {
+    if (Object.keys(item).some(key => !['version', 'resources', 'validation'].includes(key)) ||
+        !Array.isArray(item.resources) || !item.resources.length || item.resources.length > 100) throw new Error('项目运行声明须包含有限资源清单');
+    const resources = item.resources.map(value => {
+      const entry = record(value);
+      if (Object.keys(entry).some(key => !['id', 'resource'].includes(key)) || typeof entry.id !== 'string' || !/^[a-z][a-z0-9-]{0,79}$/.test(entry.id)) throw new Error('运行资源须有唯一名称，不可声明权限');
+      return { id: entry.id, resource: resource(entry.resource) };
+    });
+    const ids = new Set(resources.map(entry => entry.id)), validation = record(item.validation);
+    if (ids.size !== resources.length || Object.keys(validation).some(key => !['interpreter', 'script', 'args'].includes(key)) ||
+        typeof validation.interpreter !== 'string' || !ids.has(validation.interpreter) || typeof validation.script !== 'string' || !ids.has(validation.script) ||
+        !Array.isArray(validation.args) || validation.args.length > 100 || !validation.args.every((arg): arg is string => typeof arg === 'string' && arg.length <= 4096 && !arg.includes('\0'))) throw new Error('项目验证须引用固定解释器和脚本资源，参数必须是有限 argv');
+    return { version: 2, resources, validation: { interpreter: validation.interpreter, script: validation.script, args: validation.args } };
+  }
   if (item.version !== 1 || Object.keys(item).some(key => !['version', 'browser', 'ocr', 'skills', 'postgres'].includes(key))) throw new Error('运行能力声明版本或字段无效');
   const result: RuntimeDeclaration = { version: 1 };
   if (item.postgres !== undefined) {

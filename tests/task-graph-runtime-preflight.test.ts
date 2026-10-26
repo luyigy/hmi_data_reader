@@ -49,7 +49,7 @@ async function main() {
     assert.equal(next.identity, first.identity, 'Archiving a verified resource must not change its content/event identity');
     assert.equal(next.env.AP_GRAPH_OCR_MODEL_DIR, path.join(archived, 'ocr-models'));
     await fs.writeFile(declarationPath, '{uncommitted');
-    assert.equal((await runtimeDeclaration(repository))?.declaration.version, 1, 'Read committed declaration, not unapproved edits');
+    await assert.rejects(runtimeDeclaration(repository), /未提交改动/, 'Uncommitted edits cannot replace the fixed declaration');
     await fs.unlink(declarationPath);
     await assert.rejects(runtimeDeclaration(repository), /缺失/, 'Removing a tracked declaration cannot disable preflight');
     git('add', '-u');

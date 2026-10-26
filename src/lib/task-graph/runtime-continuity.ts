@@ -175,7 +175,7 @@ async function prepareRuntime(args: Arguments, inspectSaved: boolean): Promise<P
     const identity = createHash('sha256').update(JSON.stringify(tools.map(({ key, repository, identity }) => ({ key, repository, identity })))).digest('hex');
     return { identity, manifestHash: identity, receipt: null, env: { AP_GRAPH_RUNTIME_IDENTITY: identity, AP_PROJECT_TOOL_RUNTIMES_JSON: JSON.stringify(tools), AP_PROJECT_PYTHON_ENVIRONMENTS_JSON: JSON.stringify(prepared.flatMap(item => JSON.parse(item.env.AP_PROJECT_PYTHON_ENVIRONMENTS_JSON || '[]'))) },
       readOnlyPaths: Array.from(new Set(prepared.flatMap(item => item.readOnlyPaths))), verifiedResources: prepared.flatMap(item => item.verifiedResources),
-      instructions: '\n本阶段含不同项目工具。按 AP_PROJECT_TOOL_RUNTIMES_JSON 的仓内任务键选择对应 env 启动检查命令，不混用浏览器或 OCR 环境。没有全局默认工具。' };
+      instructions: '\n本阶段含不同项目工具。按 AP_PROJECT_TOOL_RUNTIMES_JSON 的仓内任务键选择对应 env 启动检查命令，没有全局默认工具。' + prepared.map(item => `\n仓内任务 ${item.executionKey}：${item.instructions}`).join('') };
   }
   const result = prepared[0];
   return { ...result, env: { ...result.env, ...(prepared.every(item => item.env.AP_PROJECT_PYTHON_ENVIRONMENTS_JSON) ? { AP_PROJECT_PYTHON_ENVIRONMENTS_JSON: JSON.stringify(prepared.flatMap(item => JSON.parse(item.env.AP_PROJECT_PYTHON_ENVIRONMENTS_JSON))) } : {}) }, readOnlyPaths: Array.from(new Set(prepared.flatMap(item => item.readOnlyPaths))) };
