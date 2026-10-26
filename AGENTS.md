@@ -24,6 +24,24 @@ GitNexus results should support engineering decisions, not replace understanding
 
 ## 任务图工作流
 
+### 2026-10-26 581 PLAN 的 HANDOVER 自动接续例外（最新）
+
+用户在本私聊先要求恢复旧入口，随后明确“OK，继续”修改接续文档、确定消费起点并启用实测。
+本例外只覆盖 `docs/581_PLAN_20261026_精简交付与可选验收手动计划.md` 及其后续交接，
+优先于下面的手动规划、默认任务图和旧 watcher 停用条款；其他项目/旧票仍保持原执行方式。
+
+- 本项目 watcher 可启用 `semi_auto`，审批与执行通知发到 Feishu DM 08a216。
+  首次启用先核对无 pending、无排队/运行中的 watcher、Git 历史未改写，再把消费起点设在本次准备完成的 HEAD，
+  明确选择 581 提审；跳过此前历史文档，不重放旧派发。保留启用前状态记录。
+- 581 的首个 Slice 仍须由用户在真实 PLAN 审批卡批准，Agent 不得替用户批准或改写审批结果。
+  本包选 `implement`：Codex 实施并自测，不派独立 reviewer/tester；不能省略测试。
+- 每次只做一个 Slice，验证、追加提交并创建 HANDOVER 后结束当前 Session。
+  S01/S02/S03 成功时使用 `next_slice`，Prompt 只指定下一 Slice；S04 完成使用 `await_acceptance`。
+  未完成/阻塞时使用 `blocked` 并说明原因，禁止伪造完成或越过失败继续。
+- 582 是开始 S01 前的准备交接，保持 `next_action: none`；不能冒充 S01 的完成证明。
+- 本包不发布 Issues、不创建任务图路线，不恢复 M6/M07，不迁移旧快照、不部署业务修改。
+  未指定验收者仍必须实施自测；显式独立验收才使用其他模型。
+
 ### 2026-10-26 精简交付与可选验收的手动规划例外
 
 用户在 Feishu DM 08a216 要求按 antigravity 的阶段一、二写手动计划，开新 Session 实施。
