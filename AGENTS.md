@@ -24,6 +24,16 @@ GitNexus results should support engineering decisions, not replace understanding
 
 ## 任务图工作流
 
+### 2026-10-26 精简交付与可选验收的手动规划例外
+
+用户在 Feishu DM 08a216 要求按 antigravity 的阶段一、二写手动计划，开新 Session 实施。
+入口为 `docs/581_PLAN_20261026_精简交付与可选验收手动计划.md` 和对应最新 HANDOVER。
+未指定验收者默认不派独立验收，实施者仍须自测；明确指定独立验收时使用其他模型。
+本轮只规划，不改生产行为或旧 M6 合同；旧文档中的同模型默认验收意见已被这次指令替代。
+新 Session 按用户接续指令一次完成一个 Slice，验证、追加提交、写交接后停止。
+PLAN/HANDOVER 使用 `next_action: none`，不发布 Issues、不启动自动路线或旧 watcher，不操作 cursor/pending。
+本例外优先于下方新工作默认任务图规则；规划不授权重写已批准快照、恢复业务或部署。
+
 ### 2026-10-25 双通路与 M06 修复的手动规划例外
 
 用户在 Feishu DM 08a216 明确要求本轮使用 Matt `to-tickets` 的纵向 Slice 方法，
