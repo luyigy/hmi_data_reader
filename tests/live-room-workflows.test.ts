@@ -137,7 +137,7 @@ assert.deepEqual(
 );
 assert.match(
   buildLiveRoomWorkflowStages('feature', members, 'implement')[0].instruction,
-  /不要运行测试.*REPORT\/HANDOVER.*preflight.*git add.*commit/,
+  /运行必要自测.*不另派独立验收者.*REPORT\/HANDOVER.*preflight.*git add.*commit/,
 );
 assert.deepEqual(
   buildLiveRoomWorkflowStages('feature', members, 'full', true).map((stage) => stage.id),

@@ -180,7 +180,7 @@ const reviewExpiry = (contract: WorkflowContract) =>
 const sendReviewCard = (
   project: Parameters<JobHandler>[0]['project'],
   jobId: string,
-  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'documentUrl' | 'reviewAttempt' | 'reviewExpiresAt' | 'workflowContext'>,
+  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'documentUrl' | 'reviewAttempt' | 'reviewExpiresAt' | 'workflowContext' | 'roleWorkflowLevel'>,
   sender: WorkflowReviewCardSender,
 ) => sender({
   chatId: project.feishu.chat_id,
@@ -198,6 +198,7 @@ const sendReviewCard = (
     (pending.reviewAttempt ?? 1) === 1 ? 'plan_review' : `plan_review:${pending.reviewAttempt}`,
   ),
   workflowContext: pending.workflowContext,
+  roleWorkflowLevel: pending.roleWorkflowLevel,
 });
 
 const execute = async (

@@ -57,7 +57,7 @@ case "$*" in
   *"NEXT PROMPT"*) [ "$LARK_FAIL_PROMPT" = 1 ] && { echo prompt-failed >&2; exit 1; };;
 esac
 case "$*" in
-  "docs +create --as bot --api-version v2 --title 005_PLAN_20260725_import_failure --doc-format markdown --content @plan.md --format json")
+  "docs +create --as bot --title 005_PLAN_20260725_import_failure --doc-format markdown --content @plan.md --format json")
     ! grep -q '^# 005_PLAN_20260725_import_failure$' plan.md || exit 1
     ! grep -q '^doc_type:' plan.md || exit 1
     grep -q '^S01$' plan.md || exit 1
@@ -339,7 +339,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const review = await run({
     ...(queuedReview.cursor as Record<string, unknown>),
     selectedPlan: 'docs/branch/main/003_PLAN_20260725_review.md',
-  });
+  }, 'active', 'semi_auto', undefined, 'implement');
   assert.match(review.summary, /gate=plan_review document_ready=true card_sent=true/);
   const reviewCursor = review.cursor as { pending: {
     detectedAt: string;
@@ -354,8 +354,8 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /修改/);
   assert.match(String(reviewCall.body.content), /"decision":"revision"/);
   assert.match(String(reviewCall.body.content), /"name":"roleWorkflowLevel"/);
-  assert.match(String(reviewCall.body.content), /"initial_option":"lean"/);
-  assert.match(String(reviewCall.body.content), /Implement · 仅实施（不测试）/);
+  assert.match(String(reviewCall.body.content), /"initial_option":"implement"/);
+  assert.match(String(reviewCall.body.content), /Implement · 实施自测（无独立验收）/);
   assert.match(String(reviewCall.body.content), /"decision":"approve"/);
   assert.match(String(reviewCall.body.content), /"name":"submitApproval"/);
   assert.match(String(reviewCall.body.content), /reviewFeedback/);

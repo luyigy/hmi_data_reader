@@ -437,6 +437,7 @@ export const sendFeishuWorkflowReviewCard = (args: {
   reviewAttempt: number;
   idempotencyKey: string;
   workflowContext: string;
+  roleWorkflowLevel?: 'full' | 'lean' | 'fast' | 'implement';
 }) => sendFeishuWorkflowMessage({
   chatId: args.chatId,
   messageType: 'interactive',
@@ -464,13 +465,13 @@ export const sendFeishuWorkflowReviewCard = (args: {
             name: 'roleWorkflowLevel',
             required: true,
             width: 'fill',
-            initial_option: 'lean',
+            initial_option: args.roleWorkflowLevel ?? 'lean',
             placeholder: { tag: 'plain_text', content: '选择执行档位' },
             options: [
               { text: { tag: 'plain_text', content: 'Full · 完整审查、实施与测试' }, value: 'full' },
               { text: { tag: 'plain_text', content: 'Lean · 计划审查 + 实施 + 测试' }, value: 'lean' },
               { text: { tag: 'plain_text', content: 'Fast · 实施 + 测试' }, value: 'fast' },
-              { text: { tag: 'plain_text', content: 'Implement · 仅实施（不测试）' }, value: 'implement' },
+              { text: { tag: 'plain_text', content: 'Implement · 实施自测（无独立验收）' }, value: 'implement' },
             ],
           },
           {

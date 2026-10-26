@@ -44,7 +44,7 @@ export async function importMarkdownAsFeishuDocument(args: {
         prepareFeishuMarkdown(args.content),
       );
       const result = await execFileAsync('lark-cli', [
-        'docs', '+create', '--as', 'bot', '--api-version', 'v2',
+        'docs', '+create', '--as', 'bot',
         '--title', args.name,
         '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',
       ], {
