@@ -259,7 +259,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
         evidence: matches.map((item) => item.evidence).join('\n') || '没有验证结果' };
     }), ...integrationResults],
     ...(agentOwned ? { inputs: verificationInputs(node.executions) } : {}),
-    summary: `已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
+    summary: `${selfChecked ? `实施自测（${selfQuality!.owner.key}），无独立验收${policy.mode === 'human' ? '；另需人工批准' : ''}；` : ''}已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
   };
   const architecture = await runArchitectureReview({
     runId, nodeId: node.id, nodeKey, definition, commits, workspaces, evidence,
@@ -382,8 +382,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       .catch((error) => console.error('[TaskGraph] human review card failed:', error));
   }
   await refreshTaskGraphRunStatus(runId);
-  const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? '验收通过，Slice 已完成；符合条件的后继将自动启动。'
-    : updated.status === 'awaiting_human' ? '自动检查已结束，等待已配置的人工验收。'
+  const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? `${selfChecked ? '已交付，实施自测通过，无独立验收' : '验收通过'}，Slice 已完成；符合条件的后继将自动启动。`
+    : updated.status === 'awaiting_human' ? `${selfChecked ? '实施自测已通过' : '自动检查已结束'}，等待已配置的人工验收。`
     : reviewDecision.failureKind === 'in_scope_defect' ? '回修未产生新的进展，已停止空转并保留原会话和各轮报告；后继继续等待。'
     : reviewDecision.failureKind === 'protocol_exhausted' ? '复核结论补收已耗尽，交付现场保留，需要明确处理方案后再排期。'
     : reviewDecision.failureKind === 'blocked_require_human' ? '需补材料、裁定范围或权限；原因见复核结论。补齐后在这里说继续验收即可。'

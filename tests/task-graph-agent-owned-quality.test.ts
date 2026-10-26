@@ -1,3 +1,6 @@
+import { setGraphRunPaused } from '../src/lib/task-graph/run-control';
+import { buildGraphOverview, loadGraphOverview } from '../src/lib/task-graph/overview';
+import { buildGraphNodeCard } from '../src/lib/task-graph/node-card';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
@@ -12,7 +15,7 @@ import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-gr
 import { validateTaskGraphDefinition, taskGraphSnapshotHash, type GraphDefinition } from '../src/lib/task-graph/domain';
 import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/types';
 
-async function scenario(mode: 'self' | 'plain-delivery' | 'history' | 'cross' | 'self-defect' | 'multi' | 'conflict' | 'tester' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
+async function scenario(mode: 'default' | 'self' | 'plain-delivery' | 'history' | 'cross' | 'self-defect' | 'multi' | 'conflict' | 'tester' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
   const multiple = mode === 'multi' || mode === 'conflict' || mode === 'cross';
   let conflictResolutions = 0, jointRuns = 0;
   const root = mkdtempSync(path.join(tmpdir(), 'agent-owned-quality-'));
@@ -53,7 +56,46 @@ async function scenario(mode: 'self' | 'plain-delivery' | 'history' | 'cross' | 
     }
   }
   const parent = await prisma.task.create({ data: { name: 'agent-owned fixture' } });
-  const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition });
+  let run;
+  if (mode === 'default') {
+    const previousRoots = process.env.SCHEDULED_JOB_WORKSPACE_ROOTS;
+    process.env.SCHEDULED_JOB_WORKSPACE_ROOTS = root;
+    delete definition.deliveryContract;
+    definition.nodes.forEach(slice => { delete slice.executionMode; });
+    const require = createRequire(__filename);
+    const roles = require('../src/lib/task-graph/role-configuration');
+    const api = require('../src/lib/feishu-api');
+    const auth = require('../src/lib/feishu-access-approval');
+    const previous = { options: roles.graphRoleOptions, send: api.sendFeishuInteractiveMessage, admin: auth.isFeishuAdmin };
+    roles.graphRoleOptions = async () => [{ value: 'local:kimi-code', label: 'Room tester', role: 'tester', participant: tester }];
+    api.sendFeishuInteractiveMessage = async () => 'fixture-proposal-card';
+    auth.isFeishuAdmin = (id: string) => id === 'fixture-human';
+    const room = await prisma.liveRoom.create({ data: { title: 'Default self-test proposal', sourceTaskId: parent.id } });
+    await prisma.feishuConversationBinding.create({ data: { scopeKey: parent.id, chatId: parent.id,
+      chatType: 'p2p', appId: 'fixture', liveRoomId: room.id } });
+    try {
+      const { createGraphProposal, handleGraphProposalCardAction } = await import('../src/lib/task-graph/proposals');
+      const proposal = await createGraphProposal({ parentTaskId: parent.id, definition, createdBy: 'fixture' });
+      const approved = proposal.definition as unknown as GraphDefinition;
+      assert.equal(approved.deliveryContract, 'agent_owned_v1');
+      assert.ok(approved.nodes.every(slice => slice.executionMode === 'lean' && slice.acceptance.mode === 'automatic' && !slice.acceptance.reviewerId));
+      assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0);
+      const action = { proposalId: proposal.id, decision: 'approve', hash: proposal.snapshotHash,
+        openId: 'fixture-human', chatId: parent.id, messageId: proposal.cardMessageId };
+      assert.equal((await handleGraphProposalCardAction({ ...action, openId: 'intruder' })).toast.type, 'warning');
+      assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0);
+      assert.equal((await handleGraphProposalCardAction(action)).toast.type, 'success');
+      await handleGraphProposalCardAction(action);
+      assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 1);
+      run = await prisma.taskGraphRun.findFirstOrThrow({ where: { parentTaskId: parent.id } });
+      assert.equal(run.snapshotHash, proposal.snapshotHash);
+      assert.deepEqual(run.snapshot, proposal.definition);
+    } finally {
+      roles.graphRoleOptions = previous.options; api.sendFeishuInteractiveMessage = previous.send; auth.isFeishuAdmin = previous.admin;
+      if (previousRoots === undefined) delete process.env.SCHEDULED_JOB_WORKSPACE_ROOTS;
+      else process.env.SCHEDULED_JOB_WORKSPACE_ROOTS = previousRoots;
+    }
+  } else run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition });
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'A' } }, include: { executions: true } });
   if (mode === 'history') await prisma.taskGraphExecution.update({ where: { id: node.executions[0].id }, data: { dispatchMetadata: { progress: { ...initialExecutionProgress(), repairAttempts: 2 } } } });
   const adapter = getHarnessAdapter('codex')!, independent = getHarnessAdapter('kimi-code')!;
@@ -124,6 +166,12 @@ async function scenario(mode: 'self' | 'plain-delivery' | 'history' | 'cross' | 
   adapter.execute = execute; adapter.resume = execute; independent.execute = execute; independent.resume = execute;
   const drain = async () => { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); };
   try {
+    if (mode === 'default') {
+      await setGraphRunPaused({ runId: run.id, paused: true, requestId: 'pause-default', reason: 'pause boundary', actorId: 'fixture-human' });
+      await runTaskGraphCycle();
+      assert.equal(starts + successorStarts, 0, 'Paused approval cannot start a Writer');
+      await setGraphRunPaused({ runId: run.id, paused: false, requestId: 'resume-default', reason: 'resume approved route', actorId: 'fixture-human' });
+    }
     for (let i = 0; i < 400; i++) {
       await runTaskGraphCycle();
       const current = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
@@ -149,12 +197,39 @@ async function scenario(mode: 'self' | 'plain-delivery' | 'history' | 'cross' | 
     }
     await drain();
     const after = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
-    assert.equal(after.status, mode === 'implement' ? 'delivered_unverified' : 'passed', JSON.stringify(await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id }, take: 5, orderBy: { createdAt: 'desc' } })));
+    assert.equal(after.status, mode === 'implement' ? 'delivered_unverified' : 'passed', JSON.stringify((await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'execution_outcome' }, orderBy: { createdAt: 'asc' } })).filter(event => (event.payload as any)?.outcome?.failure?.detail !== 'conditions_unchanged').map(event => event.payload)));
     if (mode === 'plain-delivery' || mode === 'history') assert.equal(starts, 2, 'Plain delivered evidence must request a formal Ticket conclusion in the original Session');
     else if (multiple) assert.ok(starts >= 2); else assert.equal(starts, ['repair', 'format', 'self-repair', 'self-defect', 'architecture'].includes(mode) ? 2 : 1);
     assert.equal(reviews, mode === 'repair' ? 2 : mode === 'tester' ? 1 : 0, 'Only the configured Tester starts a review');
     assert.equal(testerReviews, mode === 'tester' || mode === 'repair' ? reviews : 0);
     assert.ok(successorStarts >= definition.nodes[1].executions.length);
+    if (mode === 'default') {
+      for (let i = 0; i < 3; i++) { await releaseReadyNodes(run.id); await runTaskGraphCycle(); }
+      await drain();
+      assert.equal(successorStarts, 1, 'Repeated completion/release cycles must start B exactly once');
+      assert.equal(await prisma.taskRun.count({ where: { taskId: { startsWith: 'task-graph-review-' } } }), 0);
+      assert.match(JSON.stringify(buildGraphNodeCard({ ...after, executions: [] })), /实施自测.*无独立验收/);
+      const overview = JSON.stringify(buildGraphOverview(await loadGraphOverview(run.id)));
+      assert.match(overview, /实施自测.*无独立验收/);
+      assert.doesNotMatch(overview, /已完成 · 验收通过/);
+      const evidence = after.evidence as any;
+      assert.match(evidence.summary, /实施自测/);
+      const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: node.executions[0].id } });
+      assert.equal((job.evidence as any).integratedCommit, job.commit);
+      assert.deepEqual(evidence.inputs, (job.evidence as any).ticketInputs);
+      for (const invalid of ['missing', 'failed', 'stale'] as const) {
+        const receipt = structuredClone(job.evidence) as any;
+        if (invalid === 'missing') delete receipt.implementation.ticketVerification;
+        if (invalid === 'failed') receipt.implementation.ticketVerification.approved = false;
+        if (invalid === 'stale') receipt.integratedCommit = 'c'.repeat(40);
+        await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { evidence: receipt } });
+        await assert.rejects(() => submitNodeVerification({ runId: run.id, nodeKey: 'A', actorId: 'system', evidence }), /verification is missing or not passed/);
+      }
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { evidence: job.evidence! } });
+      await assert.rejects(() => submitNodeVerification({ runId: run.id, nodeKey: 'A', actorId: 'intruder', evidence }), /Wrong verification actor/);
+      assert.deepEqual((await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).snapshot, run.snapshot);
+      console.log(`default proposal A -> B: A=${after.status}, self-test candidate=${job.commit}, review TaskRuns=0, B starts=${successorStarts}, platform business commands=${commands}`);
+    }
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'node_ready', node: { key: 'B' } } }), 1, 'Successor Ticket releases exactly once');
     if (multiple) {
       const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } });
@@ -172,6 +247,8 @@ async function scenario(mode: 'self' | 'plain-delivery' | 'history' | 'cross' | 
   } finally {
     await drain(); adapter.execute = original.execute; adapter.resume = original.resume; independent.execute = original.tester; independent.resume = original.testerResume;
     await prisma.taskGraphRun.delete({ where: { id: run.id } });
+    await prisma.liveRoom.deleteMany({ where: { sourceTaskId: parent.id } });
+    await prisma.taskGraphProposal.deleteMany({ where: { parentTaskId: parent.id } });
     rmSync(root, { recursive: true, force: true });
   }
 }
@@ -182,7 +259,7 @@ async function main() {
   require('../src/lib/task-graph/check-environment').runSandboxedGraphCheck = async () => { throw new Error('Agent-owned contracts must not execute platform business checks'); };
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  try { for (const mode of ['self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE === mode) await scenario(mode); }
+  try { for (const mode of ['default', 'self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE === mode) await scenario(mode); }
   finally { await prisma.$disconnect(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -39,6 +39,8 @@ export function buildGraphOverview(data: Awaited<ReturnType<typeof loadGraphOver
   const callback = (text: string, action: string, targetPage = page) => ({ tag: 'button', text: { tag: 'plain_text', content: text },
     behaviors: [{ type: 'callback', value: { cmd: 'task-graph-overview', action, runId: run.id, hash: run.snapshotHash, controlVersion, page: targetPage } }] });
   const rows = nodes.map(node => {
+    const completedSummary = node.status === 'passed' && node.evidence && typeof node.evidence === 'object' && !Array.isArray(node.evidence)
+      && typeof node.evidence.summary === 'string' ? redactSensitiveText(node.evidence.summary).slice(0, 900) : '';
     const details = node.executions.map(job => {
       const progress = executionProgress(job.dispatchMetadata);
       const failure = progress && ['exhausted', 'ownership_attention', 'waiting_decision'].includes(progress.state) ? progress.lastFailure?.detail : '';
@@ -52,7 +54,7 @@ export function buildGraphOverview(data: Awaited<ReturnType<typeof loadGraphOver
       return `${job.key} · ${job.agentSelector}${waiting}\n${redactSensitiveText(note).replace(/^TASK_GRAPH_IMPLEMENTATION.*$/gm, '').slice(-700)}`;
     }).join('\n');
     const appearance = graphCardStatus(node.status, node.executions.map(job => executionProgress(job.dispatchMetadata)));
-    return { tag: 'markdown', content: `**${appearance.icon} ${node.key} · ${appearance.label}**${node.dependsOn.length ? ` · 前置 ${node.dependsOn.join('、')}` : ''}\n${details}` };
+    return { tag: 'markdown', content: `**${appearance.icon} ${node.key} · ${appearance.label}**${node.dependsOn.length ? ` · 前置 ${node.dependsOn.join('、')}` : ''}\n${completedSummary ? `${completedSummary}\n` : ''}${details}` };
   });
   const targets = nodes.flatMap(node => node.executions.filter(job => job.childTaskId).map(job => ({ text: { tag: 'plain_text', content: `${node.key}/${job.key}` }, value: job.id })));
   const appearances = run.nodes.map(node => graphCardStatus(node.status, node.executions.map(job => executionProgress(job.dispatchMetadata))));

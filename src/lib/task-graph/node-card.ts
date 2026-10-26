@@ -13,7 +13,7 @@ export function buildGraphNodeCard(node: Node) {
   const progresses = node.executions.map(job => executionProgress(job.dispatchMetadata));
   const appearance = graphCardStatus(node.status, progresses);
   const evidence = node.evidence;
-  const reviewNote = node.status === 'attention' && evidence && typeof evidence === 'object' && !Array.isArray(evidence)
+  const reviewNote = ['attention', 'passed'].includes(node.status) && evidence && typeof evidence === 'object' && !Array.isArray(evidence)
     && typeof evidence.summary === 'string' ? evidence.summary : '';
   const details = reviewNote || node.executions.map((job, index) => {
     const p = progresses[index];

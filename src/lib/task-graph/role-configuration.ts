@@ -42,6 +42,12 @@ export function configureGraphRoles(args: {
   suggest: boolean; humanId: string; preserveExplicitRoles?: boolean;
 }): GraphDefinition {
   const graph = structuredClone(args.definition);
+  if (graph.adoptRun) return graph;
+  const agentOwned = graph.deliveryContract === 'agent_owned_v1';
+  // Only proposal configuration supplies defaults; approved run snapshots are never normalized.
+  if (agentOwned) for (const node of graph.nodes) {
+    if (!node.executionMode && !node.architectureReview && !graph.defaultArchitectureReview) node.executionMode = 'lean';
+  }
   const selected = (name: string) => typeof args.form[name] === 'string' ? args.form[name] : undefined;
   const participant = (selector: string, role: string) => {
     const option = args.options.find((item) => item.value === selector);
@@ -49,8 +55,10 @@ export function configureGraphRoles(args: {
     return { ...option.participant, role };
   };
   const suggested = (role: string) => args.options.find((item) => item.role === role)?.value;
-  const recommendation = (role: string, configured: boolean) =>
-    args.suggest && (!args.preserveExplicitRoles || !configured) ? suggested(role) : undefined;
+  const recommendation = (role: string, configured: boolean) => {
+    const preserve = args.preserveExplicitRoles || (agentOwned && role === 'reviewer');
+    return args.suggest && (!preserve || !configured) ? suggested(role) : undefined;
+  };
   const hadProjectArchitect = !!graph.defaultArchitectureReview;
   const needsProjectArchitect = graph.nodes.some((node) => !node.executionMode || node.executionMode === 'full');
   const projectArchitect = recommendation('reviewer', hadProjectArchitect || !needsProjectArchitect) || selected('architecture_default');
@@ -79,7 +87,9 @@ export function configureGraphRoles(args: {
     };
     if (architecture === 'inherit') delete node.architectureReview;
     const acceptanceConfigured = node.acceptance.mode === 'automatic' || !!node.acceptance.reviewerId;
-    const acceptance = recommendation('tester', acceptanceConfigured) || selected(`acceptance_${i}`);
+    // A room Tester is an available option, not consent to independent acceptance.
+    const acceptance = agentOwned ? selected(`acceptance_${i}`)
+      : recommendation('tester', acceptanceConfigured) || selected(`acceptance_${i}`);
     if (acceptance) {
       const checks = { ...node.acceptance };
       delete checks.reviewerId;

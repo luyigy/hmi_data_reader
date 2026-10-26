@@ -32,6 +32,40 @@ async function main() {
   assert.equal(prefilled.nodes[0].executions[0].agentSelector, 'local:implementer');
   assert.equal(prefilled.nodes[0].acceptance.mode, 'automatic');
   assert.deepEqual(configureGraphRoles({ definition: full, options, form: {}, suggest: true, humanId: 'human', preserveExplicitRoles: true }), full);
+  // New proposals keep implementation self-tests; room recommendations are not acceptance consent.
+  const owned: GraphDefinition = { ...structuredClone(graph), deliveryContract: 'agent_owned_v1' };
+  const ownedBefore = taskGraphSnapshotHash(owned);
+  const configureOwned = (definition = owned, form = {}, preserveExplicitRoles = true) =>
+    configureGraphRoles({ definition, options, form, suggest: true, humanId: 'human', preserveExplicitRoles });
+  const selfChecked = configureOwned();
+  assert.equal(selfChecked.nodes[0].executionMode, 'lean');
+  assert.equal(selfChecked.nodes[0].acceptance.mode, 'automatic');
+  assert.equal(selfChecked.nodes[0].acceptance.reviewerId, undefined);
+  assert.equal(selfChecked.defaultArchitectureReview, undefined);
+  assert.equal(selfChecked.nodes[0].architectureReview, undefined);
+  assert.equal(graphRolesReady(selfChecked), true);
+  assert.equal(taskGraphSnapshotHash(owned), ownedBefore, 'Defaults must not mutate their input snapshot');
+  assert.deepEqual(configureOwned(selfChecked, {}, false), selfChecked, 'Reset recommendations cannot appoint a Tester');
+  const explicitTester = configureOwned(selfChecked, { acceptance_0: 'local:tester' });
+  assert.equal(explicitTester.nodes[0].acceptance.reviewerId, 'local:tester');
+  assert.deepEqual(configureOwned(explicitTester, {}, false).nodes[0].acceptance, explicitTester.nodes[0].acceptance);
+  const explicitHuman = configureOwned(selfChecked, { acceptance_0: 'human' });
+  assert.equal(configureOwned(explicitHuman, {}, false).nodes[0].acceptance.mode, 'human');
+  const architecture = { reviewerId: 'local:reviewer', reviewLaunchConfig: { participant } };
+  for (const definition of [
+    { ...owned, defaultArchitectureReview: architecture },
+    { ...owned, nodes: [{ ...owned.nodes[0], architectureReview: architecture }] },
+    { ...owned, nodes: [{ ...owned.nodes[0], executionMode: 'full' as const }] },
+  ]) assert.ok(effectiveArchitectureReview(configureOwned(definition), configureOwned(definition).nodes[0]), 'Explicit architecture remains effective');
+  const adoption = { ...owned, adoptRun: { runId: 'old-run', snapshotHash: 'a'.repeat(64) } };
+  assert.deepEqual(configureOwned(adoption), adoption, 'Association must preserve historical roles and modes');
+  assert.match(formatGraphProposal(selfChecked), /精简：实施自测，无独立验收/);
+  const selfCard = JSON.stringify(buildGraphProposalCard('p', selfChecked, 1, 'hash', options, 0));
+  assert.match(selfCard, /实施自测，无独立验收/);
+  assert.doesNotMatch(selfCard, /自动检查/);
+  const ambiguous = structuredClone(selfChecked);
+  ambiguous.nodes[0].executions.push({ ...ambiguous.nodes[0].executions[0], key: 'second' });
+  assert.throws(() => validateTaskGraphDefinition(configureOwned(ambiguous)), /selfCheckExecution/);
   const lean = configureGraphRoles({ definition: full, options, form: { mode_0: 'lean' }, suggest: false, humanId: 'human' });
   assert.equal(effectiveArchitectureReview(lean, lean.nodes[0]), undefined);
   assert.equal(graphRolesReady(lean), true);

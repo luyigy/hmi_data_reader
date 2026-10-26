@@ -9,7 +9,7 @@ const display = (color: keyof typeof styles, label: string) => ({ ...styles[colo
 
 /** Presentation of persisted state only; never decides acceptance or releases dependencies. */
 export function graphCardStatus(status: string | undefined, progresses: (ExecutionProgress | null | undefined)[] = []) {
-  if (status === 'passed') return display('green', '已完成 · 验收通过');
+  if (status === 'passed') return display('green', '已完成 · 检查通过');
   if (status === 'delivered_unverified') return display('green', '已按合同交付 · 未独立验收');
   if (status === 'awaiting_human') return display('yellow', '待人工确认');
   if (status === 'attention') {
