@@ -5,8 +5,9 @@ import { graphGit } from './git-command';
 import { parseInputManifest } from './input-manifest';
 import { isRecord } from './implementation-result';
 
-/** A candidate is usable for verification before integration, but cannot release successors. */
-export async function assertCandidateInputsIntegrated(tx: Prisma.TransactionClient, nodeId: string) {
+/** Validate registered candidates against the current fixed inputs, without requiring a merge. */
+export async function assertCandidateInputsReady(tx: Prisma.TransactionClient, nodeId: string) {
+  const candidates: { repository: string; commit: string; integrationRefs: string[] }[] = [];
   const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId }, include: { node: true } });
   for (const job of jobs) {
     const pin = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: {
@@ -22,11 +23,18 @@ export async function assertCandidateInputsIntegrated(tx: Prisma.TransactionClie
           !isRecord(payload.receipt) || payload.receipt.executionId !== job.id || payload.receipt.repository !== input.repository ||
           payload.receipt.candidateCommit !== input.commit || !Array.isArray(payload.integrationRefs) || !payload.integrationRefs.length ||
           !payload.integrationRefs.every(ref => typeof ref === 'string' && ref.trim())) throw new Error('补充候选的汇合来源无效');
-      for (const ref of payload.integrationRefs) {
-        const integrated = await graphGit(input.repository, 'merge-base', '--is-ancestor', input.commit, String(ref)).then(() => true, () => false);
-        if (!integrated) throw new Error(`补充候选尚未汇合：${input.repository}@${input.commit} → ${ref}；保留验收结果，汇合后重试发布，不能释放后继`);
-      }
+      candidates.push({ repository: input.repository, commit: input.commit, integrationRefs: payload.integrationRefs.map(String) });
     }
+  }
+  return candidates;
+}
+
+/** Completion still requires integration until an approved graph assigns a separate gate. */
+export async function assertCandidateInputsIntegrated(tx: Prisma.TransactionClient, nodeId: string) {
+  const candidates = await assertCandidateInputsReady(tx, nodeId);
+  for (const input of candidates) for (const ref of input.integrationRefs) {
+    const integrated = await graphGit(input.repository, 'merge-base', '--is-ancestor', input.commit, ref).then(() => true, () => false);
+    if (!integrated) throw new Error(`补充候选尚未汇合：${input.repository}@${input.commit} → ${ref}；保留验收结果，汇合后重试发布，不能释放后继`);
   }
 }
 

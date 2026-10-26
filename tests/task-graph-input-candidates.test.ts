@@ -13,6 +13,7 @@ import { graphReviewClaimKey } from '../src/lib/task-graph/review-ownership';
 import { runSandboxedGraphCheck } from '../src/lib/task-graph/check-environment';
 import { prepareResourceWorkspaces } from '../src/lib/task-resources/graph-workspace';
 import { canonicalResourceDirectories } from '../src/lib/task-resources/model';
+import { assertCandidateInputsReady, assertCandidateInputsIntegrated } from '../src/lib/task-graph/candidate-integration';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
@@ -112,6 +113,26 @@ async function main() {
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', commit: mold.commit } });
     await prisma.taskGraphNode.update({ where: { id: consumer.id }, data: { status: 'verifying' } });
     const evidence = { checks: [{ name: 'behavior', passed: true, evidence: 'fixed candidate checked' }], summary: 'candidate verified' };
+    await assertCandidateInputsReady(prisma, consumer.id);
+    await assert.rejects(assertCandidateInputsIntegrated(prisma, consumer.id), /尚未汇合/);
+    const registeredEvent = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: registered[0].eventId } });
+    assert(registeredEvent.payload && typeof registeredEvent.payload === 'object' && !Array.isArray(registeredEvent.payload));
+    const originalPayload = registeredEvent.payload;
+    for (const invalid of [
+      { ...originalPayload, receipt: { ...receipt, executionId: other.executions[0].id } },
+      { ...originalPayload, receipt: { ...receipt, repository: mold.directory } },
+      { ...originalPayload, receipt: { ...receipt, candidateCommit: reader.commit } },
+      { ...originalPayload, integrationRefs: [] },
+      { ...originalPayload, integrationRefs: [''] },
+    ]) {
+      await prisma.taskGraphEvent.update({ where: { id: registeredEvent.id }, data: { payload: invalid } });
+      try {
+        await assert.rejects(assertCandidateInputsReady(prisma, consumer.id), /汇合来源无效/);
+        await assert.rejects(assertCandidateInputsIntegrated(prisma, consumer.id), /汇合来源无效/);
+      } finally {
+        await prisma.taskGraphEvent.update({ where: { id: registeredEvent.id }, data: { payload: originalPayload } });
+      }
+    }
     await assert.rejects(submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', evidence }), /尚未汇合/);
     await assert.rejects(completeUnverifiedNode(run.id, 'M'), /尚未汇合/);
     await prisma.taskGraphNode.update({ where: { id: consumer.id }, data: { status: 'awaiting_human', acceptance: 'human', reviewerId: 'reviewer' } });
@@ -121,6 +142,8 @@ async function main() {
     assert.equal(failed.status, 'attention', 'Candidate defects can still be published before integration');
     await prisma.taskGraphNode.update({ where: { id: consumer.id }, data: { status: 'verifying' } });
     git(reader.directory, 'update-ref', 'refs/heads/main', fixed, reader.commit);
+    await assertCandidateInputsReady(prisma, consumer.id);
+    await assertCandidateInputsIntegrated(prisma, consumer.id);
     assert.equal((await submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', attempt: 'integrated', evidence })).status, 'passed');
     assert.equal(readFileSync(path.join(reader.directory, 'value.js'), 'utf8'), 'preserve unrelated shared edit');
     writeFileSync(path.join(input.sourcePath, 'value.js'), 'corrupted');
