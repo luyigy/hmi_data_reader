@@ -13,7 +13,7 @@ try {
   writeFileSync(loader, `
     export async function resolve(specifier, context, nextResolve) {
       if (specifier !== '@prisma/client') return nextResolve(specifier, context);
-      const source = 'export class PrismaClient { taskRun = { count: async () => 0 }; scheduledJobRun = { count: async () => { console.log("TEST_JOBS_CHECKED"); return 0; } }; deliveries = 0; liveRoomDelivery = { count: async () => { console.log("TEST_DELIVERIES_CHECKED"); return this.deliveries++ === 0 ? 1 : 0; } }; async $disconnect() { console.log("TEST_DB_DISCONNECTED"); } }';
+      const source = 'export class PrismaClient { taskRun = { count: async () => 0 }; scheduledJobRun = { count: async () => { console.log("TEST_JOBS_CHECKED"); return 0; } }; deliveries = 0; liveRoomDelivery = { count: async ({ where }) => { if (where.deliveryStatus !== "running") throw new Error("Historical pending rows are not in-flight replies"); console.log("TEST_DELIVERIES_CHECKED"); return this.deliveries++ === 0 ? 1 : 0; } }; async $disconnect() { console.log("TEST_DB_DISCONNECTED"); } }';
       return { url: 'data:text/javascript,' + encodeURIComponent(source), shortCircuit: true };
     }
   `);

@@ -14,8 +14,9 @@ try {
   while (Date.now() < deadline) {
     const active = await db.taskRun.count({ where: { status: { in: ['running', 'waiting_for_input'] } } });
     const activeJobs = handover ? await db.scheduledJobRun.count({ where: { status: 'running' } }) : 0;
+    // Historical pending deliveries can remain after their sessions have ended.
     const activeDeliveries = handover
-      ? await db.liveRoomDelivery.count({ where: { deliveryStatus: { in: ['pending', 'running'] } } }) : 0;
+      ? await db.liveRoomDelivery.count({ where: { deliveryStatus: 'running' } }) : 0;
     if (active === 0 && activeJobs === 0 && activeDeliveries === 0) {
       const previousPids = services.map((service) => execFileSync('systemctl', ['--user', 'show', service, '--property=MainPID', '--value'], { encoding: 'utf8' }).trim());
       execFileSync('systemctl', ['--user', 'restart', ...services], { stdio: 'inherit' });
