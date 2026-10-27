@@ -14,6 +14,7 @@ import { requestResourceAccess, decideResourceAccess, getResourceApproval } from
 import { resourceContinuationLaunch } from '../src/lib/task-resources/runtime';
 
 async function main() {
+  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => ({ projects: [] });
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   process.env.FEISHU_ADMIN_OPEN_ID = 'resource-concurrency-admin';
   const root = await mkdtemp(join(tmpdir(), 'resource-concurrency-'));

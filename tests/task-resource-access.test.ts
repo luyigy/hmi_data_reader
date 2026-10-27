@@ -83,7 +83,7 @@ async function main() {
     const graphLaunch = { ...launch, taskId: graphTask.id, workingDirectory: output, graphExecution: { executionId: execution.id, claimToken: 'fixture', revision: 1 } };
     const siblingWrite = await requestResourceAccess({ ...request, launch: graphLaunch, resources: [{ path: other, access: 'write' }] });
     assert.equal(siblingWrite.kind, 'request', 'An explicit sibling repository edit must produce a pending card, not fail before approval');
-    await assert.rejects(requestResourceAccess({ ...request, launch: { ...graphLaunch, graphConversation: { executionId: execution.id, reservationId: 'fixture', inputIds: [] } }, resources: [{ path: other, access: 'write' }] }), /implementation turn/);
+    await assert.rejects(requestResourceAccess({ ...request, launch: { ...graphLaunch, graphConversation: { executionId: execution.id, reservationId: 'fixture', inputIds: [] } }, resources: [{ path: other, access: 'write' }] }), /retired/);
     await assert.rejects(requestResourceAccess({ ...request, resources: [{ path: output, access: 'write' }] }), /another graph execution/);
     const own = await requestResourceAccess({ ...request, launch: graphLaunch, resources: [{ path: output, access: 'write' }] }); assert.equal(own.kind, 'covered');
     assert.equal((await resolveResourceAccess(graphLaunch)).resources.length, 1);

@@ -1,3 +1,4 @@
+import { graphResourceJobs } from './graph-association';
 import { executionProgress } from './execution-progress';
 import { prepareExtraRepositories } from './extra-repositories';
 import { realpath, readdir } from 'node:fs/promises';
@@ -139,10 +140,10 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
 }
 
 /** Readonly QA and all native roles receive the same claim-pinned manifests. */
-export async function graphInputsForTask(taskId: string, forceReadOnly = false): Promise<{ paths: string[]; writablePaths: string[]; instructions: string; env: Record<string, string>; manifests: TaskInputManifest[] }> {
+export async function graphInputsForTask(taskId: string, forceReadOnly = false, registered = false): Promise<{ paths: string[]; writablePaths: string[]; instructions: string; env: Record<string, string>; manifests: TaskInputManifest[] }> {
   const jobId = /^task-graph-discussion-(.+)$/.exec(taskId)?.[1];
   const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
-  const jobs = await prisma.taskGraphExecution.findMany({ where: jobId ? { id: jobId } : nodeId ? { nodeId } : { childTaskId: taskId }, orderBy: { key: 'asc' } });
+  const jobs = registered ? await graphResourceJobs(taskId) : await prisma.taskGraphExecution.findMany({ where: jobId ? { id: jobId } : nodeId ? { nodeId } : { childTaskId: taskId }, orderBy: { key: 'asc' } });
   const prepared = await Promise.all(jobs.map(job => prepareUpstreamInputs(job.id)));
   const nodeIds = Array.from(new Set(jobs.map(job => job.nodeId)));
   const nodes = await prisma.taskGraphNode.findMany({ where: { id: { in: nodeIds } }, include: { run: true } });
@@ -150,7 +151,7 @@ export async function graphInputsForTask(taskId: string, forceReadOnly = false):
   const merged = new Map<string, (typeof declarations)[number]>();
   for (const declaration of declarations) if (merged.get(declaration.repository)?.access !== 'write') merged.set(declaration.repository, declaration);
   const conflictRepair = jobs.some(job => executionProgress(job.dispatchMetadata)?.conflictRepair);
-  const extra = await prepareExtraRepositories(Array.from(merged.values()), forceReadOnly || !!nodeId || !!jobId || conflictRepair);
+  const extra = await prepareExtraRepositories(Array.from(merged.values()), forceReadOnly || !registered && (!!nodeId || !!jobId || conflictRepair));
   const archives = await prisma.taskGraphEvent.findMany({ where: { nodeId: { in: jobs.map(job => job.nodeId) }, kind: 'workspace_cleaned' }, select: { payload: true } });
   const reportPaths = archives.flatMap(event => {
     const payload = event.payload;

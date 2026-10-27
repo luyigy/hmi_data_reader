@@ -89,7 +89,7 @@ export async function resourcesForRun(request: AcpxRunRequest, taskRunId: string
   const existingRead = await Promise.all((request.extraReadOnlyPaths || []).map(p => realpath(p).catch(() => p)));
   const existingWrite = await Promise.all((permission.sandboxMode === 'read-only' ? [] : [...permission.writableRoots, workspace || process.cwd()]).map(p => realpath(p)));
   for (const root of read) if (existingWrite.some(w => directoryContains(root, w))) throw new Error('只读资源会覆盖当前可写工作区，需调整目录范围');
-  for (const root of write) if (read.some(r => directoryContains(root, r) || directoryContains(r, root)) || existingRead.some(r => directoryContains(r, root))) throw new Error('补充目录读写范围重叠，需明确独立目录');
+  for (const root of write) if (read.some(r => directoryContains(root, r) || directoryContains(r, root)) || existingRead.some(r => directoryContains(r, root) && r !== root)) throw new Error('补充目录读写范围重叠，需明确独立目录');
   {
     const proofs = existingWrite.length || write.length ? await observeResourceWriters(taskRunId, existingWrite, write) : [];
     await prisma.$transaction(async tx => {

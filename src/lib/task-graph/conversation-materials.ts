@@ -1,3 +1,4 @@
+import { graphResourceJobs } from './graph-association';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
@@ -93,9 +94,9 @@ export async function syncGraphConversationMaterials(childTaskId: string): Promi
 }
 
 /** Derive the input mount from recorded jobs, never from model-provided paths. */
-export async function graphMaterialPathsForTask(taskId: string) {
+export async function graphMaterialPathsForTask(taskId: string, registered = false) {
   const discussion = taskId.startsWith('task-graph-discussion-') ? taskId.slice('task-graph-discussion-'.length) : undefined;
   const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
-  const executions = await prisma.taskGraphExecution.findMany({ where: discussion ? { id: discussion } : nodeId ? { nodeId } : { childTaskId: taskId }, select: { childTaskId: true } });
+  const executions = registered ? await graphResourceJobs(taskId) : await prisma.taskGraphExecution.findMany({ where: discussion ? { id: discussion } : nodeId ? { nodeId } : { childTaskId: taskId }, select: { childTaskId: true } });
   return Array.from(new Set(executions.flatMap(job => job.childTaskId ? [directoryFor(job.childTaskId)] : []).filter(existsSync)));
 }

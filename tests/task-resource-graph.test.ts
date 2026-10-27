@@ -31,6 +31,7 @@ async function main() {
   process.env.FEISHU_ADMIN_OPEN_ID = 'resource-admin';
   process.env.FEISHU_APP_ID = `resource-app-${Date.now()}`;
   const require = createRequire(__filename);
+  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => ({ projects: [] });
   const cards = require('../src/lib/task-resources/cards');
   const feishu = require('../src/lib/task-graph/feishu');
   const api = require('../src/lib/feishu-api');

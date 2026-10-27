@@ -1,3 +1,4 @@
+import { graphResourceJobs } from '../task-graph/graph-association';
 import type { Prisma } from '@prisma/client';
 import type { ProjectCapabilityPolicy } from './policy';
 import { prisma } from '../prisma';
@@ -11,8 +12,13 @@ import { object, projectCapabilityPolicy, authorizeProjectCapabilities } from '.
 export async function projectCapabilityContext({ taskId, workspace, taskRunId, policyFile, roomMessageId, executionId }: { taskId: string; workspace: string; taskRunId?: string; policyFile?: string; roomMessageId?: string; executionId?: string }, ledger?: { db: Prisma.TransactionClient; registeredPolicy: ProjectCapabilityPolicy | null }) {
   if (ledger && !executionId) throw new Error('Ledger-only authorization requires an exact execution identity');
   const db = ledger?.db || prisma;
-  const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
-  const jobs = await db.taskGraphExecution.findMany({ where: nodeId ? { nodeId } : { childTaskId: taskId }, include: { node: { include: { run: { include: { parentTask: true } } } } } });
+  let jobs = await graphResourceJobs(taskId, db);
+  // Automatic preflight runs before its review TaskRun exists. Its caller has
+  // already checked the execution claim; keep that exact execution binding.
+  if (!jobs.length && !taskRunId && executionId) {
+    const job = await db.taskGraphExecution.findUnique({ where: { id: executionId }, include: { node: { include: { run: { include: { parentTask: true } } } } } });
+    if (job && [`task-graph-review-${job.nodeId}`, `task-graph-architecture-${job.nodeId}`].includes(taskId)) jobs = [job];
+  }
   if (!jobs.length) return null;
   if (executionId && !jobs.some(job => job.id === executionId)) throw new Error('执行不属于当前任务图');
   let repository: string;
@@ -60,12 +66,19 @@ export async function projectCapabilityContext({ taskId, workspace, taskRunId, p
       principals.push(row.actorOrigin === 'feishu' ? `feishu:${policy.appId}:${row.actorId}` : `platform:${row.actorId}`);
     }
   }
+  if (taskRunId) {
+    const run = await db.taskRun.findUniqueOrThrow({ where: { id: taskRunId } });
+    if (run.taskId !== taskId) throw new Error('Project capability TaskRun belongs to another task');
+    const association = object(object(JSON.parse(run.controlMetadata || '{}')).graphAssociation || {});
+    if (typeof association.roomMessageId === 'string') roomMessageId = association.roomMessageId;
+  }
   if (roomMessageId) {
     const message = await db.liveRoomMessage.findUniqueOrThrow({ where: { id: roomMessageId }, include: { room: true } });
-    if (message.room.sourceTaskId !== taskId || message.messageType !== 'user') throw new Error('消息不属于当前任务');
+    if (!jobs.some(job => job.childTaskId === message.room.sourceTaskId) || message.messageType !== 'user') throw new Error('消息不属于当前任务');
     const metadata = object(JSON.parse(message.metadata || '{}'));
-    if (metadata.source !== 'feishu' || typeof metadata.feishuSenderOpenId !== 'string') throw new Error('无法确认话题资料请求者身份');
-    principals.push(`feishu:${policy.appId}:${metadata.feishuSenderOpenId}`);
+    if (metadata.source === 'feishu' && typeof metadata.feishuSenderOpenId === 'string') principals.push(`feishu:${policy.appId}:${metadata.feishuSenderOpenId}`);
+    else if (!metadata.source && message.room.ownerUserId) principals.push(`platform:${message.room.ownerUserId}`);
+    else throw new Error('无法确认话题资料请求者身份');
   }
   authorizeProjectCapabilities(policy, principals);
   return { policy, registeredPolicy, approval, principal: principals[0], principals: Array.from(new Set(principals)), job: job || null };

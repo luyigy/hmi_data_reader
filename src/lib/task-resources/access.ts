@@ -1,3 +1,4 @@
+import { graphResourceJobs } from '../task-graph/graph-association';
 import type { Prisma } from '@prisma/client';
 import { realpath } from 'node:fs/promises';
 import { prisma } from '../prisma';
@@ -29,30 +30,35 @@ export async function lockResourceApproval(tx: DB, id: string): Promise<Resource
 async function authority(launch: ResourceLaunch, db: DB) {
   resourcePrincipal(launch);
   const task = await db.task.findUniqueOrThrow({ where: { id: launch.taskId } });
-  const graph = await db.taskGraphExecution.findUnique({ where: { childTaskId: task.id }, include: { node: { include: { run: { include: { parentTask: true } } } } } });
-  const ownerId = graph?.node.run.parentTask.ownerUserId || task.ownerUserId;
+  const jobs = await graphResourceJobs(task.id, db);
+  const graph = jobs.find(job => job.childTaskId === task.id);
+  const ownerId = jobs[0]?.node.run.parentTask.ownerUserId || task.ownerUserId;
   const ownerKey = ownerId ? `user:${ownerId}` : `task:${task.id}`;
-  const project = graph?.repository || task.workingDirectory;
+  const repositories = Array.from(new Set(jobs.map(job => job.repository)));
+  const project = repositories.length === 1 ? repositories[0] : jobs.length ? undefined : task.workingDirectory;
   const projectPath = project ? await realpath(project) : undefined;
-  return { task, graph, ownerKey, projectPath };
+  return { task, graph, jobs, ownerKey, projectPath };
 }
 
 async function assertGraphWrites(launch: ResourceLaunch, resources: ResourceDirectory[], db: DB) {
   const writes = resources.filter(resource => resource.access === 'write');
   if (!writes.length) return;
-  const { graph } = await authority(launch, db);
+  const { graph, jobs } = await authority(launch, db);
+  if (launch.graphExecution && launch.graphExecution.executionId !== graph?.id) throw new Error('Graph resource execution identity mismatch.');
+  if (launch.graphReview && !jobs.some(job => job.nodeId === launch.graphReview!.nodeId && job.node.runId === launch.graphReview!.runId)) throw new Error('Graph resource review identity mismatch.');
   const executions = await db.taskGraphExecution.findMany({ where: { worktreePath: { not: null } }, select: { id: true, worktreePath: true } });
   for (const execution of executions) {
     const worktree = await realpath(execution.worktreePath!).catch(() => execution.worktreePath!);
-    if (execution.id !== graph?.id && writes.some(resource => directoryContains(resource.canonicalPath, worktree) || directoryContains(worktree, resource.canonicalPath))) {
+    if (!jobs.some(job => job.id === execution.id) && writes.some(resource => directoryContains(resource.canonicalPath, worktree) || directoryContains(worktree, resource.canonicalPath))) {
       throw new Error('Resource access cannot grant another graph execution worktree write ownership.');
     }
   }
-  if (!graph && !launch.graphExecution && !launch.graphConversation && !launch.graphReview) return;
-  if (!graph?.worktreePath || launch.graphReview || launch.graphConversation) throw new Error('Graph resource writes require an implementation turn.');
-  const own = await realpath(graph.worktreePath);
-  if (writes.some(resource => resource.canonicalPath !== own && directoryContains(resource.canonicalPath, own))) throw new Error('Resource writes cannot include the execution workspace parent.');
-  if (launch.graphExecution && launch.graphExecution.executionId !== graph.id) throw new Error('Graph resource execution identity mismatch.');
+  if (launch.graphConversation) throw new Error('Legacy conversation resource launches are retired.');
+  for (const job of jobs) {
+    if (!job.worktreePath) continue;
+    const own = await realpath(job.worktreePath);
+    if (writes.some(resource => resource.canonicalPath !== own && directoryContains(resource.canonicalPath, own))) throw new Error('Resource writes cannot include the execution workspace parent.');
+  }
 }
 
 async function findGrants(launch: ResourceLaunch, db: DB) {
@@ -67,7 +73,7 @@ async function findGrants(launch: ResourceLaunch, db: DB) {
     if (payload.hostIdentity !== host || payload.ownerKey !== current.ownerKey || JSON.stringify(resourcePrincipal(payload.launch)) !== principal) continue;
     if (payload.scope === 'task' ? payload.launch.taskId !== launch.taskId : !current.projectPath || payload.projectPath !== current.projectPath || !current.ownerKey.startsWith('user:')) continue;
     await verifyResourceDirectories(payload.resources);
-    await assertGraphWrites(launch, launch.graphConversation && launch.permissionConfig?.sandboxMode === 'read-only'
+    await assertGraphWrites(launch, launch.permissionConfig?.sandboxMode === 'read-only'
       ? payload.resources.map(resource => ({ ...resource, access: 'read' as const })) : payload.resources, db);
     approvals.push(approval);
   }
@@ -79,7 +85,7 @@ export async function resolveResourceAccess(launch: ResourceLaunch): Promise<{ a
     const approvals = await findGrants(launch, tx);
     const resources = new Map<string, ResourceDirectory>();
     for (const approval of approvals) for (const approved of approval.payload.resources) {
-      const resource = launch.graphConversation && launch.permissionConfig?.sandboxMode === 'read-only' ? { ...approved, access: 'read' as const } : approved;
+      const resource = launch.permissionConfig?.sandboxMode === 'read-only' ? { ...approved, access: 'read' as const } : approved;
       if (!resources.has(resource.canonicalPath) || resource.access === 'write') resources.set(resource.canonicalPath, resource);
     }
     return { approvalIds: approvals.map(approval => approval.id), resources: Array.from(resources.values()) };

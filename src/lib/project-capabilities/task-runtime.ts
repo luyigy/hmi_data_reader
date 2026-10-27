@@ -1,10 +1,9 @@
-import { prisma } from '../prisma';
+import { graphResourceJobs } from '../task-graph/graph-association';
 import { withProjectCapabilities } from './runtime';
 
 /** Only ledger-bound repositories participate; non-Git role directories never infer a project. */
 export async function taskCapabilityRepositories(taskId: string) {
-  const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
-  const jobs = await prisma.taskGraphExecution.findMany({ where: nodeId ? { nodeId } : { childTaskId: taskId }, select: { id: true, key: true, repository: true } });
+  const jobs = await graphResourceJobs(taskId);
   return jobs.map(job => ({ id: job.id, key: job.key, repository: job.repository }));
 }
 

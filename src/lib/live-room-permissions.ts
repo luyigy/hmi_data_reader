@@ -1,3 +1,5 @@
+import { graphMemberPermissionTask } from './task-graph/room-permission-task';
+import { randomUUID } from 'node:crypto';
 import { prisma } from './prisma';
 import {
   buildAcpxPermissionConfigForProfile,
@@ -36,30 +38,19 @@ export const setLiveRoomMemberPermission = async (
   memberId: string,
   profile: LiveRoomPermissionProfile
 ) => {
-  const member = await prisma.liveRoomMember.findFirst({
-    where: { id: memberId, roomId, canReply: true },
-    include: {
-      room: {
-        select: {
-          sourceTask: {
-            select: { acpxPermissionConfig: true },
-          },
-        },
-      },
-    },
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "LiveRoom" WHERE id = ${roomId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "LiveRoomMember" WHERE id = ${memberId} FOR UPDATE`;
+    const member = await tx.liveRoomMember.findFirst({ where: { id: memberId, roomId, canReply: true }, include: { room: true } });
+    if (!member) throw new Error('Member not found');
+    const task = await graphMemberPermissionTask(tx, member, member.room.sourceTaskId);
+    const config = permissionConfigForProfile(profile,
+      resolveLiveRoomMemberPermission(member.acpxPermissionConfig, task?.acpxPermissionConfig).writableRoots);
+    await tx.liveRoomMember.update({ where: { id: member.id }, data: { acpxPermissionConfig: JSON.stringify(config) } });
+    const job = member.room.sourceTaskId ? await tx.taskGraphExecution.findUnique({ where: { childTaskId: member.room.sourceTaskId }, include: { node: true } }) : null;
+    if (job) await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId, kind: 'room_member_permission_changed',
+      idempotencyKey: `room-permission:${member.id}:${randomUUID()}`, payload: { memberId: member.id, roomId,
+        before: member.acpxPermissionConfig, after: JSON.stringify(config) } } });
+    return config;
   });
-  if (!member) throw new Error('Member not found');
-
-  const config = permissionConfigForProfile(
-    profile,
-    resolveLiveRoomMemberPermission(
-      member.acpxPermissionConfig,
-      member.room.sourceTask?.acpxPermissionConfig
-    ).writableRoots
-  );
-  await prisma.liveRoomMember.update({
-    where: { id: member.id },
-    data: { acpxPermissionConfig: JSON.stringify(config) },
-  });
-  return config;
 };

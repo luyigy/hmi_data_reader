@@ -24,7 +24,8 @@ async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   const scratch = await fs.mkdtemp(path.join(tmpdir(), 'capability-c02-'));
   let parentId: string | undefined; const taskIds: string[] = [];
-  const original = { HOME: process.env.HOME, FEISHU_APP_ID: process.env.FEISHU_APP_ID, TASK_GRAPH_VALIDATION_ROOT: process.env.TASK_GRAPH_VALIDATION_ROOT };
+  const original = { AP_PROJECT_REPOSITORY: process.env.AP_PROJECT_REPOSITORY, HOME: process.env.HOME, FEISHU_APP_ID: process.env.FEISHU_APP_ID, TASK_GRAPH_VALIDATION_ROOT: process.env.TASK_GRAPH_VALIDATION_ROOT };
+  delete process.env.AP_PROJECT_REPOSITORY; // The outer test sandbox is not a fixture project.
   const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
   process.env.HOME = path.join(scratch, 'home'); process.env.FEISHU_APP_ID = 'cli_test'; process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(scratch, 'outputs');
   await fs.mkdir(path.join(process.env.HOME, '.agent-platform'), { recursive: true });
@@ -140,7 +141,7 @@ async function main() {
         const job = await claimExecution(dual.id, nodeKey, spec.key, 'multi-' + nodeKey); assert(job);
         const project = jobs.find(item => item.repository === spec.repository); assert(project);
         await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', commit: project.commit, worktreePath: project.workspace,
-          dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { version: 1, revision: 1, phase: 'acceptance', state: 'active', candidateCommit: project.commit, worker, repairAttempts: 0, formatAttempts: 0, platformAttempts: 0, integrationAttempts: 0 }) } });
+          dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { version: 1, revision: 1, phase: 'acceptance', state: 'active', candidateCommit: project.commit, worker, workerReleasedAt: new Date().toISOString(), repairAttempts: 0, formatAttempts: 0, platformAttempts: 0, integrationAttempts: 0 }) } });
       }
     }
     const mixed = await prepareTaskDeclaredRuntime({ taskId: 'task-graph-review-' + bothId, workspace: review, approvedReadOnlyRoots: jobs.map(job => job.workspace), outputDirectory: reviewOutput });
@@ -150,7 +151,7 @@ async function main() {
     for (const [nodeId, expected] of [[bothId, ['mold/photos', 'reader/photos']], [sameId, ['wide/photos']]] satisfies [string, string[]][]) {
       const task = await prisma.task.create({ data: { id: 'task-graph-review-' + nodeId, name: 'multi review', workingDirectory: review } });
       taskIds.push(task.id);
-      const run = await prisma.taskRun.create({ data: { taskId: task.id, status: 'running' } });
+      const run = await prisma.taskRun.create({ data: { taskId: task.id, status: 'running', controlMetadata: JSON.stringify({ graphReview: { runId: dual.id, nodeId } }) } });
       await withTaskProjectCapabilities({ taskId: task.id, taskRunId: run.id, workspace: review }, async access => {
         const stage = await prepareTaskDeclaredRuntime({ taskId: task.id, taskRunId: run.id, workspace: review, approvedReadOnlyRoots: jobs.map(job => job.workspace), outputDirectory: reviewOutput });
         const env = { NODE_ENV: 'test' as const, PATH: process.env.PATH, HOME: '/tmp', AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', ...stage.env, ...access.env };

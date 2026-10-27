@@ -1,3 +1,4 @@
+import { graphResourceJobs } from './graph-association';
 import { assertRuntimeResourcesUnchanged, RuntimePreparationError, type PreparedRuntime } from './runtime-preflight';
 import type { AttemptService } from './service-contract';
 import { graphWriterEnvironment } from './writer-ownership';
@@ -8,7 +9,7 @@ import { prepareUpstreamInputs } from './upstream-inputs';
 import { validationRuntimeDirectory } from './acceptance-runtime';
 import { withAttemptServices, type ServiceContext } from './attempt-services';
 
-/** Checks and native roles use one owner; conversation-only reads do not start business processes. */
+/** Automatic and human turns use the same ledger-bound service declarations. */
 export async function withGraphTaskServices<T>(taskId: string | undefined, taskRunId: string, action: (context: ServiceContext) => Promise<T>, runtime?: PreparedRuntime | null): Promise<T> {
   const controller = new AbortController();
   const resources = runtime?.verifiedResources || [];
@@ -17,10 +18,9 @@ export async function withGraphTaskServices<T>(taskId: string | undefined, taskR
     await assertRuntimeResourcesUnchanged(resources);
     return action(context);
   };
-  if (postgres.length && (!taskId || taskId.startsWith('task-graph-discussion-'))) throw new RuntimePreparationError('invalid', 'PostgreSQL 阶段服务需要任务图执行归属', postgres.map(item => item.path));
-  if (!taskId || taskId.startsWith('task-graph-discussion-')) return use({ env: {}, signal: controller.signal, receipts: [] });
-  const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
-  const jobs = await prisma.taskGraphExecution.findMany({ where: nodeId ? { nodeId } : { childTaskId: taskId }, include: { node: { include: { run: true } } } });
+  if (postgres.length && !taskId) throw new RuntimePreparationError('invalid', 'PostgreSQL 阶段服务需要任务图执行归属', postgres.map(item => item.path));
+  if (!taskId) return use({ env: {}, signal: controller.signal, receipts: [] });
+  const jobs = await graphResourceJobs(taskId);
   if (!jobs.length) {
     if (postgres.length) throw new RuntimePreparationError('invalid', 'PostgreSQL 阶段服务缺少执行账本', postgres.map(item => item.path));
     return use({ env: {}, signal: controller.signal, receipts: [] });

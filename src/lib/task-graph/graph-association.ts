@@ -30,6 +30,13 @@ export async function graphAssociationForTask(taskId: string, role: string, tx: 
   return undefined;
 }
 
+/** Resolve resource ownership from persisted task bindings, never a task-name prefix. */
+export async function graphResourceJobs(taskId: string, tx: Prisma.TransactionClient = prisma) {
+  const association = await graphAssociationForTask(taskId, '', tx);
+  return association ? tx.taskGraphExecution.findMany({ where: { id: { in: association.executionIds }, nodeId: association.nodeId },
+    include: { node: { include: { run: { include: { parentTask: true } } } } }, orderBy: { key: 'asc' } }) : [];
+}
+
 /** Carry all historical review inputs, including multi-repository candidates. */
 export async function associationReviewCandidates(taskId: string, association?: GraphAssociation) {
   if (!association?.sourceTaskRunId) return undefined;

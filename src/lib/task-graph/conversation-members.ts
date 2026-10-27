@@ -51,6 +51,9 @@ export async function ensureGraphRoomParticipants(roomId: string, executionId: s
         codexModel: approved.model || null, codexReasoningEffort: approved.reasoningEffort || null,
         acpxPermissionConfig: null,
       } });
+      await tx.taskGraphEvent.create({ data: { runId: execution.node.runId, nodeId: execution.nodeId, kind: 'room_member_permission_origin',
+        idempotencyKey: `room-permission-origin:${member.id}`, payload: { source: 'graph_participant_inherit_v2', memberId: member.id,
+          roomId, taskId: execution.childTaskId, permission: null, createdAt: member.createdAt.toISOString(), updatedAt: member.updatedAt.toISOString() } } });
       members.push(member);
     }
     await tx.liveRoom.update({ where: { id: roomId }, data: {

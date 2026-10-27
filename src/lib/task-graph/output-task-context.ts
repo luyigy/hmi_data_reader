@@ -1,3 +1,4 @@
+import { graphResourceJobs } from './graph-association';
 import { priorOutputArtifacts } from './prior-output-artifacts';
 import { prisma } from '../prisma';
 import { prepareGraphOutputRuntime } from './output-runtime';
@@ -18,9 +19,8 @@ export async function prepareGraphInspectionOutputForTask(taskId: string, execut
 }
 
 export async function prepareGraphOutputForTask(taskId: string | undefined, attempt: string, workspaces: string[]) {
-  const nodeId = taskId && /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
-  const job = taskId && !nodeId ? await prisma.taskGraphExecution.findFirst({ where: { childTaskId: taskId }, select: { nodeId: true } }) : null;
-  const ownerId = nodeId || job?.nodeId;
+  const jobs = taskId ? await graphResourceJobs(taskId) : [];
+  const ownerId = jobs[0]?.nodeId;
   const result = await prepareGraphOutputRuntime(ownerId || `check:${workspaces.join(':')}`, attempt, workspaces);
   const node = ownerId ? await prisma.taskGraphNode.findUnique({ where: { id: ownerId }, select: { runId: true } }) : null;
   const { priorArtifacts, readOnlyPaths: previousOutputs } = await previousOutputContext(ownerId, result.directory);

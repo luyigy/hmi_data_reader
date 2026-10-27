@@ -1,3 +1,4 @@
+import { prepareConversationRuntime } from './conversation-runtime';
 import { approvedRuntimeUpgrade } from './approved-runtime-upgrade';
 import { requireGraphNodeActiveTx } from './run-control';
 import { projectPythonRuntime } from '../project-capabilities/python-runtime';
@@ -51,12 +52,7 @@ async function repositoryIdentity(directory: string) {
 /** The server ledger and current claim identify runtime inputs even when the stage cwd is not Git. */
 export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<PreparedRuntime> {
   if (args.conversationAssociation) {
-    const run = args.taskRunId ? await prisma.taskRun.findUnique({ where: { id: args.taskRunId } }) : null;
-    const association = record(run?.controlMetadata ? JSON.parse(run.controlMetadata) : {}).graphAssociation;
-    if (!run || run.taskId !== args.taskId || !isDeepStrictEqual(association, args.conversationAssociation)) throw new Error('Conversation runtime task identity changed');
-    // A human turn has no scheduling claim to pin. Use the ordinary runtime
-    // contract with its already authorized roots; never borrow an old claim.
-    return prepareDeclaredRuntime({ ...args, strictReadOnlyRoots: true });
+    return prepareConversationRuntime({ ...args, conversationAssociation: args.conversationAssociation });
   }
   return prepareRuntime(args, false);
 }

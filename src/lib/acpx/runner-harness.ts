@@ -1,3 +1,4 @@
+import { graphResourceJobs } from '../task-graph/graph-association';
 import { recordResourceMountPlan, recordResourceSession, ResourceApplicationError } from '../task-resources/mount-plan';
 import { assertResourceUseActive, withResourceProcessGuard } from '../task-resources/process-guard';
 import { resourceRequestInstructions, submitRunnerResourceRequest } from '../task-resources/runner-protocol';
@@ -143,10 +144,12 @@ export const executeViaLocalHarness = async (
     throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
   }
   const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
-  const inputs = request.taskId.startsWith('task-graph-') ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only') : null;
+  const graphJobs = await graphResourceJobs(request.taskId);
+  const isGraph = graphJobs.length > 0;
+  const inputs = isGraph ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only', true) : null;
   const resourceAccess = await resourcesForRun({ ...request, participants: [participant] }, taskRunId, participantId, inputs?.manifests);
   task.description += (participant.harnessType === 'codex' ? resourceRequestInstructions : '') + resourceAccess.instructions;
-  if (request.taskId.startsWith('task-graph-') && request.workingDirectory && !existsSync(request.workingDirectory)) {
+  if (isGraph && request.workingDirectory && !existsSync(request.workingDirectory)) {
     throw new Error('任务工作区已清理或不可用。历史回复和提交仍保留；继续实施请创建后续任务工作区。');
   }
   if (permissionConfig.sandboxMode === 'read-only' && adapter.getPermissionSupport('platform_local').sandboxMode !== 'applied') {
@@ -155,19 +158,20 @@ export const executeViaLocalHarness = async (
   const workspaceRoot = permissionConfig.profile === 'full_access'
     ? undefined
     : permissionConfig.writableRoots[0] || request.workingDirectory || process.cwd();
-  const graphRuntime = request.taskId.startsWith('task-graph-')
+  const runtimeWorkspace = workspaceRoot || request.workingDirectory;
+  const graphRuntime = isGraph
     ? prepareGraphHarnessRuntime(request.taskId, participant.harnessType) : null;
-  if (graphRuntime && !workspaceRoot) throw new Error('任务图执行需要受限工作区，不能使用 full_access。');
-  const graphGit = graphRuntime ? linkedWorktreeGitDirectories(workspaceRoot) : [];
+  if ((request.graphExecution || request.graphReview) && !workspaceRoot) throw new Error('任务图执行需要受限工作区，不能使用 full_access。');
+  const graphGit = graphRuntime ? linkedWorktreeGitDirectories(runtimeWorkspace) : [];
   const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
   extraWritableRoots.push(...resourceAccess.write);
   if (inputs) { task.description += inputs.instructions; extraWritableRoots.push(...inputs.writablePaths); }
-  const outputWorkspaces = request.taskId.startsWith('task-graph-review-') || request.taskId.startsWith('task-graph-architecture-')
-    ? await prisma.taskGraphExecution.findMany({ where: { nodeId: request.taskId.replace(/^task-graph-(?:review|architecture)-/, '') }, select: { worktreePath: true } }).then(jobs => jobs.flatMap(job => job.worktreePath ? [job.worktreePath] : []))
-    : request.workingDirectory ? [request.workingDirectory] : [];
-  const output = graphRuntime && !request.taskId.startsWith('task-graph-discussion-') ? await prepareGraphOutputForTask(request.taskId, `harness:${taskRunId}:${participantId}`, outputWorkspaces) : null;
+  const outputWorkspaces = graphJobs.some(job => job.childTaskId === request.taskId)
+    ? request.workingDirectory ? [request.workingDirectory] : []
+    : graphJobs.flatMap(job => job.worktreePath ? [job.worktreePath] : []);
+  const output = graphRuntime ? await prepareGraphOutputForTask(request.taskId, `harness:${taskRunId}:${participantId}`, outputWorkspaces) : null;
   if (output) task.description += output.instructions;
   const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
@@ -179,16 +183,22 @@ export const executeViaLocalHarness = async (
     ...(inputs?.paths || []),
     ...(validationArchive ? [validationArchive] : []),
     ...(graphRuntime?.readonly || []), ...graphGit,
-    ...(graphRuntime ? await graphMaterialPathsForTask(request.taskId) : []),
+    ...(graphRuntime ? await graphMaterialPathsForTask(request.taskId, true) : []),
     ...(graphRuntime ? graphDependencyPaths(workspaceRoot) : []),
     ...(graphGit.length && workspaceRoot ? [path.join(workspaceRoot, ".git")] : []),
     ...(permissionConfig.sandboxMode === 'read-only'
       ? [workspaceRoot, ...(request.extraReadOnlyPaths || [])].flatMap(linkedWorktreeGitDirectories)
       : []),
   ]));
-  const declaredRuntime = !request.graphConversation && output && workspaceRoot ? await prepareTaskDeclaredRuntime({ conversationAssociation: !request.graphExecution && !request.graphReview ? request.graphAssociation : undefined, taskId: request.taskId, taskRunId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
+  const declaredRuntime = output && runtimeWorkspace ? await prepareTaskDeclaredRuntime({ conversationAssociation: !request.graphExecution && !request.graphReview ? request.graphAssociation : undefined, taskId: request.taskId, taskRunId, permissionConfig, workspace: runtimeWorkspace, approvedReadOnlyRoots: [...extraReadOnlyPaths, ...extraWritableRoots], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
   if (declaredRuntime) { task.description += declaredRuntime.instructions; extraReadOnlyPaths.push(...declaredRuntime.readOnlyPaths); }
   if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
+  const explicitWrites = permissionConfig.sandboxMode === 'read-only' ? [] : [...permissionConfig.writableRoots, ...resourceAccess.write, ...(inputs?.writablePaths || [])].filter((root): root is string => !!root);
+  const protectedReads = new Set([...resourceAccess.read, ...(resourceAccess.protectedPaths || []), ...(inputs?.paths || []), ...(output?.readOnlyPaths || []), ...graphGit, ...(graphRuntime?.readonly || [])]);
+  for (let i = extraReadOnlyPaths.length - 1; i >= 0; i--) {
+    const root = extraReadOnlyPaths[i];
+    if (!protectedReads.has(root) && explicitWrites.some(write => root === write)) extraReadOnlyPaths.splice(i, 1);
+  }
   const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
     : participant.codexHome;
@@ -233,7 +243,7 @@ export const executeViaLocalHarness = async (
     if (serviceSignal?.aborted) abort();
     onSpawn?.({ pid: control.pid, sandboxIdentity: control.identity });
   };
-  const sandbox: HarnessSandbox | undefined = (request.graphExecution || resourceAccess.approvalIds.length > 0)
+  const sandbox: HarnessSandbox | undefined = (isGraph || resourceAccess.approvalIds.length > 0)
     && participant.executionBackend === 'platform_local' && participant.harnessType === 'codex' && workspaceRoot
     ? { run: async (input, use) => {
         let exitCode: number | null = null;
@@ -254,7 +264,7 @@ export const executeViaLocalHarness = async (
   extraReadOnlyPaths.push(...capabilities.readOnlyPaths);
   task.description += capabilities.instructions;
   if (resourceAccess.approvalIds.length) await recordResourceMountPlan(taskRunId, participantId, resourceAccess.write, extraReadOnlyPaths, [workspaceRoot, ...extraWritableRoots].filter((root): root is string => !!root));
-  return withGraphTaskServices(graphRuntime && !request.graphConversation ? request.taskId : undefined, taskRunId, async services => {
+  return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
   const taskEnvironment = { ...(resourceAccess.approvalIds.length ? { AP_RESOURCE_SCOPE: '1' } : {}), ...capabilities.env, ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };

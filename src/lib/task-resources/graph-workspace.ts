@@ -1,3 +1,4 @@
+import { graphResourceJobs } from '../task-graph/graph-association';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { prisma } from '../prisma';
@@ -16,11 +17,13 @@ export async function prepareResourceWorkspaces(request: AcpxRunRequest, resourc
   const write: string[] = [];
   const candidateInstructions: string[] = [];
   for (const resource of resources.filter(item => item.access === 'write')) {
-    const input = manifests.flatMap(manifest => manifest.inputs).find(item => item.repository === resource.canonicalPath);
-    if (!request.graphExecution || !input) { write.push(resource.canonicalPath); continue; }
-    const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: request.graphExecution.executionId }, include: { node: true } });
-    if (job.childTaskId !== request.taskId || job.claimToken !== request.graphExecution.claimToken ||
-      !manifests.some(manifest => manifest.executionId === job.id && manifest.inputs.includes(input))) throw new Error('资源工作区的固定输入或执行身份改变');
+    const inputs = manifests.flatMap(manifest => manifest.inputs).filter(item => item.repository === resource.canonicalPath);
+    if (new Set(inputs.map(input => input.commit)).size > 1) throw new Error('补充源码对应多个固定版本，不能猜测可写副本的候选');
+    const input = inputs[0];
+    if (!input) { write.push(resource.canonicalPath); continue; }
+    const jobs = await graphResourceJobs(request.taskId);
+    const job = jobs.find(job => manifests.some(manifest => manifest.executionId === job.id && manifest.inputs.includes(input)));
+    if (!job || request.graphExecution && (job.id !== request.graphExecution.executionId || job.claimToken !== request.graphExecution.claimToken)) throw new Error('资源工作区的固定输入或执行身份改变');
     const checkout = await withRepositoryLock(input.repository, async () => {
       const directory = await workspacePath(input.repository, 'development', [`resource-${job.id}`, input.commit]);
       const key = `resource-workspace:${job.id}:${workspaceIdentity(input.repository)}:${input.commit}`;
