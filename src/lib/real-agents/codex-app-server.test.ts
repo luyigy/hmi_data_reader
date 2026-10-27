@@ -2,6 +2,7 @@ import { completedCodexToolEvent } from './codex-tool-result';
 import assert from 'node:assert/strict';
 import { AgentReplyState, type AgentMessageInfo } from '../agent-reply-state';
 import { chmod, mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -96,6 +97,12 @@ if [[ "$1" != "app-server" ]]; then
   exit 0
 fi
 [[ -e "$CODEX_FIXTURE_HOST_SECRET" ]] && echo host-visible >> "$CODEX_FIXTURE_LOG" || echo host-hidden >> "$CODEX_FIXTURE_LOG"
+if [[ "$CODEX_HOME" == *"/runtime-home/"* ]]; then
+  export CODEX_FIXTURE_LOG="$CODEX_HOME/app-server-requests.ndjson"
+  printf '%s' '{"token":"app-server-refreshed"}' > "$CODEX_HOME/auth.json" || exit 31
+  if touch "$CODEX_HOME/config.toml" 2>/dev/null; then exit 32; fi
+  if touch "$PWD/forbidden" 2>/dev/null; then exit 33; fi
+fi
 while IFS= read -r line; do
   echo "$line" >> "$CODEX_FIXTURE_LOG"
   [[ "$line" =~ \\"id\\":([0-9]+) ]] && request_id="\${BASH_REMATCH[1]}"
@@ -211,6 +218,40 @@ done
   assert.match(resumeLog, /"threadId":"thread-old"/);
   assert.match(resumeLog, /"model":"gpt-test"/);
   assert.match(resumeLog, /"id":99,"result":\{"decision":"accept"\}/);
+
+  const sharedHome = path.join(fixtureRoot, 'shared-codex');
+  const runtimeHome = path.join(fixtureRoot, 'runtime-home');
+  const runtimeCodexHome = path.join(runtimeHome, '.codex');
+  const sharedAuth = path.join(sharedHome, 'auth.json');
+  const sharedConfig = path.join(sharedHome, 'config.toml');
+  await mkdir(sharedHome);
+  await mkdir(runtimeCodexHome, { recursive: true });
+  await writeFile(sharedAuth, '{"token":"shared"}');
+  await writeFile(sharedConfig, '# readonly');
+  await symlink(sharedAuth, path.join(runtimeCodexHome, 'auth.json'));
+  await symlink(sharedConfig, path.join(runtimeCodexHome, 'config.toml'));
+  const appServer = await runCodexAppServer({
+    prompt: 'shared auth',
+    workingDirectory: realCwd,
+    workspaceRoot: workspace,
+    runtimeHome,
+    codexHome: runtimeCodexHome,
+    readOnlyPaths: [sharedConfig],
+    sandboxMode: 'read-only',
+    approvalPolicy: 'never',
+    timeout: 1_000,
+    env: {
+      ...env,
+      HOME: runtimeHome,
+      CODEX_HOME: runtimeCodexHome,
+      AP_TASK_SANDBOX: '1',
+      AP_SANDBOX_MODEL_ACCESS: '1',
+    },
+  });
+  assert.equal(appServer.threadId, 'thread-new');
+  assert.equal(await readFile(sharedAuth, 'utf8'), '{"token":"app-server-refreshed"}', 'Readonly app-server must refresh shared host auth');
+  assert.equal(await readFile(sharedConfig, 'utf8'), '# readonly');
+  assert.equal(existsSync(path.join(realCwd, 'forbidden')), false);
 
   let timeoutChildPid: number | undefined;
   await assert.rejects(

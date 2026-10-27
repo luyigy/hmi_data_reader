@@ -8,6 +8,7 @@ import type { HarnessInteractionRequest, HarnessSteer, HarnessStreamCallbacks } 
 import { parseCodexTokenUsage } from '@/lib/codex-telemetry';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
+import { codexSandboxConfigPaths } from './codex-home';
 
 type JsonRpcId = string | number;
 type JsonRpcMessage = {
@@ -149,7 +150,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     workspaceRoot: options.workspaceRoot,
     writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess,
     sandboxMode: options.sandboxMode, env: options.env ?? process.env,
-    configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
+    configPaths: codexSandboxConfigPaths(options),
     readOnlyPaths: options.readOnlyPaths,
   };
   const sandbox = options.sandbox;

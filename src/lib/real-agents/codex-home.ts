@@ -40,3 +40,10 @@ export const resolvePlatformLocalCodexHome = (
 ) => workspaceRoot
   ? path.join(workspaceGitDirectory(workspaceRoot), 'agent-platform', 'codex', path.basename(requestedHome || 'session'))
   : requestedHome;
+
+export const codexSandboxConfigPaths = ({ runtimeHome, codexHome }: { runtimeHome?: string; codexHome?: string }) => {
+  const paths = [runtimeHome || codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`];
+  const sharedAuth = runtimeHome && codexHome ? path.join(codexHome, 'auth.json') : null;
+  if (sharedAuth && existsSync(sharedAuth)) paths.push(realpathSync(sharedAuth));
+  return paths;
+};

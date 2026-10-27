@@ -10,7 +10,7 @@ import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import type { ChildProcess } from 'child_process';
 import { processCodexJsonLine } from './codex-event-parser';
 import { canRetryCodexAppServerWithJson, runCodexAppServer } from './codex-app-server';
-import { prepareCodexHome } from './codex-home';
+import { codexSandboxConfigPaths, prepareCodexHome } from './codex-home';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 const isMissingCustomToolOutputWarning = (text: string) =>
@@ -405,7 +405,7 @@ const runCodexJsonCommand = async (request: CodexJsonRequest): Promise<CodexCliR
   const input = { command: 'codex', commandArgs: args, cwd: options.workingDirectory,
     workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots,
     networkAccess: options.networkAccess, sandboxMode: options.sandboxMode, env,
-    configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
+    configPaths: codexSandboxConfigPaths(options),
     readOnlyPaths: options.readOnlyPaths };
   const sandbox = options.sandbox;
   if (sandbox) {

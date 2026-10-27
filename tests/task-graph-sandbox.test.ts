@@ -1,14 +1,12 @@
 import { executeCodexTask, resumeCodexSession } from '../src/lib/real-agents/codex-agent';
 import { prepareGraphHarnessRuntime, clearGraphHarnessRuntime } from '../src/lib/task-graph/harness-runtime';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { runSandboxedGraphCheck } from '../src/lib/task-graph/check-environment';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { ensureIntegrationRef, ensureJobWorktree, commitJobWorktree, integrateJobWorktree } from '../src/lib/task-graph/worktree';
 import { linkedWorktreeGitDirectories } from '../src/lib/real-agents/git-worktree-paths';
 import { wrapWithBubblewrap } from '../src/lib/harness/bubblewrap';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { executeKimiCodeTask } from '../src/lib/real-agents/kimi-code-agent';
@@ -19,7 +17,7 @@ async function main() {
   const executable = path.join(root, 'kimi-probe');
   writeFileSync(executable, '#!/bin/sh\nif touch forbidden-code-write 2>/dev/null; then exit 19; fi\nprintf \'{"role":"assistant","content":"readonly enforced"}\\n\'\n', { mode: 0o700 });
   const previous = { CODEX_HOME: process.env.CODEX_HOME, KIMI_CODE_HOME: process.env.KIMI_CODE_HOME, TASK_GRAPH_RUNTIME_ROOT: process.env.TASK_GRAPH_RUNTIME_ROOT };
-  const codexSource = path.join(root, 'codex-source'); mkdirSync(codexSource); writeFileSync(path.join(codexSource, 'auth.json'), '{"token":"fixture"}');
+  const codexSource = path.join(root, 'codex-source'); mkdirSync(codexSource); writeFileSync(path.join(codexSource, 'auth.json'), '{"token":"fixture"}'); writeFileSync(path.join(codexSource, 'config.toml'), '# fixture');
   const kimiSource = path.join(root, 'kimi-source'); mkdirSync(kimiSource); mkdirSync(path.join(kimiSource, 'oauth')); writeFileSync(path.join(kimiSource, 'oauth', 'token'), 'fixture'); writeFileSync(path.join(kimiSource, 'config.toml'), '# fixture');
   process.env.CODEX_HOME = codexSource; process.env.KIMI_CODE_HOME = kimiSource; process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'runtime');
   const original = process.env.KIMI_CODE_CLI_PATH; process.env.KIMI_CODE_CLI_PATH = executable;
@@ -28,9 +26,23 @@ async function main() {
       workingDirectory: workspace, workspaceRoot: workspace, sandboxMode: 'read-only', permissionProfile: 'custom', networkAccess: 'restricted', timeout: 5000,
     });
     assert.equal(result.success, true, `Kimi must enforce readonly code at the actual native process boundary: ${result.error}`);
+    const initialCodexRuntime = prepareGraphHarnessRuntime('task-fixture', 'codex');
+    unlinkSync(path.join(initialCodexRuntime.config, 'auth.json'));
+    writeFileSync(path.join(initialCodexRuntime.config, 'auth.json'), '{"token":"stale-copy"}');
+    mkdirSync(path.join(initialCodexRuntime.config, 'sessions')); writeFileSync(path.join(initialCodexRuntime.config, 'sessions', 'state'), 'preserve');
     const codexRuntime = prepareGraphHarnessRuntime('task-fixture', 'codex');
-    writeFileSync(path.join(codexRuntime.config, 'auth.json'), '{"token":"refreshed"}');
-    assert.equal(readFileSync(path.join(codexSource, 'auth.json'), 'utf8'), '{"token":"fixture"}', 'Private token refresh must not overwrite host configuration');
+    assert.equal(realpathSync(path.join(codexRuntime.config, 'auth.json')), path.join(codexSource, 'auth.json'), 'Legacy auth copies must migrate to the host credential');
+    assert.equal(readFileSync(path.join(codexRuntime.config, 'sessions', 'state'), 'utf8'), 'preserve', 'Auth migration must preserve task sessions');
+    writeFileSync(path.join(codexSource, 'auth.json'), '{"token":"host-refreshed"}');
+    assert.equal(readFileSync(path.join(codexRuntime.config, 'auth.json'), 'utf8'), '{"token":"host-refreshed"}', 'Tasks must observe host credential updates');
+    unlinkSync(path.join(codexRuntime.config, 'auth.json'));
+    writeFileSync(path.join(codexRuntime.config, 'auth.json'), '{"token":"logged-out-copy"}');
+    renameSync(path.join(codexSource, 'auth.json'), path.join(codexSource, 'auth.offline'));
+    prepareGraphHarnessRuntime('task-fixture', 'codex');
+    assert.equal(existsSync(path.join(codexRuntime.config, 'auth.json')), false, 'Missing host auth must not fall back to a legacy copy');
+    assert.equal(readFileSync(path.join(codexRuntime.config, 'sessions', 'state'), 'utf8'), 'preserve');
+    renameSync(path.join(codexSource, 'auth.offline'), path.join(codexSource, 'auth.json'));
+    prepareGraphHarnessRuntime('task-fixture', 'codex');
     const kimiRuntime = prepareGraphHarnessRuntime('task-fixture', 'kimi-code');
     writeFileSync(executable, `#!/bin/sh
 test -r "$HOME/.kimi-code/config.toml" || exit 20
@@ -56,6 +68,9 @@ test "$TASK_GRAPH_UPSTREAM_INPUTS_JSON" = fixed-input-fixture || exit 24
 test "$XDG_CACHE_HOME" = /tmp/attempt-cache || exit 25
 test "$NPM_CONFIG_CACHE" = /tmp/attempt-npm || exit 26
 test "$PYTHONPYCACHEPREFIX" = /tmp/attempt-python || exit 27
+printf '%s' '{"token":"native-refreshed"}' > "$CODEX_HOME/auth.json" || exit 28
+if touch forbidden-code-write 2>/dev/null; then exit 29; fi
+if touch "$CODEX_HOME/config.toml" 2>/dev/null; then exit 30; fi
 printf '%s\\n' '{"type":"item.completed","item":{"type":"agent_message","text":"graph env propagated"}}'
 printf '%s\\n' '{"type":"turn.completed"}'
 `, { mode: 0o700 });
@@ -65,6 +80,8 @@ printf '%s\\n' '{"type":"turn.completed"}'
         readOnlyPaths: codexRuntime.readonly, sandboxMode: 'read-only', approvalPolicy: 'never' as const, taskEnvironment, timeout: 5000 };
       const output = await executeCodexTask({ id: 'graph-native-env', name: 'graph native env' }, native);
       assert.equal(output.success, true, output.error); assert.match(output.output || '', /graph env propagated/);
+      assert.equal(readFileSync(path.join(codexSource, 'auth.json'), 'utf8'), '{"token":"native-refreshed"}', 'Readonly exec must refresh the shared host credential');
+      assert.equal(readFileSync(path.join(codexSource, 'config.toml'), 'utf8'), '# fixture', 'Shared non-credential config must remain readonly');
       const continued = await resumeCodexSession({ ...native, threadId: 'fixture-thread', prompt: 'continue' });
       assert.match(continued.output, /graph env propagated/);
     } finally { process.env.PATH = previousPath; }

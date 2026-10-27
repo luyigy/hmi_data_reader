@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, realpathSync, symlinkSync, copyFileSync, chmodSync, rmSync, constants } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, realpathSync, symlinkSync, renameSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -24,10 +24,24 @@ export function prepareGraphHarnessRuntime(taskId: string, harness: string) {
     const target = path.join(config, name);
     if (!existsSync(target)) symlinkSync(canonical, target);
   }
-  if (harness === 'codex' && existsSync(path.join(source, 'auth.json'))) {
-    // The native CLI can atomically refresh its private auth file without a writable host HOME.
-    try { copyFileSync(path.join(source, 'auth.json'), path.join(config, 'auth.json'), constants.COPYFILE_EXCL); chmodSync(path.join(config, 'auth.json'), 0o600); }
-    catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error; }
+  if (harness === 'codex') {
+    const sourceAuth = path.join(source, 'auth.json');
+    const target = path.join(config, 'auth.json');
+    if (existsSync(sourceAuth)) {
+      const canonical = realpathSync(sourceAuth);
+      writable.push(canonical);
+      if (!existsSync(target) || realpathSync(target) !== canonical) {
+        const temporary = `${target}.${randomUUID()}.link`;
+        try {
+          symlinkSync(canonical, temporary, 'file');
+          renameSync(temporary, target);
+        } finally {
+          rmSync(temporary, { force: true });
+        }
+      }
+    } else {
+      rmSync(target, { force: true });
+    }
   }
   if (harness === 'kimi-code') for (const name of ['credentials', 'oauth']) {
     const sourcePath = path.join(source, name);
