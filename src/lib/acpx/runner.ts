@@ -1,3 +1,5 @@
+import { resolveCompletionOwner, taskRunCompletionOwner } from './completion-owner';
+import { bindTaskRunResult, recordTaskRunResult } from '../task-graph/task-run-result';
 import { lockWriterAdmission, assertWorkspaceWriterAvailable, WorkspaceWriterBusy } from '../task-graph/writer-admission';
 import { graphAssociationForTask, associationReviewCandidates, assertRoomRunTarget } from '../task-graph/graph-association';
 import { assertGraphResetComplete } from '../task-graph/conversation-reset';
@@ -151,6 +153,10 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     }
     if (request.graphAssociation?.roomMessageId) await assertRoomRunTarget(tx, request.graphAssociation, created.id);
     if (request.graphReview) await bindGraphReviewTaskRun(tx, request.graphReview, created.id);
+    await bindTaskRunResult(tx, request, created.id);
+    const completionOwner = await resolveCompletionOwner(request.taskId, tx);
+    const bound = await tx.taskRun.findUniqueOrThrow({ where: { id: created.id } });
+    await tx.taskRun.update({ where: { id: created.id }, data: { controlMetadata: stringifyJson({ ...JSON.parse(bound.controlMetadata || '{}'), completionOwner }) } });
     await reserveResourceContinuation(tx, request, created.id, resourceExit);
     return created;
   });
@@ -318,10 +324,18 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     },
   });
 
-  if (runStatus === 'completed' && !request.graphExecution && !request.graphReview && !request.graphConversation && !request.graphAssociation
-    && request.participants.some(participant => participant.executionBackend === 'platform_local')) {
-    void wakeWorkflowWatcherForTaskRun(prisma, request.taskId, taskRun.id)
-      .catch(error => console.error('[ACPX] workflow watcher wakeup failed:', error));
+  if (runStatus === 'completed') {
+    const receipt = await recordTaskRunResult(taskRun.id);
+    if (receipt?.result.kind === 'invalid') await publishTaskRunEvent({ taskId: request.taskId, taskRunId: taskRun.id,
+      eventType: 'control_message', content: receipt.result.note, metadata: { kind: 'graph_result_invalid', resultEventId: receipt.eventId } });
+  }
+
+  if (runStatus === 'completed' && request.participants.some(participant => participant.executionBackend === 'platform_local')) {
+    const completionOwner = await taskRunCompletionOwner(taskRun.id);
+    if (completionOwner.kind === 'handover') {
+      void wakeWorkflowWatcherForTaskRun(prisma, request.taskId, taskRun.id, completionOwner)
+        .catch(error => console.error('[ACPX] workflow watcher wakeup failed:', error));
+    }
   }
 
   const conversationExecution = graphExecution || request.graphConversation;

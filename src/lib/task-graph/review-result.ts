@@ -1,10 +1,12 @@
+import { recordTaskRunResult } from './task-run-result';
 import type { AcceptanceReceipt } from './acceptance-evidence';
 import { createHash } from 'node:crypto';
 import { executeAcpxTaskRun, AcpxRunStartupError } from '../acpx/runner';
 import type { AcpxRunRequest } from '../acpx/types';
 import { assertGraphReviewOwnership, completedGraphReviewTaskRun } from './review-ownership';
 import { prisma } from '../prisma';
-import { classifyReview, type ClassifiedReview, type ReviewCheck } from './review-contract';
+import { type ClassifiedReview, type ReviewCheck } from './review-contract';
+import { parseGraphResult } from './result-protocol';
 
 type CollectedReview =
   | { kind: 'classified'; decision: ClassifiedReview; verification?: AcceptanceReceipt; taskRunId: string }
@@ -35,11 +37,10 @@ export async function collectGraphReview(args: {
     if (args.request.graphReview && result.taskRunId !== 'not-created') await assertGraphReviewOwnership(args.nodeId, args.request.graphReview.phase, args.claimKey, result.taskRunId);
     if (result.status !== 'completed' && !['failed', 'cancelled', 'interrupted'].includes(result.status)) throw new Error('Reviewer has not reached a terminal state');
     if (result.status !== 'completed') return { kind: 'platform_failure', note: response || '复核进程没有正常结束', taskRunId: result.taskRunId };
-    const match = response.match(new RegExp(args.marker + '\\s*(\\{[^\\r\\n]+\\})'));
-    let raw: unknown;
-    try { raw = match ? JSON.parse(match[1]) : null; } catch { raw = null; }
-    const decision = classifyReview(raw, args.checks);
-    const verification = raw && typeof raw === 'object' && 'verification' in raw ? raw.verification : undefined;
+    const receipt = await recordTaskRunResult(result.taskRunId);
+    const parsed = receipt?.result || parseGraphResult(response, args.marker, args.checks);
+    const decision = parsed.kind === 'review' ? parsed.decision : null;
+    const verification = parsed.kind === 'review' ? parsed.verification : undefined;
     const verified = args.validateVerification?.(verification, decision?.approved === true);
     const valid = !args.validateVerification || (decision?.approved === false && ['blocked_require_human', 'environment_failed'].includes(decision.failureKind)) || verified;
     if (decision && valid) return { kind: 'classified', decision, ...(verified ? { verification: verification as AcceptanceReceipt } : {}), taskRunId: result.taskRunId };

@@ -1,3 +1,4 @@
+import { recordedImplementationResult } from './task-run-result';
 import { assertAcceptanceModels } from './acceptance-models';
 import { acceptanceReceiptInstructions, validAcceptanceReceipt, type AcceptanceReceipt } from './acceptance-evidence';
 import { reconcileResourceApprovals, drainResourceApprovals } from '../task-resources/reconcile';
@@ -608,6 +609,14 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         await refreshTaskGraphRunStatus(runId); return;
       }
     }
+    // An ordinary answer retains the working tree without a Git checkpoint or delivery.
+    const parsedResult = await recordedImplementationResult(result.taskRunId, result.participants[0]?.summary || result.summary || '', qualityChecks);
+    if (parsedResult.kind === 'conversation' && !progress.conflictRepair) {
+      await outcome({ kind: 'checkpoint', phase: 'implement' });
+      await outcome({ kind: 'waiting_for_user', note: result.participants[0]?.summary || result.summary || '本轮没有正式交付结果', result: 'answered' });
+      await refreshTaskGraphRunStatus(runId);
+      return;
+    }
     const candidate = await withRepositoryLock(execution.repository, async () => {
       await requireGraphRunActive(runId);
       await assertExecutionOwnership(execution.id, claimToken);
@@ -621,10 +630,10 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph candidate ${nodeKey}/${execution.key}`,
       });
     });
-    const candidateProgress = await outcome({ kind: 'checkpoint', phase: 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit, ...(progress.conflictRepair ? { conflictRepair: null } : {}) });
-    let conclusion;
-    try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || '', { conversation: candidateProgress.phase === 'implement' && !progress.conflictRepair, reviewChecks: qualityChecks }); }
-    catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
+    await outcome({ kind: 'checkpoint', phase: 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit, ...(progress.conflictRepair ? { conflictRepair: null } : {}) });
+    const conclusion = parsedResult.kind === 'implementation' ? parsedResult.result
+      : { status: 'invalid' as const, blockerKind: 'invalid_result' as const,
+        note: parsedResult.kind === 'invalid' ? parsedResult.note : '实施缺少唯一的 TASK_GRAPH_IMPLEMENTATION 结论，不自动交付' };
     if (conclusion.status !== 'delivered') {
       if (conclusion.status === 'working') {
         await outcome({ kind: 'continue_work', note: conclusion.note, fingerprint: await continuationWorkFingerprint(execution.id, candidate) });

@@ -107,6 +107,7 @@ async function main() {
       const resumedReview = await prisma.taskRun.findFirstOrThrow({ where: { taskId: review.id }, orderBy: { createdAt: 'desc' } });
       assert.equal(resumedReview.taskSessionId, reviewSession.id);
       assert.deepEqual(JSON.parse(resumedReview.controlMetadata!).reviewCandidates, candidates);
+      assert.deepEqual(JSON.parse(resumedReview.controlMetadata!).graphResultBinding.inputs, candidates.map(item => ({ executionId: item.id, commit: item.commit })).sort((a, b) => a.executionId.localeCompare(b.executionId)), 'Result intake preserves every historical review candidate instead of relabeling it with current execution commits');
 
       // Explicit new-session rotation remains per role, including replies to old cards.
       await prisma.taskSession.create({ data: { taskId: child.id, metadata: JSON.stringify({ source: 'feishu_new_session', rotationCheckpoint: 'completed', targetMemberIds: [reviewer.id] }) } });

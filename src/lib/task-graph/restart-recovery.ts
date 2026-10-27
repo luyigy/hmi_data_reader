@@ -1,3 +1,4 @@
+import { parseGraphResult } from './result-protocol';
 import { graphRunCanStartTx } from './run-control';
 import { observeTaskRunExit } from './task-run-exit-proof';
 import { observeExecutionWriter } from './phase-worker';
@@ -46,7 +47,8 @@ export async function recoverGraphExecution(executionId: string) {
   let waitResult: 'question' | 'answered' = 'question';
   let blockedResult: Extract<ImplementationResult, { status: 'blocked' }> | undefined;
   let candidate = progress.candidateCommit;
-  if (job.worktreePath && job.worktreeBranch && progress.workspaceBase) {
+  const ordinaryAnswer = previous?.status === 'completed' && parseGraphResult(previous.participants[0]?.summary || previous.summary || '', 'TASK_GRAPH_IMPLEMENTATION').kind === 'conversation';
+  if (!ordinaryAnswer && job.worktreePath && job.worktreeBranch && progress.workspaceBase) {
     const recordedPath = job.worktreePath; const recordedBranch = job.worktreeBranch; const workspaceBase = progress.workspaceBase;
     try {
       candidate = await withRepositoryLock(job.repository, async () => {
@@ -81,9 +83,12 @@ export async function recoverGraphExecution(executionId: string) {
       return false;
     }
   }
-  if (previous?.status === 'completed' && ['implement', 'collect_result'].includes(phase)) {
+  if (ordinaryAnswer && ['prepare', 'implement', 'collect_result'].includes(phase)) {
+    waitNote = previous?.participants[0]?.summary || previous?.summary || '本轮没有正式交付结果';
+    waitResult = 'answered';
+  } else if (previous?.status === 'completed' && ['implement', 'collect_result'].includes(phase)) {
     try {
-      const result = parseImplementationResult(previous.participants[0]?.summary || previous.summary || '', { conversation: phase === 'implement' });
+      const result = parseImplementationResult(previous.participants[0]?.summary || previous.summary || '', { conversation: true });
       if (result.status === 'delivered') phase = 'check';
       if (result.status === 'waiting_for_user' || result.status === 'answered') { waitNote = result.note; waitResult = result.status === 'answered' ? 'answered' : 'question'; }
       if (result.status === 'blocked') {

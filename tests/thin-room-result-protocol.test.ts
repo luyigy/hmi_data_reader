@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { parseGraphResult } from '../src/lib/task-graph/result-protocol';
+
+const checks = [{ id: 'acceptance:behavior', name: 'behavior', executionIds: ['one', 'two'] }];
+const parse = (text: string, marker = 'TASK_GRAPH_REVIEW') => parseGraphResult(text, marker, checks);
+assert.deepEqual(parse('普通回答，我会继续检查。'), { kind: 'conversation' });
+assert.deepEqual(parse('示例中提到了 TASK_GRAPH_REVIEW，但没有提交结果。'), { kind: 'conversation' });
+assert.equal(parse('TASK_GRAPH_REVIEW {"approved":true,"note":"tested"}').kind, 'review');
+assert.equal(parse('TASK_GRAPH_REVIEW broken').kind, 'invalid');
+assert.equal(parse('TASK_GRAPH_REVIEW {"approved":true,"note":"one"}\nTASK_GRAPH_REVIEW {"approved":false,"note":"two","failureKind":"environment_failed"}').kind, 'invalid');
+assert.equal(parse('TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"x","evidence":["log"]}').kind, 'invalid');
+assert.equal(parse('TASK_GRAPH_REVIEW {"approved":true,"note":"x"}\nTASK_GRAPH_ARCH_REVIEW {"approved":true,"note":"x"}').kind, 'invalid');
+assert.equal(parse('TASK_GRAPH_REVIEW {"approved":false,"note":"defect","failureKind":"in_scope_defect","failureKey":"acceptance:behavior","executionIds":["other"]}').kind, 'invalid');
+assert.equal(parse('TASK_GRAPH_REVIEW {"approved":false,"note":"defect","failureKind":"in_scope_defect","failureKey":"acceptance:behavior","executionIds":["two"]}').kind, 'review');
+const delivery = parse('TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":["report"],"ticketVerification":{"approved":true,"note":"tested"}}', 'TASK_GRAPH_IMPLEMENTATION');
+assert.equal(delivery.kind, 'implementation');
+if (delivery.kind === 'implementation' && delivery.result.status === 'delivered') assert.equal(delivery.result.ticketVerification?.approved, true);
+assert.equal(parse('TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done"}', 'TASK_GRAPH_IMPLEMENTATION').kind, 'invalid');
+assert.equal(parse('TASK_GRAPH_ARCH_REVIEW {"approved":true,"note":"scope"}', 'TASK_GRAPH_ARCH_REVIEW').kind, 'review');
+console.log('Graph result protocol: ordinary replies, exact marker, duplicates, role, attribution and self-check passed');

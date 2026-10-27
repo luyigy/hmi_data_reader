@@ -273,17 +273,18 @@ export async function wakeWorkflowWatcherForTaskRun(
   db: PrismaClient,
   taskId: string,
   taskRunId: string,
+  owner?: { projectId: string; jobId: string },
 ) {
-  const binding = await db.feishuConversationBinding.findFirst({
+  const binding = owner ? null : await db.feishuConversationBinding.findFirst({
     where: { liveRoom: { sourceTaskId: taskId } },
     orderBy: { updatedAt: 'desc' },
     select: { chatId: true },
   });
-  if (!binding) return false;
+  if (!binding && !owner) return false;
 
   const config = await loadProjectsConfig();
-  const project = findProjectByChatId(config, binding.chatId);
-  const job = project?.jobs.find((candidate) => candidate.type === 'workflow_watcher');
+  const project = owner ? config.projects.find(candidate => candidate.id === owner.projectId) : findProjectByChatId(config, binding!.chatId);
+  const job = project?.jobs.find((candidate) => candidate.type === 'workflow_watcher' && (!owner || candidate.id === owner.jobId));
   const handler = jobHandlers.get('workflow_watcher');
   if (!project || !job || !handler) return false;
 

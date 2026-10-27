@@ -118,6 +118,11 @@ async function main() {
   job.enabled = true;
   await assert.rejects(wake(), /dispatch reached/);
   assert.equal(dispatched, 1, 'Enabled completion events must reach the registered scheduler');
+  const targeted = (projectId: string, jobId: string) => wakeWorkflowWatcherForTaskRun(fakeDb as unknown as Parameters<typeof wakeWorkflowWatcherForTaskRun>[0], 'task', 'run', { projectId, jobId });
+  assert.equal(await targeted('other-project', 'workflow-watcher'), false);
+  assert.equal(await targeted('project', 'other-job'), false);
+  await assert.rejects(targeted('project', 'workflow-watcher'), /dispatch reached/);
+  assert.equal(dispatched, 2, 'A registered completion must target its exact project and job');
   console.log('HANDOVER command, card callbacks, handler registration and wakeup gates passed');
 }
 
