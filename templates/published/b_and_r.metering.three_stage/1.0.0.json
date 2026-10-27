@@ -1,0 +1,41 @@
+{
+  "business_profile_candidate": {},
+  "contract_version": "2.11.0",
+  "extractor": "registered_extractor",
+  "extractor_id": "b_and_r.metering",
+  "extractor_version": "1",
+  "layout_anchors": [
+    "前抽",
+    "后抽",
+    "模式",
+    "计时器",
+    "EKS[_ ]?\\d+"
+  ],
+  "layout_variant": "three_stage_metering",
+  "page": "storage_cooling",
+  "page_identity": {
+    "brand": "BOLE",
+    "controller_family": "B_AND_R",
+    "evidence_sample_ids": [
+      "development",
+      "acceptance",
+      "independent"
+    ],
+    "interface_generation": null,
+    "layout_variant": "three_stage_metering",
+    "page_type": "storage_cooling"
+  },
+  "profile_id": "b_and_r.metering.three_stage",
+  "require_anchor_match": true,
+  "route_families": [
+    "B_AND_R",
+    "unknown"
+  ],
+  "sample_ids": [
+    "development",
+    "acceptance",
+    "independent"
+  ],
+  "ui_family": "B_AND_R",
+  "version": "1.0.0"
+}

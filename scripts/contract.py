@@ -55,7 +55,6 @@ def _field_catalog() -> dict:
     return json.loads((CONTRACTS_DIR / "field_catalog.json").read_text(encoding="utf-8"))
 
 
-@lru_cache(maxsize=1)
 def _profile_registry() -> dict:
     data = json.loads((CONTRACTS_DIR / "profiles.json").read_text(encoding="utf-8"))
     return {p["profile_id"]: p for p in data.get("profiles", [])}
@@ -230,6 +229,13 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
     """把契约键写入 result 顶层并返回 result（原地修改，幂等）。"""
     catalog = _field_catalog()
     registry = _profile_registry()
+    binding = result.get("compatibility") or {}
+    if (binding.get("status") == "compatible"
+            and binding.get("profile_id") == result.get("template_name", "").removesuffix(".json")):
+        registry = {**registry, binding["profile_id"]: {
+            "template": "published/", "controller_family": result["controller_family"],
+            "page_type": result["page_type"], "layout_variant": binding["page_identity"]["layout_variant"],
+            "status": binding["profile_status"]}}
 
     layout_variant = _resolve_layout_variant(result)
     result["hmi_variant"] = layout_variant or "unknown"
@@ -249,6 +255,17 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
                 and declared.startswith(f"{family.lower()}.")
                 and registry[declared].get("layout_variant") == layout_variant):
             profile_id = declared
+    selected_name = result.get("template_name", "")
+    selected_id = selected_name.removesuffix(".json")
+    selected = registry.get(selected_id)
+    if (not is_generic and selected and selected.get("template", "").startswith("published/")
+            and selected.get("controller_family", "").upper() == str(family).upper()
+            and selected.get("page_type") == page_type):
+        profile_id = selected_id
+        detail = result.get("extraction_detail") or {}
+        observations = detail.get("page_observations")
+        if isinstance(observations, dict):
+            observations["profile_id"] = selected_id
     result["profile_id"] = profile_id
 
     profile = registry.get(profile_id) if profile_id else None

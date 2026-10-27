@@ -1,0 +1,118 @@
+{
+  "profile_id": "tact5.process_settings.injection_holding_metering",
+  "package_version": "0.6.0",
+  "samples": [
+    {
+      "sample_id": "Z077_20260903_shebao",
+      "image": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z077_20260903_shebao.jpg",
+      "image_sha256": "64811508ad33945be129b4dfc461c0cacd187c70661be2adfd76647cf0cfcb83",
+      "original_source": "/data1/code/hmi_finetuning/datasets/raw/Z077_20260903_shebao/image.jpeg",
+      "purpose": "historical_regression_not_independent_acceptance",
+      "provenance": {
+        "source_manifest": "/data1/code/hmi_finetuning/datasets/review/legacy/nissei-tact5-20260926/manifest.json",
+        "source_manifest_sha256": "4eca9f87ae761999ded599d623c86445a6669f4dcf2e189008b971ad4683d722",
+        "historical_group": "Z077|TX23036/100-19076",
+        "historical_evaluation_status": "development_exposed_not_independent_test",
+        "truth": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z077_20260903_shebao.legacy-truth.json",
+        "truth_sha256": "01d7e8bc612811224a6c56260b8610056fd549df4bfcf5f460cb695cb4673be7",
+        "truth_scope": "Historical assisted annotation/user rulings; not independent reference truth."
+      },
+      "expected_values": {
+        "total.injection.time": 3.0,
+        "cooling.time": 12.0,
+        "intermediate.time": 0.2,
+        "injection.speed.1": 85.0,
+        "metering.end": 36.0,
+        "holding.pressure.1": 65.0,
+        "plasticizing.speed.1": 90.0,
+        "vp.position": 14.7
+      },
+      "cli_expected": "recognized_partial"
+    },
+    {
+      "sample_id": "Z078_20260904_shebao",
+      "image": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z078_20260904_shebao.jpg",
+      "image_sha256": "42e865ac94832bb8155a49b9c3daf33666e034fd95c5678ac7fb851daf1edf01",
+      "original_source": "/data1/code/hmi_finetuning/datasets/raw/Z078_20260904_shebao/image.jpeg",
+      "purpose": "historical_regression_not_independent_acceptance",
+      "provenance": {
+        "source_manifest": "/data1/code/hmi_finetuning/datasets/review/legacy/nissei-tact5-20260926/manifest.json",
+        "source_manifest_sha256": "4eca9f87ae761999ded599d623c86445a6669f4dcf2e189008b971ad4683d722",
+        "historical_group": "Z078|TX23028/100-18889",
+        "historical_evaluation_status": "development_exposed_not_independent_test",
+        "truth": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z078_20260904_shebao.legacy-truth.json",
+        "truth_sha256": "aa405bfb0491909f340034d2933016af9b50e557b5ab9530b4bffe7a5efdb424",
+        "truth_scope": "Historical assisted annotation/user rulings; not independent reference truth."
+      },
+      "expected_values": {
+        "intermediate.time": 0.5,
+        "injection.speed.1": 145.0,
+        "metering.end": 40.0,
+        "holding.pressure.1": 85.0,
+        "plasticizing.speed.1": 165.0
+      },
+      "cli_expected": "RAW_PAGE_UNSUPPORTED",
+      "cli_limitation": "Real OCR reads required 计量后 anchor as 计贝后; frozen 0.6.0 page binding is not established. Direct decoder result is diagnostic only."
+    },
+    {
+      "sample_id": "Z078_20260912_shebao",
+      "image": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z078_20260912_shebao.jpg",
+      "image_sha256": "a66a157ade0d4f5b531ef0cee2dd6ea703a5c02c87192df76f8613f02822dd73",
+      "original_source": "/data1/code/hmi_finetuning/datasets/raw/Z078_20260912_shebao/image.jpeg",
+      "purpose": "historical_regression_not_independent_acceptance",
+      "provenance": {
+        "source_manifest": "/data1/code/hmi_finetuning/datasets/review/legacy/nissei-tact5-20260926/manifest.json",
+        "source_manifest_sha256": "4eca9f87ae761999ded599d623c86445a6669f4dcf2e189008b971ad4683d722",
+        "historical_group": "Z078|TX22064/100-17018",
+        "historical_evaluation_status": "development_exposed_not_independent_test",
+        "truth": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z078_20260912_shebao.legacy-truth.json",
+        "truth_sha256": "ba5eae68cb45fbe842b1c71943700b105f2914f4fb299902d5c43eb51816378c",
+        "truth_scope": "Historical assisted annotation/user rulings; not independent reference truth."
+      },
+      "expected_values": {
+        "total.injection.time": 3.5,
+        "intermediate.time": 0.5,
+        "injection.speed.1": 145.0,
+        "metering.end": 30.0,
+        "holding.pressure.1": 105.0,
+        "plasticizing.speed.1": 165.0,
+        "vp.position": 12.8
+      },
+      "cli_expected": "recognized_partial"
+    },
+    {
+      "sample_id": "Z077_20260921_metering",
+      "image": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z077_20260921_metering.jpg",
+      "image_sha256": "d58e56ae94e6d26748c18d6de0d4800dc4814d5da0e94178fe7c73dacc8e3847",
+      "original_source": "/data1/code/hmi_finetuning/datasets/raw/feishu/20260930-intake-machine/日精/Z077/2026-09-21_recvvPKhyWFSIk_metering-cooling_0.jpg",
+      "purpose": "historical_regression_not_independent_acceptance",
+      "provenance": {
+        "source_manifest": "/data1/code/hmi_finetuning/datasets/raw/feishu/20260930-intake-machine/manifest.json",
+        "source_manifest_sha256": "e9f7cf435925f7a527aab0dda3b2f15ef39f10866d23b4e0a762cf8297773ff0",
+        "record_id": "recvvPKhyWFSIk",
+        "machine": "Z077",
+        "mold": "TX23055/100-30086",
+        "date": "2026-09-21T08:43:00+08:00",
+        "field": "成型条件-储料/冷却",
+        "historical_group": "Z077|TX23055/100-30086",
+        "historical_evaluation_status": "same_capture_record_as_development_exposed_53934a60",
+        "truth_scope": "Implementation agent visual transcription of selected displayed values; not independent reference truth."
+      },
+      "expected_values": {
+        "total.injection.time": 3.5,
+        "cooling.time": 7.0,
+        "intermediate.time": 0.2,
+        "injection.speed.1": 100.0,
+        "metering.end": 36.0,
+        "holding.pressure.1": 105.0,
+        "plasticizing.speed.1": 90.0,
+        "screw.position.actual": 19.91,
+        "resin.pressure.actual": 7.9,
+        "screw.speed.actual": 89.0
+      },
+      "cli_expected": "recognized_partial"
+    }
+  ],
+  "acceptance_status": "regression_only; A17 independent sample gate remains open",
+  "exclusions": "Historical development exposure and same-capture/near-duplicate group status preserved. No new physical layout or blind generalization claim."
+}

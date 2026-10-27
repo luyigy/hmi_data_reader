@@ -1,0 +1,488 @@
+{
+  "package_schema": "hmi_raw_page_package.v2",
+  "profile_id": "est.storage_cooling.cooling_delay",
+  "version": "0.4.0",
+  "raw_contract": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:hmi:page_observations:temperature-time:v2",
+    "title": "Pure original-screen observations",
+    "type": "object",
+    "required": [
+      "schema_version",
+      "source",
+      "profile_id",
+      "fields",
+      "raw_field_definition_sha256"
+    ],
+    "properties": {
+      "schema_version": {
+        "const": "page_observations.v2"
+      },
+      "source": {
+        "enum": [
+          "image_recognition",
+          "manual"
+        ]
+      },
+      "profile_id": {
+        "type": "string",
+        "maxLength": 160
+      },
+      "raw_field_definition_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "fields": {
+        "type": "array",
+        "maxItems": 1000,
+        "items": {
+          "type": "object",
+          "required": [
+            "screen_field_key",
+            "source",
+            "original_label",
+            "original_value",
+            "original_unit",
+            "role",
+            "state",
+            "reading",
+            "original_bbox"
+          ],
+          "properties": {
+            "screen_field_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "source": {
+              "enum": [
+                "image_recognition",
+                "manual"
+              ]
+            },
+            "original_label": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 512
+            },
+            "original_value": {
+              "type": [
+                "number",
+                "string",
+                "boolean",
+                "null"
+              ],
+              "maxLength": 2048
+            },
+            "original_unit": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 32
+            },
+            "role": {
+              "enum": [
+                "setting",
+                "actual",
+                "unknown"
+              ]
+            },
+            "state": {
+              "enum": [
+                "enabled",
+                "disabled",
+                "unknown"
+              ]
+            },
+            "reading": {
+              "enum": [
+                "known",
+                "missing",
+                "uncertain",
+                "unsupported",
+                "conflict"
+              ]
+            },
+            "confidence": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "original_bbox": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                }
+              ]
+            },
+            "zone_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zone_source": {
+              "enum": [
+                "nozzle",
+                "barrel",
+                "hot_runner",
+                "mold_fixed",
+                "mold_moving",
+                "mold_slide",
+                "other",
+                null
+              ]
+            },
+            "order": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "section": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "stage": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "time_kind": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "confidence": {
+                    "type": "null"
+                  },
+                  "bbox": {
+                    "type": "null"
+                  },
+                  "original_bbox": {
+                    "type": "null"
+                  },
+                  "text": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "zone_id"
+                ],
+                "properties": {
+                  "zone_id": {
+                    "type": "string"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "zone_source",
+                  "order"
+                ],
+                "properties": {
+                  "zone_source": {
+                    "enum": [
+                      "nozzle",
+                      "barrel",
+                      "hot_runner",
+                      "mold_fixed",
+                      "mold_moving",
+                      "mold_slide",
+                      "other"
+                    ]
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "image_reference": {
+        "type": "object",
+        "required": [
+          "sha256"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "raw_contract_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "package_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "recognizer": {
+        "type": "object",
+        "required": [
+          "id",
+          "sha256",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "source": {
+              "const": "image_recognition"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "image_sha256",
+            "original_size",
+            "raw_contract_sha256",
+            "recognizer",
+            "package_sha256",
+            "engine"
+          ],
+          "properties": {
+            "image_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "original_size": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "image_recognition"
+                  }
+                }
+              }
+            },
+            "engine": {
+              "type": "object",
+              "required": [
+                "library",
+                "version"
+              ],
+              "properties": {
+                "library": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "actor",
+            "created_at",
+            "revision"
+          ],
+          "properties": {
+            "actor": {
+              "type": "string",
+              "minLength": 1
+            },
+            "created_at": {
+              "type": "string",
+              "minLength": 1,
+              "format": "date-time"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "image_sha256"
+                ]
+              },
+              {
+                "required": [
+                  "recognizer"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "raw_contract_sha256": "a35277c35fbb6cfd5daae62690c0181dc48709fb3eb5b7448c31d66746e848f1",
+  "raw_field_definition": {
+    "profile_id": "est.storage_cooling.cooling_delay",
+    "version": "0.4.0",
+    "page_identity": {
+      "brand": "BOLE",
+      "controller_family": "EST",
+      "interface_generation": null,
+      "page_type": "storage_cooling",
+      "layout_variant": "cooling_delay"
+    },
+    "fields": [
+      {
+        "screen_field_key": "storage.pre_cooling.duration",
+        "section": "storage_cooling",
+        "role": "setting",
+        "time_kind": "storage.pre_cooling.duration",
+        "unit": "s",
+        "labels": [
+          "储前冷却时间"
+        ],
+        "label_region": [
+          0.15,
+          0.56,
+          0.38,
+          0.69
+        ],
+        "region": [
+          0.56,
+          0.56,
+          0.68,
+          0.61
+        ]
+      },
+      {
+        "screen_field_key": "mold.cooling.duration",
+        "section": "storage_cooling",
+        "role": "setting",
+        "time_kind": "mold.cooling.duration",
+        "unit": "s",
+        "labels": [
+          "模具冷却时间"
+        ],
+        "label_region": [
+          0.15,
+          0.56,
+          0.38,
+          0.69
+        ],
+        "region": [
+          0.56,
+          0.61,
+          0.69,
+          0.66
+        ]
+      }
+    ],
+    "samples": [
+      {
+        "image": "ground_truth/bole_est/EST2/Luban_1775031270479feaa3644-985f-4b12-93b3-c275b9bbe27c.jpeg",
+        "image_sha256": "bd716e77c9091650fc61b17785e47dc721dc25c8bb0e992a075508824e051f70",
+        "truth": "contracts/raw-pages/r04-sample-truth.json",
+        "purpose": "development",
+        "independent_acceptance": false
+      }
+    ],
+    "coverage_scope": "Only storage pre-cooling and mold cooling duration settings. Header timers and other controls excluded.",
+    "time_basis": "Visible 储前冷却时间 3.0 s and 模具冷却时间 10.0 s; distinct physical durations. No Model projection or universal cooling alias.",
+    "state_policy": "unknown; no verified enable decoder"
+  },
+  "raw_field_definition_sha256": "076ea4833144d624766f386b951d37c6d0ac69789d7ec5aee557327fa288e5d6",
+  "recognizer": {
+    "id": "temperature_time_ocr.v2",
+    "files": {
+      "scripts/raw_temperature_time.py": "9856847ce317eb45bad0cd5091385352a95363d534a30f018e82e295859f210a",
+      "scripts/raw_page.py": "017e67a22ab000c0e518baa33e3cdc50ec1cc6596f588d2c56f7ba005d6f28a4",
+      "scripts/raw_contract.py": "e8779010a89518fa791a164029f06e0c6a027ebc7e99b9b7cc38fe1fced847a8",
+      "scripts/extract_families/coordinates.py": "e3ebf166c6df86558e7263ed00475033290ecf3d74b0810e1c97d8aa9154cbe6"
+    },
+    "sha256": "79200014e5939cd89ef2751d41630eb5d1dec9ac16e58d5b252d391b2cdfbdbd"
+  },
+  "samples": [
+    {
+      "image": "ground_truth/bole_est/EST2/Luban_1775031270479feaa3644-985f-4b12-93b3-c275b9bbe27c.jpeg",
+      "image_sha256": "bd716e77c9091650fc61b17785e47dc721dc25c8bb0e992a075508824e051f70",
+      "truth": "contracts/raw-pages/r04-sample-truth.json",
+      "purpose": "development",
+      "independent_acceptance": false
+    }
+  ]
+}

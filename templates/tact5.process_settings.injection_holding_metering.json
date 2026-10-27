@@ -1,22 +1,22 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "profile_id": "tact5.process_settings.injection_holding_metering",
   "ui_family": "TACT5",
   "page": "process_settings",
   "layout_variant": "injection_holding_metering",
   "coordinate_system": "rectified_pixels",
-  "source": "Z077/Z078 nissei-tact5-20260926；人工确认 TACT5；开发样本，非独立验收",
+  "source": "Z077/Z078 nissei-tact5-20260926；人工确认 TACT5；开发样本，非独立验收；0.2.2：reczz28QojrlL6pf 实图核对 VSLI 和计量前计量后合并 OCR 锚点；同一物理版式，非独立盲测。",
   "route_families": [
     "TACT",
     "TACT5",
     "unknown"
   ],
   "layout_anchors": [
-    "VSL1",
+    "VSL[1I]",
     "Pp1",
     "SM",
-    "计量前",
-    "计量后"
+    "计量前(?:计量后)?",
+    "(?:计量前)?计量后"
   ],
   "stage_limits": {
     "injection": 6,

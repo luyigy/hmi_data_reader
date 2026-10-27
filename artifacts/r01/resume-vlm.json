@@ -1,0 +1,46 @@
+{
+  "image_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+  "prompt": "逐项读出这张德马格多级保压原屏的全部可见参数，包含灰显槽位、实际切换区、段表、下方数值。不要换算，不输出业务目标。不猜控制器代际。不靠0值判定禁用。不清楚保留unknown。返回JSON字段列表，每项含原标签、原值、原单位、物理段号（看不到为null）、role(setting/actual/unknown)、state(enabled/disabled/unknown)、原图像素bbox和证据说明，最后列出不确定项。",
+  "response": {
+    "id": "chatcmpl-899d9c3b96183fbc",
+    "object": "chat.completion",
+    "created": 1792319443,
+    "model": "Qwen3.8-27B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "```json\n[\n  {\n    \"label\": \"实际切换\",\n    \"value\": \"38.0\",\n    \"unit\": \"bar\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [10, 20, 140, 110],\n    \"evidence\": \"左上角蓝色背景区域，标签为“实际切换”，下方数值为38.0 bar\"\n  },\n  {\n    \"label\": \"保压\",\n    \"value\": \"53.1\",\n    \"unit\": \"bar\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [10, 110, 140, 200],\n    \"evidence\": \"左上角蓝色背景区域，标签为“保压”，下方数值为53.1 bar\"\n  },\n  {\n    \"label\": \"位置\",\n    \"value\": \"12.52\",\n    \"unit\": \"mm\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [10, 200, 140, 290],\n    \"evidence\": \"左上角蓝色背景区域，标签为“位置”，下方数值为12.52 mm\"\n  },\n  {\n    \"label\": \"余料量\",\n    \"value\": \"12.52\",\n    \"unit\": \"mm\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [10, 290, 140, 380],\n    \"evidence\": \"左上角蓝色背景区域，标签为“余料量”，下方数值为12.52 mm\"\n  },\n  {\n    \"label\": \"速度 [mm/s]\",\n    \"value\": \"0.0\",\n    \"unit\": \"mm/s\",\n    \"segment\": 1,\n    \"role\": \"setting\",\n    \"state\": \"disabled\",\n    \"bbox\": [660, 480, 730, 520],\n    \"evidence\": \"段表第一行第一列，数值0.0，背景为灰色\"\n  },\n  {\n    \"label\": \"速度 [mm/s]\",\n    \"value\": \"5.0\",\n    \"unit\": \"mm/s\",\n    \"segment\": 2,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [730, 480, 800, 520],\n    \"evidence\": \"段表第一行第二列，数值5.0，背景为白色\"\n  },\n  {\n    \"label\": \"速度 [mm/s]\",\n    \"value\": \"10.0\",\n    \"unit\": \"mm/s\",\n    \"segment\": 3,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [800, 480, 870, 520],\n    \"evidence\": \"段表第一行第三列，数值10.0，背景为白色\"\n  },\n  {\n    \"label\": \"速度 [mm/s]\",\n    \"value\": \"15.0\",\n    \"unit\": \"mm/s\",\n    \"segment\": 4,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [870, 480, 940, 520],\n    \"evidence\": \"段表第一行第四列，数值15.0，背景为白色\"\n  },\n  {\n    \"label\": \"压力 [bar]\",\n    \"value\": \"0.0\",\n    \"unit\": \"bar\",\n    \"segment\": 1,\n    \"role\": \"setting\",\n    \"state\": \"disabled\",\n    \"bbox\": [660, 520, 730, 560],\n    \"evidence\": \"段表第二行第一列，数值0.0，背景为灰色\"\n  },\n  {\n    \"label\": \"压力 [bar]\",\n    \"value\": \"0.0\",\n    \"unit\": \"bar\",\n    \"segment\": 2,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [730, 520, 800, 560],\n    \"evidence\": \"段表第二行第二列，数值0.0，背景为白色\"\n  },\n  {\n    \"label\": \"压力 [bar]\",\n    \"value\": \"50.0\",\n    \"unit\": \"bar\",\n    \"segment\": 3,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [800, 520, 870, 560],\n    \"evidence\": \"段表第二行第三列，数值50.0，背景为白色\"\n  },\n  {\n    \"label\": \"压力 [bar]\",\n    \"value\": \"65.0\",\n    \"unit\": \"bar\",\n    \"segment\": 4,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [870, 520, 940, 560],\n    \"evidence\": \"段表第二行第四列，数值65.0，背景为白色\"\n  },\n  {\n    \"label\": \"时间 [s]\",\n    \"value\": \"0.000\",\n    \"unit\": \"s\",\n    \"segment\": 1,\n    \"role\": \"setting\",\n    \"state\": \"disabled\",\n    \"bbox\": [660, 560, 730, 600],\n    \"evidence\": \"段表第三行第一列，数值0.000，背景为灰色\"\n  },\n  {\n    \"label\": \"时间 [s]\",\n    \"value\": \"3.000\",\n    \"unit\": \"s\",\n    \"segment\": 2,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [730, 560, 800, 600],\n    \"evidence\": \"段表第三行第二列，数值3.000，背景为白色\"\n  },\n  {\n    \"label\": \"时间 [s]\",\n    \"value\": \"2.000\",\n    \"unit\": \"s\",\n    \"segment\": 3,\n    \"role\": \"setting\",\n    \"state\": \"enabled\",\n    \"bbox\": [800, 560, 870, 600],\n    \"evidence\": \"段表第三行第三列，数值2.000，背景为白色\"\n  },\n  {\n    \"label\": \"时间 [s]\",\n    \"value\": \"unknown\",\n    \"unit\": \"s\",\n    \"segment\": 4,\n    \"role\": \"setting\",\n    \"state\": \"unknown\",\n    \"bbox\": [870, 560, 940, 600],\n    \"evidence\": \"段表第三行第四列，数值不可见\"\n  },\n  {\n    \"label\": \"保压\",\n    \"value\": \"0.0\",\n    \"unit\": \"mm\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [730, 850, 800, 890],\n    \"evidence\": \"底部状态栏，标签为“保压”，数值为0.0 mm\"\n  },\n  {\n    \"label\": \"unknown\",\n    \"value\": \"-0.52\",\n    \"unit\": \"mm\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [800, 850, 870, 890],\n    \"evidence\": \"底部状态栏，数值为-0.52 mm，标签不可见\"\n  },\n  {\n    \"label\": \"unknown\",\n    \"value\": \"12.52\",\n    \"unit\": \"mm\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [870, 850, 940, 890],\n    \"evidence\": \"底部状态栏，数值为12.52 mm，标签不可见\"\n  },\n  {\n    \"label\": \"unknown\",\n    \"value\": \"15070717\",\n    \"unit\": \"unknown\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [530, 850, 600, 890],\n    \"evidence\": \"底部状态栏，数值为15070717，标签不可见\"\n  },\n  {\n    \"label\": \"unknown\",\n    \"value\": \"0.456\",\n    \"unit\": \"s\",\n    \"segment\": null,\n    \"role\": \"actual\",\n    \"state\": \"unknown\",\n    \"bbox\": [600, 850, 670, 890],\n    \"evidence\": \"底部状态栏，数值为0.456 s，标签不可见\"\n  }\n]\n```\n\n**不确定项：**\n1. 段表第三行第四列（时间 [s] 第4段）数值不可见\n2. 底部状态栏中“15070717”、“0.456 s”、“-0.52 mm”、“12.52 mm”的具体标签名称不可见\n3. 各参数的启用/禁用状态（state）除明显灰显外，其余均为unknown\n4. 图表区域的具体曲线含义和坐标轴标签部分不可见",
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.24.0-550a4836",
+    "usage": {
+      "prompt_tokens": 742,
+      "total_tokens": 3129,
+      "completion_tokens": 2387,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null,
+    "ec_transfer_params": null,
+    "metrics": null
+  }
+}

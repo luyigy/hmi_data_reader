@@ -78,8 +78,9 @@ def run_ocr_for_image(img_path: Path) -> List[Dict[str, Any]]:
 
     try:
         from paddleocr import PaddleOCR
-        ocr = PaddleOCR(use_angle_cls=True, lang="ch", show_log=False)
-        result = ocr.ocr(str(img_path), cls=True)
+        # Rectified HMI cells are upright; angle classification can flip 90 into 06.
+        ocr = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+        result = ocr.ocr(str(img_path), cls=False)
         lines = []
         if result and result[0]:
             for line in result[0]:

@@ -1,0 +1,17 @@
+{
+  "docs/specs/hmi-protocol-library/raw-contract.md": "9108045bb443e2f899fe1adbeb16ef06d73f223823a78e7ee99853be6587ec6b",
+  "docs/specs/hmi-protocol-library/spec.md": "fa2f3d49bc20a59bd33b4e84f4bb0dd2c63254a43cd87265dfef3aaf41ab7ae5",
+  "hmi_service.py": "40afb2d3521ed0dfb7e49c00b2ee6582fa43ab7778bac8728646ec4e9584d4aa",
+  "scripts/export_page_package.py": "25f299013a0b5d6b7c1904e995a935bc8e6ed50a44f1a97598b785e64b10cb91",
+  "scripts/extract_fields.py": "c265107698ecd0fc3681007dac2c7a513165da98d167763197acc899289d852c",
+  "scripts/rectify.py": "8d35d36dfc33aaa4cfde5c83cf4e13065c9b53ef87be8e4fcb9089aa9efaf657",
+  "tests/test_hmi_protocol_library_r01.py": "5ad23c68818407d695a5eecc1ba8bb05e14d857fec6f247f8265a8a91c43a1d4",
+  "contracts/page_observations.v2.schema.json": "524e4a5ee22708b0770489a88139a60a51f68b8bb517b19d3657daecfb5a7cec",
+  "contracts/raw-pages/demag-holding-0.3.0.json": "5d0de5248f948850a4cf0e7f5295fcb0a772e124ee403e17cc16ff076bbdfa52",
+  "contracts/raw-pages/demag-holding-sample.json": "cf63930aa194dd2b4c0fddd7eff9ff35420dd552976079e8bbd0f10c3e0587a1",
+  "scripts/raw_contract.py": "e8779010a89518fa791a164029f06e0c6a027ebc7e99b9b7cc38fe1fced847a8",
+  "scripts/raw_page.py": "017e67a22ab000c0e518baa33e3cdc50ec1cc6596f588d2c56f7ba005d6f28a4",
+  "scripts/raw_page_ocr.py": "53fec475c5d78e7994e7f33369abf945f2ae61ecbca0e6f76347ba97c1b4a24b",
+  "templates/packages/demag.injection_metering.multi_stage_holding/0.2.1.json": "0b7869db3b2342b9a242766de7e143d00622aeba32fc066f9bf171e6eed34f99",
+  "templates/raw-packages/demag.injection_metering.multi_stage_holding/0.3.0.json": "f7c2327f1bad91b8013d911f001a416af165c01bc95f0aae74fd6d7693872fe7"
+}

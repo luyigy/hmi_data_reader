@@ -1,0 +1,11 @@
+{
+  "created_at": "2026-10-18T11:34:46.207021+00:00",
+  "files": {
+    "/home/hello/.codex/skills/poteto-mode/SKILL.md": "f7278881da2a5abff81ad51017e637fc86585ccd7acf001afc49f7d5859f981e",
+    "/home/hello/.codex/skills/poteto-mode/references/codex-tools.md": "436902ca9d23e88b8cbb1fa576f31614bf406bcf122e91180683a84032c15163",
+    "/home/hello/.codex/skills/poteto-mode/playbooks/session-pickup.md": "1b2f58f40e4c60fdfadac12e97ebe9f4923241add1c06bcab3336f7fab110b8a",
+    "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/f587b072f282bfa0/.agents/playbooks/ap-task-graph.md": "14e718513476c64b39120b99749ede51ca2fe9459e1ab80381fa5daeb30e8762",
+    "/home/hello/.agent-platform/task-specs/85769797a820cb60ee76f25c08580921152f5991b2fb9b3d5743339dc6e3d8d7/docs/specs/hmi-protocol-library/spec.md": "ea1000a2f51df8b6f172d19207a305e2c8b562f54ef9232b14496195b6eede86"
+  },
+  "playbook_anchor_check": "Every project playbook matches this pstack's playbooks."
+}

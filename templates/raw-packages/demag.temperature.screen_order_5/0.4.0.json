@@ -1,0 +1,962 @@
+{
+  "package_schema": "hmi_raw_page_package.v2",
+  "profile_id": "demag.temperature.screen_order_5",
+  "version": "0.4.0",
+  "raw_contract": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:hmi:page_observations:temperature-time:v2",
+    "title": "Pure original-screen observations",
+    "type": "object",
+    "required": [
+      "schema_version",
+      "source",
+      "profile_id",
+      "fields",
+      "raw_field_definition_sha256"
+    ],
+    "properties": {
+      "schema_version": {
+        "const": "page_observations.v2"
+      },
+      "source": {
+        "enum": [
+          "image_recognition",
+          "manual"
+        ]
+      },
+      "profile_id": {
+        "type": "string",
+        "maxLength": 160
+      },
+      "raw_field_definition_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "fields": {
+        "type": "array",
+        "maxItems": 1000,
+        "items": {
+          "type": "object",
+          "required": [
+            "screen_field_key",
+            "source",
+            "original_label",
+            "original_value",
+            "original_unit",
+            "role",
+            "state",
+            "reading",
+            "original_bbox"
+          ],
+          "properties": {
+            "screen_field_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "source": {
+              "enum": [
+                "image_recognition",
+                "manual"
+              ]
+            },
+            "original_label": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 512
+            },
+            "original_value": {
+              "type": [
+                "number",
+                "string",
+                "boolean",
+                "null"
+              ],
+              "maxLength": 2048
+            },
+            "original_unit": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 32
+            },
+            "role": {
+              "enum": [
+                "setting",
+                "actual",
+                "unknown"
+              ]
+            },
+            "state": {
+              "enum": [
+                "enabled",
+                "disabled",
+                "unknown"
+              ]
+            },
+            "reading": {
+              "enum": [
+                "known",
+                "missing",
+                "uncertain",
+                "unsupported",
+                "conflict"
+              ]
+            },
+            "confidence": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "original_bbox": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                }
+              ]
+            },
+            "zone_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zone_source": {
+              "enum": [
+                "nozzle",
+                "barrel",
+                "hot_runner",
+                "mold_fixed",
+                "mold_moving",
+                "mold_slide",
+                "other",
+                null
+              ]
+            },
+            "order": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "section": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "stage": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "time_kind": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "confidence": {
+                    "type": "null"
+                  },
+                  "bbox": {
+                    "type": "null"
+                  },
+                  "original_bbox": {
+                    "type": "null"
+                  },
+                  "text": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "zone_id"
+                ],
+                "properties": {
+                  "zone_id": {
+                    "type": "string"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "zone_source",
+                  "order"
+                ],
+                "properties": {
+                  "zone_source": {
+                    "enum": [
+                      "nozzle",
+                      "barrel",
+                      "hot_runner",
+                      "mold_fixed",
+                      "mold_moving",
+                      "mold_slide",
+                      "other"
+                    ]
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "image_reference": {
+        "type": "object",
+        "required": [
+          "sha256"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "raw_contract_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "package_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "recognizer": {
+        "type": "object",
+        "required": [
+          "id",
+          "sha256",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "source": {
+              "const": "image_recognition"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "image_sha256",
+            "original_size",
+            "raw_contract_sha256",
+            "recognizer",
+            "package_sha256",
+            "engine"
+          ],
+          "properties": {
+            "image_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "original_size": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "image_recognition"
+                  }
+                }
+              }
+            },
+            "engine": {
+              "type": "object",
+              "required": [
+                "library",
+                "version"
+              ],
+              "properties": {
+                "library": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "actor",
+            "created_at",
+            "revision"
+          ],
+          "properties": {
+            "actor": {
+              "type": "string",
+              "minLength": 1
+            },
+            "created_at": {
+              "type": "string",
+              "minLength": 1,
+              "format": "date-time"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "image_sha256"
+                ]
+              },
+              {
+                "required": [
+                  "recognizer"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "raw_contract_sha256": "a35277c35fbb6cfd5daae62690c0181dc48709fb3eb5b7448c31d66746e848f1",
+  "raw_field_definition": {
+    "profile_id": "demag.temperature.screen_order_5",
+    "version": "0.4.0",
+    "page_identity": {
+      "brand": "DEMAG",
+      "controller_family": "DEMAG",
+      "interface_generation": null,
+      "page_type": "temperature",
+      "layout_variant": "screen_order_5"
+    },
+    "header_region": [
+      0.12,
+      0.28,
+      0.94,
+      0.4
+    ],
+    "zones": [
+      {
+        "zone_id": "nozzle-1",
+        "zone_source": "nozzle",
+        "labels": [
+          "喷嘴1",
+          "喷1"
+        ]
+      },
+      {
+        "zone_id": "barrel-1",
+        "zone_source": "barrel",
+        "labels": [
+          "区1"
+        ]
+      },
+      {
+        "zone_id": "barrel-2",
+        "zone_source": "barrel",
+        "labels": [
+          "区2"
+        ]
+      },
+      {
+        "zone_id": "barrel-3",
+        "zone_source": "barrel",
+        "labels": [
+          "区3"
+        ]
+      },
+      {
+        "zone_id": "barrel-4",
+        "zone_source": "barrel",
+        "labels": [
+          "区4"
+        ]
+      },
+      {
+        "zone_id": "barrel-5",
+        "zone_source": "barrel",
+        "labels": [
+          "区5"
+        ]
+      },
+      {
+        "zone_id": "barrel-6",
+        "zone_source": "barrel",
+        "labels": [
+          "区6"
+        ]
+      },
+      {
+        "zone_id": "barrel-7",
+        "zone_source": "barrel",
+        "labels": [
+          "区7"
+        ]
+      },
+      {
+        "zone_id": "barrel-8",
+        "zone_source": "barrel",
+        "labels": [
+          "区8"
+        ]
+      },
+      {
+        "zone_id": "feed-throat",
+        "zone_source": "other",
+        "labels": [
+          "料口"
+        ]
+      }
+    ],
+    "fields": [
+      {
+        "screen_field_key": "temperature.nozzle-1.actual",
+        "section": "barrel_temperature",
+        "zone_id": "nozzle-1",
+        "zone_source": "nozzle",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.nozzle-1.setting",
+        "section": "barrel_temperature",
+        "zone_id": "nozzle-1",
+        "zone_source": "nozzle",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-1.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-1",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-1.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-1",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-2.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-2",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-2.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-2",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-3.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-3",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-3.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-3",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-4.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-4",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-4.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-4",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-5.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-5",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-5.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-5",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-6.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-6",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-6.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-6",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-7.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-7",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-7.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-7",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-8.actual",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-8",
+        "zone_source": "barrel",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.barrel-8.setting",
+        "section": "barrel_temperature",
+        "zone_id": "barrel-8",
+        "zone_source": "barrel",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.feed-throat.actual",
+        "section": "barrel_temperature",
+        "zone_id": "feed-throat",
+        "zone_source": "other",
+        "role": "actual",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "实际",
+          "际"
+        ]
+      },
+      {
+        "screen_field_key": "temperature.feed-throat.setting",
+        "section": "barrel_temperature",
+        "zone_id": "feed-throat",
+        "zone_source": "other",
+        "role": "setting",
+        "unit": "°C",
+        "label_region": [
+          0,
+          0.3,
+          0.17,
+          0.53
+        ],
+        "labels": [
+          "设定"
+        ]
+      },
+      {
+        "screen_field_key": "cold_start.protection.setting",
+        "section": "temperature_timing",
+        "role": "setting",
+        "time_kind": "cold_start.protection.setting",
+        "unit": "min",
+        "labels": [
+          "冷启动保护"
+        ],
+        "label_region": [
+          0.3,
+          0.65,
+          0.59,
+          0.83
+        ],
+        "region": [
+          0.575,
+          0.69,
+          0.628,
+          0.735
+        ]
+      },
+      {
+        "screen_field_key": "cold_start.protection.display",
+        "section": "temperature_timing",
+        "role": "unknown",
+        "time_kind": "cold_start.protection.display",
+        "unit": "min",
+        "labels": [
+          "冷启动保护"
+        ],
+        "label_region": [
+          0.3,
+          0.65,
+          0.59,
+          0.83
+        ],
+        "region": [
+          0.63,
+          0.69,
+          0.72,
+          0.735
+        ]
+      },
+      {
+        "screen_field_key": "temperature.manual_reduction.delay",
+        "section": "temperature_timing",
+        "role": "setting",
+        "time_kind": "temperature.manual_reduction.delay",
+        "unit": "min",
+        "labels": [
+          "延时手动降低"
+        ],
+        "label_region": [
+          0.3,
+          0.65,
+          0.59,
+          0.83
+        ],
+        "region": [
+          0.5895,
+          0.78564,
+          0.6025,
+          0.80753
+        ]
+      },
+      {
+        "screen_field_key": "temperature.manual_reduction.display",
+        "section": "temperature_timing",
+        "role": "unknown",
+        "time_kind": "temperature.manual_reduction.display",
+        "unit": "min",
+        "labels": [
+          "延时手动降低"
+        ],
+        "label_region": [
+          0.3,
+          0.65,
+          0.59,
+          0.83
+        ],
+        "region": [
+          0.63,
+          0.78,
+          0.72,
+          0.825
+        ]
+      }
+    ],
+    "samples": [
+      {
+        "image": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.jpg",
+        "image_sha256": "e54f3633e56de2890122d0e5365a1ba600bb175705e2883cae049e4e7a3a05a5",
+        "truth": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.truth.yml",
+        "purpose": "development",
+        "independent_acceptance": false
+      }
+    ],
+    "coverage_scope": "Visible named nozzle, barrel and feed-throat set/actual cells; cold-start and manual-reduction timing. Other displayed controls not covered.",
+    "state_policy": "unknown without calibrated state evidence; color does not imply disabled",
+    "identity_basis": "templates/demag.temperature.json column labels; nozzle and barrel identities are original physical numbers, never array order",
+    "time_basis": "Original labels distinguish cold-start protection and manual reduction delay. Colon display remains text and role unknown; no seconds conversion."
+  },
+  "raw_field_definition_sha256": "a2817768f7e1302933d2d82bdec5ef01c84f5272826573f32917279585bf3993",
+  "recognizer": {
+    "id": "temperature_time_ocr.v2",
+    "files": {
+      "scripts/raw_temperature_time.py": "9856847ce317eb45bad0cd5091385352a95363d534a30f018e82e295859f210a",
+      "scripts/raw_page.py": "017e67a22ab000c0e518baa33e3cdc50ec1cc6596f588d2c56f7ba005d6f28a4",
+      "scripts/raw_contract.py": "e8779010a89518fa791a164029f06e0c6a027ebc7e99b9b7cc38fe1fced847a8",
+      "scripts/extract_families/coordinates.py": "e3ebf166c6df86558e7263ed00475033290ecf3d74b0810e1c97d8aa9154cbe6"
+    },
+    "sha256": "79200014e5939cd89ef2751d41630eb5d1dec9ac16e58d5b252d391b2cdfbdbd"
+  },
+  "samples": [
+    {
+      "image": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.jpg",
+      "image_sha256": "e54f3633e56de2890122d0e5365a1ba600bb175705e2883cae049e4e7a3a05a5",
+      "truth": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.truth.yml",
+      "purpose": "development",
+      "independent_acceptance": false
+    }
+  ]
+}

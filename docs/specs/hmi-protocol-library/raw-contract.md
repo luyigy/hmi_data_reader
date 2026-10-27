@@ -2,6 +2,14 @@
 
 状态：hmi-protocol-library Spec 1.0 的规范要求，2026-10-18。这里定义待实施的兼容扩展，不表示运行接口已支持。Reader 是规范唯一编辑源，Model 通过接纳保留固定版本/哈希只读快照及完整页面原屏字段定义，人工入口不依赖 Reader 网络。
 
+R01 实施范围：DEMAG 多级保压页现提供显式 `page_observations.v2`，JSON Schema 为 `contracts/page_observations.v2.schema.json`，完整字段定义为 `contracts/raw-pages/demag-holding-0.3.0.json`。冻结包位于 `templates/raw-packages/demag.injection_metering.multi_stage_holding/0.3.0.json`。本段仅声明 R01 的支持范围；R04 的温区与时间页面扩展见第 9 节。Model `raw_page.v2` 持久化不由 Reader 声明为已支持。
+
+HTTP 在既有 `/api/v1/recognize` 增加 `observations_version=v2` 查询参数；不传时保留 v1。脚本 `extract_fields.py` 使用 `--observations-version v2 --original-image <实际原图>`，并校验矫正证据的原图哈希。包仍通过既有页面包 GET 和 `export_page_package.py <profile_id> 0.3.0` 导出。新包不改变活动 v1 模板。
+
+本页定义覆盖 27 个数值或勾选显示字段，含实际值、逆序段表与深色残值。未实现的勾选读数显式 `unsupported`，页脚未核实含义/符号保留 `uncertain`，第三段压力的历史状态争议保留 `unknown`。因此当前观测 `coverage=partial`，不能宣称整页所有显示项均已可靠识读或允许业务自动写入。样本完整转录是开发者目视核对，明确不是独立验收真值。
+
+`original_bbox` 使用原图百分比，`bbox` 使用矫正图像素；`transform` 保留尺寸、原屏四角与原图哈希。HTTP 上传原始字节的哈希与用于矫正的重编码图哈希分别记录为 `original_sha256` 和 `rectifier_input_sha256`。模板补单位只进入 `effective_unit` 及带定义哈希的 `template_ref`，不改写 `original_unit`。人工附图可用 `image_reference.sha256`，不冒充识图来源。
+
 ## 1. 结构与兼容
 
 沿用 PageObservations 与 Model RawSnapshot/RawField。新增语义通过显式 v2 schema 承载，版本标识拟采用 page_observations.v2 与 raw_page.v2，具体 JSON Schema 与生成模型在 P1 固定。v1 解析仍保留，禁止原地改变 v1 enum 或把旧消费者不认识的第三态塞进布尔数组。
@@ -83,3 +91,368 @@ coverage.status 为 complete/partial/not_observed/unsupported，按声明范围�
 Reader 修改规范、schema、页面定义及样例，生成版本/hash；Model 更新接纳快照和双端兼容测试。新字段验证、人工来源校验、旧响应适配、温区唯一性和状态穷尽测试同时交付。
 
 冻结旧合同哈希，历史记录按原版本回放。不得修改已发布版本文件内容。废弃版本仍可回放但可禁止用于新采集。工艺解释和正式业务 schema 始终由 Model 管理。
+
+## 8. R02 控制器绑定输入与兼容回执
+
+HTTP `POST /api/v1/recognize` 接受可选查询参数 `controller_hint`，值为 JSON 字符串。脚本 `extract_fields.py --controller-hint <JSON文件>` 使用相同结构。旧调用方不传提示时继续原路由。绑定由调用方按获批机台修订传入，Reader 不创建机台绑定，也不从品牌猜控制器。
+
+```json
+{
+  "brand": "BOLE",
+  "controller_family": "B_AND_R",
+  "interface_generation": null,
+  "binding_revision": 1,
+  "pages": [
+    {
+      "profile_id": "b_and_r.injection_metering.real_photo",
+      "version": "1.0.0",
+      "package_sha256": "由页面包 GET 响应计算的 SHA-256"
+    }
+  ]
+}
+```
+
+示例 profile 是行为验证在隔离目录发布的页面，不代表生产目录已发布。`pages` 是列表，以完整 `profile_id` 区分页型和版式，同页型可有多项；一个绑定中同一 profile 只允许一个版本。包哈希采用 UTF-8、`ensure_ascii=False`、排序键、紧凑分隔符、禁止非有限数值的完整包 JSON。绑定须固定版本和包哈希，不能只引用活动指针。
+
+新草稿可携带 `page_identity`，冻结在模板及包中，目录 GET 同时返回它。身份包含 `brand`、`controller_family`、`interface_generation`、`page_type`、`layout_variant` 和非空 `evidence_sample_ids`。页型/版式须与模板一致，证据样本必须在本包中。经管理员核对的控制器身份使用原样字符串；代际没有依据时为 null，只与 null 提示匹配，不代表已验证任何代际。审核仍由已有管理员发布权限约束，样本引用校验不替代语义审核。历史包不补写元数据，不自动变成已核实控制器包。
+
+带提示时，Reader 只从绑定冻结包中选页，必须命中 OCR 页锚点。图像分类和模板指纹分别保留，任一相反证据都不能被提示或另一分类结果覆盖。多个候选或绑定外相反页证据拒绝成功。即使冻结包可回放，当前页面停用也禁止新识读；读取旧包和离线回放仍保留。活动版本升级不改变旧绑定，回滚通过已有新版本发布流程复制旧配置，版本历史追加保留。
+
+识读响应的 `compatibility` 独立于字段识读 `status`。`compatible` 只表示页面/包匹配，不表示字段齐全或 Model 可写入。成功回执包含选择依据、图像家族证据、绑定修订、profile、固定包版本/哈希、页面身份和 profile 生命周期状态。Reader 不输出 Model 业务接纳资格。
+
+| compatibility.status | code | 行为 |
+| --- | --- | --- |
+| compatible | PAGE_COMPATIBLE | 使用 OCR 与固定包选定页面，保留实际字段识读结果 |
+| unknown | PAGE_UNKNOWN / CONTROLLER_UNKNOWN | 未找到已绑定页或注册控制器；带提示时不输出通用字段 |
+| disabled | PAGE_TEMPLATE_DISABLED | 页面停用，新识读拒绝；旧包 GET 保留 |
+| conflict | PAGE_BINDING_MISMATCH / PAGE_TEMPLATE_CONFLICT | 控制器/代际错绑、相反图像证据或多个页候选，拒绝输出字段 |
+| incompatible | PAGE_PACKAGE_INCOMPATIBLE | 包版本不存在、包结构不支持或哈希不符，拒绝输出字段 |
+| incompatible | CONTROLLER_METADATA_UNVERIFIED | 冻结模板无经核实身份，禁止提示强制选页 |
+| incompatible | EXTRACTOR_VERSION_INCOMPATIBLE / EXTRACTOR_PAGE_INCOMPATIBLE / EXTRACTOR_CONTRACT_INCOMPATIBLE | 既有提取器/合同检查拒绝，不进入通用提取 |
+| incompatible | CONTROLLER_HINT_INVALID | HTTP 输入返回 422；CLI 无效 JSON 文件返回参数错误 |
+
+停用、冲突、不兼容在任何分辨率救援或重提取中都保留提示并拒绝 generic fallback。带提示的未知页也拒绝通用提取。无提示未知页保留旧通用提取行为，同时报告 `compatibility.status=unknown`。`observations_version=v2` 的兼容拒绝继续返回 HTTP 422 并保留相同原因 code。R02 本身不增加原屏 v2 页面；R01 与 R04 的明确页面支持范围分别见前文与第 9 节。
+
+行为入口为 `tests/test_hmi_protocol_library_r02.py`，用已有原图、实时 CPU OCR、真实 HTTP multipart、CLI 子进程、受控发布和包 GET/新客户端读回分别验证。所有新发布仅在受管输出的隔离目录。样本已用于开发，不作独立留出集。Model 机台持久化、浏览器和业务保存重开由相应 Model 票及平台独立验收负责。
+
+## 9. R04 温区与相关时间扩展
+
+R04 扩展原屏观测字段，不更改第 8 节的控制器绑定与兼容拒绝规则。新增冻结原屏包不自动成为已核实控制器绑定页，也不改变绑定引用的页面包版本或哈希。带提示的停用、冲突、不兼容或未知页仍按第 8 节拒绝，不能借温区与时间适配器绕过。下文储料页的 generic 适配限定在无提示的既有路由结果，不授权带提示时通用提取。
+
+`0.4.0` 是独立冻结的 OCR 识读包，合同仍标识 `page_observations.v2`，包内嵌 `contracts/page_observations.temperature-time.v2.schema.json`。保留 R01 的合同和 `0.3.0` 包字节及实现哈希。
+
+当前声明两个页面的有限字段范围。
+
+- `demag.temperature.screen_order_5` 按可见列头识别喷嘴1、区1至区8、料口的设定/实际值。`barrel-3` 等身份来自物理区号，`order` 按当次显示顺序记录。料口为 `feed-throat / other`，不冒充料筒或模具温区。未出现的列不会补零。冷启动保护与延时手动降低另有独立字段键。冒号显示保留文本，角色未核实保持 unknown，不转成秒。
+- `est.storage_cooling.cooling_delay` 从储料页分别读出储前冷却与模具冷却设定。严格匹配三个可见标签后使用此受控适配器，v1 的 generic 响应保留。它们不合并为一个 cooling_time，也不包含 Model 的业务目标。
+
+HTTP 继续使用 `/api/v1/recognize?observations_version=v2`，新观测的权威页面身份位于 `page_observations.profile_id`。顶层字段及 profile 保留原 v1 结果。脚本继续使用 `extract_fields.py --observations-version v2 --original-image <原图>`。新增版本须显式通过 `/api/v1/page-templates/<profile_id>/package?version=0.4.0` 或 `export_page_package.py <profile_id> 0.4.0` 获取，不改变活动 v1 模板。
+
+离线校验使用 `raw_temperature_time.validate_temperature_time_record`。同一 zone 的 setting/actual 可以并存；重复同角色身份、同物理分组 order 冲突和字段定义归属矛盾会拒绝。识读时重复列头保留候选并输出结构问题。单位冲突保留原单位，模板仅补 effective_unit。温度页没有已标定的启用状态解码器，state 均为 unknown；颜色和缺读不会推成 disabled。
+
+包内样本是开发验证材料。既有温度真值的模型与待人工确认来源原样保留，新增时间转录标为实施者目视核对，不是独立验收。Reader 的包 GET 和离线读回不等于 Model 草稿保存重开、温度换算、正式业务提交或双视口验收。具体本轮检查和缺口记录在任务受管结果区。
+
+R04 同版式修复使用独立版本 `0.4.1`，保留 `0.4.0` 定义和包字节。旧识读模块的精确副本位于 `templates/raw-recognizers/temperature_time_ocr.v2/0.4.0/scripts/raw_temperature_time.py`，旧包校验使用该副本的哈希。HTTP 包 GET 和脚本导出继续支持旧版本，新识读观测标记 `0.4.1`。R01 `0.3.0` 包保持不变。
+
+`0.4.1` 增加仓内同版式原图 `barrel_A02_b24ff33d.jpg` 作为开发回归样本。定义记录该图 OCR 将喷嘴1读为“喷剪1”的别名，观测仍保留原始 `zone_label`。时间字段以 `value_format` 区分数字设定值和冒号文本，避免把 `0` 与 `0:00` 当作同一字段的冲突候选。匹配区域容纳两张照片的矫正差异，`recovery_region` 保留小零值的窄框放大重读。低置信度数值仍标 `uncertain`，没有读到的值保持空，不补默认值。
+## R05 伯乐三段熔胶原屏包
+
+本仓新增 `b_and_r.metering.three_stage`，当前发布版本为 `1.0.1`，受控提取器为
+`b_and_r.metering`。使用已有矫正、CPU OCR、页面草稿和发布流程，不接入 VLM。
+字段定义位于 `contracts/raw-pages/b-and-r-metering-1.0.0.json`；冻结包通过现有页面包
+GET 和 `export_page_package.py` 导出。`1.0.0` 保留，`1.0.1` 补充既有模板指纹配置，
+使普通上传可选中该页。旧包和旧识读器未改写。
+
+这次新增的是有三段熔胶、前后抽胶、模式、阀和计时器区域的结构版式。
+不能仅凭显示列数推断控制器或启用段数。控制器证据来自用户原图中的伯乐、贝加莱和
+EKS 标识，以及来源原图的相同结构；界面代际没有充分依据，保留 null。
+此前白色储料页草稿保留为开发记录，不作为必须补图的条件，也没有发布。
+
+完整声明范围为 38 项工艺显示字段，包括页首实际值、熔胶实际值、三段设定、
+前后抽胶、三个枚举控制项和五个时间读数。时钟、配方名、导航及未解码指示图标保留在
+原图引用和 OCR 证据中，不宣称已识读其状态。速度百分比不换算为转速；各时间参数不
+合并成冷却时间。所有启用状态保持 unknown。字段缺值、低置信、单位矛盾和同一传感器
+重复显示不一致分别保留问题，不用真值替换 OCR 原值。因此输出为 review、coverage.partial，
+不代表 Model 已接纳或可自动写入业务。
+
+开发图、用户补充验证图和另行保留的验收图位于 `datasets/r05/b_and_r.metering.three_stage/`，
+分别记录原图哈希、来源、用途及转录。用户图在发现页首 OCR 漏字后进入诊断回归，不再声称
+是未参与开发的盲测图。另行保留的验收图为独立拍摄，同开发图来自相同机台和配方，具有
+不同实际读数；不宣称机台隔离或统计意义上的盲测。真值为实施者目视转录，平台独立复核另行执行。
+
+新包携带字段定义、公共 schema、OCR 样本、受控识读器源码及哈希。导入者可离线读取
+字段定义，识读端拒绝来源代码哈希不符的包。历史记录按固定版本读取；停用通过新版本
+发布禁止新采集，回滚通过追加版本恢复旧配置，不改历史版本。
+
+## R6 日精 TACT5 组合页开发候选
+
+`tact5.process_settings.injection_holding_metering` 新增显式原屏 v2 候选包 `0.6.0`。
+它复用已存在的 TACT5 OCR 提取器及同一物理版式，没有接入新控制器、新物理版式或 VLM。
+旧活动模板 `0.2.1` 及其完整包已归档，历史导出与 v1 原值语义保留。当前选页模板追加为
+`0.2.2`，仅兼容已核实的 `VSLI` 和“计量前计量后”合并 OCR 锚点；未改固定 raw 包。
+新包可通过既有页面包 GET 的 `version=0.6.0` 或同版本脚本导出读取。
+识读继续使用 `/api/v1/recognize?observations_version=v2` 和既有 CLI v2 入口。
+带提示时必须固定包版本与内容哈希，并通过既有控制器和 OCR 锚点检查。
+
+字段定义位于 `contracts/raw-pages/tact5-process-0.6.0.json`，冻结的识读模板来自旧
+`0.2.1` 模板，另存于 `templates/raw-recognizers/tact5.process_ocr.v2/0.6.0/`。
+候选包内去除了旧 `business_profile_candidate`，保留公共 schema、字段定义、原图身份、
+实时 OCR 快照及受控识读源码哈希。未实现工艺换算或推导末段保压时间。
+
+声明 47 个字段键，分别覆盖充填速度与段间位置、保压压力与显示时间、计量转速与背压、
+计量终点、前后减压、三类页首时间、实际螺杆位置/压力/转速及三个控制项。
+`Sp1`、`Sp2`、`RAMP Pp1` 的标签与数值关联尚未由旧提取器实现，明确为 unsupported。
+四维状态分别保留；灰显残值仍带原值、单位和框，低置信不改写数值，缺读不填零，
+未观察到的段数不猜启用。重复槽位输出 conflict 并保留候选，不按最后一项覆盖。
+段的物理 stage 与当次屏幕展示 order 分离。射出、冷却、中间和保压显示时间各有独立键。
+本包不支持 TACT5 温度页；旧 TACT 温度模板不能当作 TACT5 温度支持证据。
+
+固定包内开发样本仍为 `Z078_20260910_shebao`。原图从获批 Model 固定提交的 Git
+对象读取，来源回执随开发样本保存；没有采用额外仓未提交文件。历史真值保留其用户裁定
+和辅助复核来源，不冒充本轮独立真值。
+
+2026-10-23 从用户指定的 `TACT5` 表取得 `reczz28QojrlL6Cy` 原图，来源为
+`tact5_images` 的“成型条件-射出/保压”字段。该图首次作为保留验收图运行，随后用于
+飞书本地入口把 VS2 的 90 识成 06 的诊断，现明确为 diagnostic_regression，不再宣称
+未参与修复。飞书 OCR 与既有 HTTP/共享 OCR 一样关闭方向分类，避免矫正后的数字被
+误旋转；未改固定包、模型、提取器或用真值回填。真实本地入口生成的侧车再经 CLI v2
+逐项核对44项支持字段，灰显 VS2 保留90和 disabled。
+
+随后取得 `reczz28QojrlL6pf` 原图；面板可见 TACT5，同一组合页与配方，
+不同拍摄，不宣称机台隔离。显示真值先于首次识读登记；该图后续用于共享路由错误诊断，
+现同样记为 diagnostic_regression，初次保留验收用途与历史结果另行保留，不宣称仍为盲测。
+
+`0.2.2` 仍要求原有全部物理锚点，只将已观察到的 I/1 混淆和合并行形式写为匹配别名。
+同图飞书本地入口选择 TACT5 组合页，Pp1=110、Pp2=95，数值引用不同 OCR 行与框；
+只输出待核对原屏观测，不生成旧 TACT 的业务导入字段，卡片不再显示错误的95/95。
+当锚点确实不足而 PB/VSL 结构又与旧 TACT 的 BP/SD 布局矛盾时，共享选页明确拒绝，
+不退回旧 TACT 或 generic 提取器；真实旧 TACT 页保持原路径。
+
+该图固定包绑定 HTTP 与当前无绑定 CLI 的30项支持读数与目视真值一致，14项漏读保持
+missing。显式绑定旧 raw 包 `0.6.0` 仍按其原始锚点检查，可能返回 PAGE_UNKNOWN，
+不静默升级旧包。低置信保持 uncertain，
+未核实的启用证据保持 unknown，不以目视值填补识读输出。Sp1、Sp2、RAMP Pp1继续
+明确 unsupported。裁切、倾斜和低质量照片仍可能只覆盖部分字段或被拒识。
+
+两张已用于诊断的原图、来源回执、用途和完整47项显示真值保存在
+`datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/manifest.json`，
+通过版本及包哈希绑定不可变 `0.6.0`，不改历史包内样本。已曝光图保留完整44项严格回归，
+后续诊断图单独登记实际缺读、未知状态和部分覆盖。真值由实施者目视转录，平台独立复核
+另行执行，不宣称统计泛化精度。
+
+指定行为入口 `tests/test_hmi_protocol_library_r6_nissei.py` 读取开发清单和独立验收清单，
+保留真实失败断言。Reader 行为证据不代替 Model 接纳、浏览器双视口、草稿保存重开或
+正式提交；本票没有变更这些界面或业务写入行为。
+
+## R6 FANUC 既有温度版式的原屏观测
+
+`fanuc.temperature.rightmost5 / 0.6.0` 补充已登记 ROBOSHOT 温度页的 v2 原屏包，
+不增加物理版式或猜测界面代际。控制器族为 FANUC，代际保留 null；原图可见
+ROBOSHOT α-S30iA 标识，机型名称不冒充控制器代际。旧 `templates/fanuc.temperature.json`
+及原提取器保持不变，新注册配置复用同一受控提取器，v1 数值通过旧配置等值回归。
+
+本包仅声明 N、B1、B2、B3、H 的设定与实际温度，以及低温保持设定，共 11 项。
+`nozzle-N`、`barrel-B1` 等是冻结版式的物理身份，`order` 单独记录展示顺序。
+H 的 `zone_source=other`，不把料口归入料筒。完整列头可按物理标签重新排列；
+重复列头或部分列头顺序矛盾输出结构问题。该版式只支持已核实的五温区表，
+行基数不符保留 missing，不把剩余值错移到其他温区。
+
+各温区启用状态保持 unknown。低温保持仅在对应 ON/OFF 文本置信度足够时判定状态，
+OFF 下的 200.0 仍保留数值、原始文本和实际框，不作为有效设定自动写入。
+粘连数字共享真实 OCR 框并标 uncertain；没有细分框证据时不编造逐格框。
+低置信和缺值分别处理。单位只从 OCR 原文提取；模板单位仅补 effective_unit，
+原文单位矛盾保留 UNIT_TEMPLATE_CONFLICT。
+
+字段定义和四张既有原图的来源、哈希、用途位于
+`contracts/raw-pages/fanuc-temperature-0.6.0.json`。两张 A11 图用于开发，
+两张历史 A09 holdout 图用于保留回归，原模型核验来源保持不变。
+这些保留图已用于本轮实施验证，不宣称是全新布局的未曝光盲测或新增人工签字。
+包包含本轮 CPU PaddleOCR 的文本、真实框、置信度、引擎身份和矫正凭据，
+包内试跑属于冻结 OCR 回放，原图实时 OCR 和 HTTP 上传另行记录。
+
+冻结包使用现有包导出和 `/api/v1/page-templates/<profile_id>/package?version=0.6.0`
+读取。只读 GET 不要求可编辑的业务候选元数据。草稿、试跑及发布沿用原鉴权和 revision
+边界；本版本只能发布与冻结配置、样本及 OCR 一致的内容。兼容所需的空业务候选对象
+不提供业务目标或转换规则。新原屏识读仍通过既有 v2 HTTP/CLI 入口。
+
+射出、保压、塑化和相关时间不属于这个温度包，既有射出·计量包只做回归。
+M1–M4、上下限、输出、调整开关、右侧实时数据及底部历史计时表均不在本包声明范围。
+观测 coverage.partial 及待复核结果不能宣传为全页通过、Model 接纳、工艺保存重开
+或正式业务提交。独立验收仍由平台另 Session 执行。
+
+## R6_YIZUMI 既有页面的结构冲突
+
+既有 `injection_holding_f2` 和 `metering_f2` 页面仍输出原有 v1 待核对观测，
+不因本次修复成为已核实控制器页，也不新增 v2 包或自动业务写入资格。
+OCR 段号重复时，在 `extraction_detail.page_observations.issues` 输出
+`YIZUMI_STAGE_IDENTITY_CONFLICT`、所属 `section`、重复的 `stage_ids` 和原 OCR
+`line_indexes`。射胶保压页不输出冲突分区的读数，但保留另一分区的合法观测。
+熔胶页段号或物理行标签重复时拒绝该表的数值输出；重复行使用
+`YIZUMI_ROW_IDENTITY_CONFLICT`，保留 `labels` 与原 OCR 行索引，不能由后一个标签
+覆盖前一个。对应 code 同时进入顶层 `warnings`，不经过通用提取兜底。
+无冲突的既有开发样本保持原读数、单位、角色、未知启用状态及坐标。
+本轮原图来源仍待读取；重复身份验证使用登记 OCR 的明确故障注入，不能冒充新实图、
+独立保留样本或完整 A11 联合验收。
+
+## R6_YIZUMI 原图补齐后的 1.0.0 原屏包
+
+上节记录的是前期结构冲突修复的边界。来源补齐后，
+`yizumi.injection_metering.injection_holding_f2` 新增独立冻结的 `1.0.0` 原屏包，
+不改写活动 `0.1.0` 模板及历史包。通过页面包 GET 的显式版本参数和
+`export_page_package.py <profile_id> 1.0.0` 可读取。部署后管理员可沿用草稿、试跑、
+发布流程激活并绑定固定版本；本仓的代码交付不表示已部署或 Model 已接纳。
+
+机台30的五条来源记录共十个附件，去重为四张原图、两种页型。只扩充射胶保压页，
+熔胶页保留既有回归及明确缺口，没有追加第二个物理版式。控制器界面家族沿用
+`YIZUMI`，证据为原图机框/显示器标识和 F2 页结构；不据此推断 OEM 硬件型号或
+界面代际，`interface_generation=null`。
+
+字段定义为 `contracts/raw-pages/yizumi-injection-f2-1.0.0.json`，声明40项，含射胶三段、
+保压两段、左栏保护/冷却及监测读数、切换模式旁的读数、段数与三个未解码复选框。
+保护时间、冷却读数和各段时间分别保留，不合并。压力侧别与模糊角色不解释。
+数字的低置信、缺值、重复候选与单位矛盾分别输出 uncertain/missing/conflict；
+模板单位放在 effective_unit/template_ref，不补写 original_unit。
+
+页面内对齐使用真实 OCR 的射胶、切保压、保压和段数标签，保留对齐参数及行索引。
+段号来自当次列头，物理 stage/segment_id 不随显示 order 改变；缺列头或重复列头
+明确报问题，不靠列位置猜段号。OCR 框始终属于实际矫正图，经已有变换投回原图。
+浅色残值保留，但本包没有已核实的复选框解码器，全部启用状态保持 unknown，
+不能将浅色、零值或未读到等同 disabled。
+
+两次独立拍摄位于 `datasets/r6_yizumi/`，具有原图、来源回执及开发者目视转录。
+保留图用于矫正偏移失败诊断，已明确标记非盲测；转录不是独立验收真值。
+当前实测开发图30/40、保留图20/40为 known，未识别列头、模糊小数及复选框等
+缺口保留在 coverage.partial/issues，不以转录替换 OCR。包携带 schema、字段定义、
+固定 OCR 样本、识读源码和哈希；导入与识读拒绝组件/样本漂移。
+温度、机台30熔胶网格变体、未核实状态推断及 Model 业务保存/重开不在本次已验证范围。
+
+## R6 阿博格 SELOGICA 双段进料页
+
+新增 `arburg.storage_cooling.selogica_two_stage`，版本 `1.0.0`，受控提取器
+`arburg.selogica_metering`。两张来源原图的屏框直接显示 SELOGICA，屏内显示 ARBURG；
+界面代际没有充分依据，保持 null。本票只增加“进料/松退/冷却”这一物理版式。
+旧 `arburg.injection_metering` 保留原实现与版本，只执行真实 OCR 回归。
+
+字段定义为 `contracts/raw-pages/arburg-selogica-metering-1.0.0.json`。声明范围为
+双段进料速度、背压、位置及实际列，进料后松退速度和距离，剩余冷却显示和两个未标注
+时间，共十四个数值显示项；另有一个明确 unsupported 的图标状态项。图表、页首仪表、
+导航和页脚重复回显没有解码，不属于已读字段。双段物理身份使用本版式已核查的左一右二
+槽位，不承诺未知反排版式或任意段数。
+
+速度保留原屏 mm/s，不换算为 rpm。所有启用状态为 unknown，不从灰色、蓝色或漏读
+推断 disabled。实际列保留 actual；剩余冷却及两个时间的角色尚未确认，保持 unknown，
+不投影为冷却设定。模板补单位只进入 effective_unit 和 template_ref，不补写 original_unit。
+重复单元格 OCR 候选返回 conflict，缺值返回 missing，低置信保持 uncertain。
+本轮第二段背压仍有漏读，开发图实际列也有漏读，故覆盖为 partial，结果为 review。
+保压页、温度页及其他控制器和版式均未增加支持。
+
+原图、来源回执、开发与保留转录、OCR 证据和品牌附件索引位于 `datasets/r6_arburg/`。
+授权查询共 334 条记录、983 个不同附件版本引用，已读完分页；这不表示逐张识读通过。
+选用原图以 SHA-256 去重。保留图为同机台同配方的不同拍摄，范围核查时已看过，
+不宣称盲测或跨机台泛化；转录是实施者目视核查，不冒充独立人工验收。
+
+沿用认证草稿、试跑、冻结发布、控制器绑定、HTTP v2 和 CLI 入口。固定包通过
+`GET /api/v1/page-templates/arburg.storage_cooling.selogica_two_stage/package?version=1.0.0`
+或 `export_page_package.py` 获取。包携带字段定义、合同、受控源码和内容哈希。
+错绑、未知、停用、冲突和合同不兼容保持各自拒绝原因，不走 fallback。
+
+行为入口为 `tests/test_hmi_protocol_library_r6_arburg.py`，实际执行 CPU OCR、
+HTTP 原图上传、CLI 子进程、包发布及新客户端读回。联合验收仅登记 Reader 的适用行为；
+Model 接纳、工艺解释、草稿保存重开、正式业务提交和浏览器未由本票验证。
+平台独立验收另行执行，不以本票 pytest 通过代替。
+
+同版式小数读数修复追加为 `1.0.1`，当前新采集模板使用受控提取器
+`arburg.selogica_metering_decimal`。`1.0.0` 的包、字段定义和识读源码字节不变，
+旧模板归档，旧绑定不静默升级；新的绑定须显式固定 `1.0.1` 及其包哈希。
+`1.0.0` 保留原来的识读行为，不能宣称它已包含本次修复。
+
+独立验收图曾将原屏松退速度 `50.0` 识为高置信 `500` 并标 known。`1.0.1` 按已核实的
+固定小数位检查数值显示格式，缺少小数点时保留 OCR 原值并标 uncertain，不根据范围
+补小数点。HTTP 和 CLI 的 v2 路径复用原 OCR 引擎，对该格式不符的真实值框局部放大重读；
+只有唯一、高置信、格式及单位相容的实际 OCR 结果可替换该候选，失败时仍保持 uncertain。
+重读字段和 OCR 证据保留 `decimal_cell_ocr`、真实坐标、缩放/边距及 `supersedes_ocr`，
+后者保存旧文本、置信度和框。原值不会被真值或固定数字覆盖，角色与启用状态不改变。
+
+新增原图与来源、验收者先前转录位于 `datasets/r6_arburg/decimal-diagnostic.*`。
+该图已用于失败定位和修复回归，不能继续宣传为未参与开发的独立样本。新字段定义及
+样本包分别为 `arburg-selogica-metering-1.0.1.json` 与 `samples-1.0.1.json`，
+逐字段本轮结果见 `datasets/r6_arburg/coverage-1.0.1.json`。
+当前仍为 partial，其他漏格、图标状态、时间角色与未支持页面的限制不变。
+
+## R6_DEMAG 机器配置总览页
+
+新增 `demag.injection_metering.machine_configuration / 1.0.0`，受控提取器为
+`demag.configuration`。这是本票唯一新增物理版式。同屏包含射出、保压、预塑、切换条件、
+冷却时间和五个温区。复用原有矫正、CPU OCR、注册、草稿试跑、冻结发布与包 GET。
+没有增加业务解释或工艺换算。
+
+控制器身份只声明已有人核验的 `DEMAG` 家族。核验来源及哈希保存在字段定义中，
+原图还保留 Sumitomo SHI DEMAG 面板标志。具体 NC 型号和界面代际没有直接依据，保持 null。
+旧射出、保压、塑化和温度包的身份、版本及源码保持原样，不据此补写为已核实控制器包。
+
+定义位于 `contracts/raw-pages/demag-configuration-1.0.0.json`，声明 29 个数值字段和
+6 个未解码的控制图标。工艺相关读数有各自稳定键，冷却、保压时间和切换实际时间分别保留。
+预塑速度保留屏幕的 mm/s，不因历史字段名含 rpm 而换算。模具、顶针、射座设定、生产计数、
+循环监控、导航及其他指示图标不在新增声明范围，仍保留原图和完整 OCR 证据。
+
+区域查找先用三个唯一 OCR 标签对齐。温区身份来自列头，展示顺序来自已核实的物理列位置，
+漏识列头不会将后列压缩编号。重复列头保留结构问题。所有启用状态均为 unknown，
+深色残值不会自动变为 disabled。6 个控制图标输出 unsupported，不从相邻数字推断勾选状态。
+压力缺失可见小数位时保留 OCR 原值并标 uncertain，不补小数点。单位与模板矛盾时保留原单位，
+不能将 bar_spez 或 OCR 的 `bar spez` 当作普通 bar。缺读保持空，不用转录真值回填。
+
+原图、来源回执、转录和用途位于 `datasets/r6_demag/`。development 为开发图；
+reserved、acceptance 在暴露坐标和温区问题后转为诊断回归图，其文件名不代表仍是独立留出图。
+holdout 为冻结后实际运行的裁切及特殊压力单位挑战图，首轮结果另存受管证据。
+该图也暴露了单位 token 边界问题，来源记录如实保留这次诊断参与，不能宣传为未见过的盲测正例。
+转录均为实施者目视记录，独立平台复核另行执行。
+
+响应为 review、coverage.partial。普通 bar 开发图和特殊压力单位挑战图的实际覆盖分别登记，
+不声明所有裁切照片或压力单位变体均能完整识读。确切控制器代际、图标解码、完整页面字段、
+新的独立正例泛化及 Model 接纳、业务保存重开和正式提交仍需各自证据。
+指定行为入口为 `tests/test_hmi_protocol_library_r6_demag.py`；Reader 包 GET 和新进程导出
+不是 Model 浏览器保存重开的证据。
+
+## R6_BOLE 既有射胶/保压页的原屏扩展
+
+本票仅覆盖已核实的 BOLE / B_AND_R，界面代际为 null。复用既有物理页
+`b_and_r.injection_holding.multi_stage_position_time`，新增其 `0.6.0` 原屏包，
+没有新增控制器或物理版式。温度、三段熔胶的既有能力分别回归，不扩展其他伯乐控制器。
+
+原屏定义在 `contracts/raw-pages/b-and-r-injection-0.6.0.json`。冻结包位于
+`templates/raw-packages/b_and_r.injection_holding.multi_stage_position_time/0.6.0.json`，
+通过既有页面包 GET 和导出脚本显式指定版本取得。识图仍使用既有矫正、PaddleOCR、
+注册的 `b_and_r.injection_metering` 与 v2 观测分发入口。没有增加任意 import、
+VLM 或工艺解释器。包中继承的 v1 模板迁移候选不授权 Model 自动写入。
+
+共声明 47 个字段。射胶五个物理槽位的速度、压力、位置和实际时间，保压五槽位的
+速度、压力和设定时间，以及实际值、切换设定、实际切换值分别保留。槽位没有数值时
+输出 missing，不从有效段数补值。反向显示顺序与 stage/segment_id 分离；列头没有读到时
+使用经原图核对的固定槽位定义，标明 identity_basis，并将读到的数值标 uncertain。
+重复列头产生结构冲突。实际时间不冒充设定时间，也不合并成 cooling_time。
+
+所有自动启用状态保持 unknown，保留灰显零值、真实 OCR 框和置信度。位置、时间、
+外部信号的勾选解码均为 unsupported。页首状态条、曲线及导航不在本包声明范围。
+因此 coverage 为 partial；本包不承诺整页自动写入。
+
+两张原图来自既有 `ground_truth/bole_BR`，原图哈希、用途与转录位于包内定义及
+`datasets/r6_bole/`。转录是实施者目视核对，两图均历史曝光，并用于本轮 OCR 诊断；
+第二张只作为保留回归图，不宣称调参独立或盲测，不作为新布局泛化证据。
+平台独立验收须另行检查这些限制，不能把实施者 pytest 当作独立验收。
+
+既有 v1 射胶模板以 `0.1.2` 追加 OCR 标签别名“保压奶换”。`0.1.1` 的模板和完整包
+先行归档，`0.1.0`、R05 熔胶包及 R01/R04 原屏包保留。v1 输出仍走旧提取器；
+新原屏扩展需要 `observations_version=v2`。带绑定提示时继续执行已有错绑、未知、停用、
+冲突和合同不兼容检查，不通过通用提取绕过拒绝。
+
+本票不提供 B&R 温度的 v2 zone 观测、冷却设定闭环、Model 接纳、草稿保存或正式 Run 提交。
+API 上传与 CLI 实时 OCR、包 GET/独立客户端重开、旧版本回放分别记录在本票受管证据中。
+没有变更 UI，双视口浏览器操作不适用；Model 业务保存重开仍由对应 Model 票负责。
+
+版式证据不足的照片可能命中已知页，但无法生成合格 v2 观测。
+`BOLE_INJECTION_LAYOUT_UNVERIFIED` 和 `BOLE_INJECTION_LAYOUT_CONFLICT` 在包外分发层
+转换为明确拒识，不修改 `0.6.0` 包或放宽原识读窗口。HTTP 返回 422，`detail` 包含
+`code/profile_id/reason/action`，操作为 `review_or_recapture_full_screen`。
+CLI 正常处理该输入并退出 0，落盘 `status=reject`、空 `fields/page_observations` 和
+同结构的 `raw_rejection`，保留真实 `raw_ocr_evidence`，不走 generic fallback。
+该处理不宣称裁切版式已支持；其他图片身份、包哈希或内部错误仍沿原错误路径处理。

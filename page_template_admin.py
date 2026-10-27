@@ -5,13 +5,13 @@ import hmac
 import json
 import os
 import re
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from page_template_store import atomic_json as _atomic_json
 from scripts.export_page_package import export_page_package
 from scripts.extract_fields import extract_page_fields, norm_tokens
 
@@ -54,27 +54,15 @@ def _auth(authorization: str, key: str) -> None:
         raise HTTPException(401, "Reader 页面模板身份无效")
 
 
-def _atomic_json(path: Path, value: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
-    descriptor, name = tempfile.mkstemp(prefix=".page-", dir=path.parent)
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(name, path)
-    finally:
-        if os.path.exists(name):
-            os.unlink(name)
-
-
 def save_template(profile_id: str, draft: TemplateSave, root: Path = ROOT) -> dict:
     if draft.confirmation not in ("save_confirmed", "rollback_confirmed"):
         raise HTTPException(422, "请确认保存")
     if len(json.dumps(draft.template, ensure_ascii=False)) > 256_000:
         raise HTTPException(413, "页面模板过大")
     path = _registered_path(profile_id, root)
+    if any(path.is_relative_to((root / "templates" / directory).resolve())
+           for directory in ("versions", "published")):
+        raise HTTPException(409, "已发布版本不可修改，请创建草稿后发布新版本")
     lock_path = root / "templates/.page-template.lock"
     with lock_path.open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -141,7 +129,9 @@ def list_templates():
                     continue
                 raise
             result.append({"profile_id": item["profile_id"], "version": template["version"],
-                           "enabled": template.get("enabled", True)})
+                           "enabled": template.get("enabled", True),
+                           **({"page_identity": template["page_identity"]}
+                              if template.get("page_identity") else {})})
     return result
 
 
@@ -173,6 +163,8 @@ def get_template_versions(profile_id: str):
     versions = []
     for path in archive_dir.glob("*.json"):
         version = path.stem
+        if version == current["version"] and json.loads(path.read_text()) == current:
+            continue
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
             raise HTTPException(409, "历史版本文件名无效")
         if tuple(map(int, version.split("."))) >= tuple(map(int, current["version"].split("."))):
@@ -193,7 +185,12 @@ def get_template_versions(profile_id: str):
 
 @router.get("/{profile_id}/package")
 def get_package(profile_id: str, version: str | None = None):
-    current = _active(profile_id, ROOT)
+    if version is not None:
+        try:
+            return export_page_package(profile_id, version, ROOT)
+        except (ValueError, FileNotFoundError, KeyError) as exc:
+            raise HTTPException(404, f"页面版本不可用：{exc}") from None
+    current = json.loads(_registered_path(profile_id, ROOT).read_text())
     try:
         return export_page_package(profile_id, version or current["version"], ROOT)
     except (ValueError, FileNotFoundError, KeyError) as exc:
@@ -222,7 +219,8 @@ def preview_template(profile_id: str, draft: TemplateSave, authorization: str = 
             lines.append({"text": line["text"], "conf": line.get("conf", line.get("confidence")),
                           "bbox": dict(zip(("x_min", "y_min", "x_max", "y_max"), box))
                           if isinstance(box, list) else box})
-        result = extract_page_fields(norm_tokens({"lines": lines}, screen_size), draft.template,
+        # Preview computes fixed-sample observations without activating the draft.
+        result = extract_page_fields(norm_tokens({"lines": lines}, screen_size), {**draft.template, "enabled": True},
                                      ocr_lines=lines, meta={"screen_size": screen_size})
         fields = result["detail"]["page_observations"]["fields"]
     except (KeyError, TypeError, ValueError, IndexError) as exc:
@@ -236,3 +234,8 @@ def preview_template(profile_id: str, draft: TemplateSave, authorization: str = 
 def put_template(profile_id: str, draft: TemplateSave, authorization: str = Header(default="")):
     _auth(authorization, os.getenv("HMI_TEMPLATE_WRITE_KEY", ""))
     return save_template(profile_id, draft, ROOT)
+
+
+from page_template_drafts import router as drafts_router  # noqa: E402
+
+router.include_router(drafts_router)

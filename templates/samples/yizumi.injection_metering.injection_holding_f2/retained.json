@@ -1,0 +1,37 @@
+{
+  "sample_id": "retained",
+  "profile_id": "yizumi.injection_metering.injection_holding_f2",
+  "purpose": "retained_same_machine_capture_exposed_during_diagnostics_not_blind",
+  "original_sha256": "9fbfb0844b7114e44c131d5e3b21368de5df183a7cd2eb868dd23bf9409f6bd7",
+  "original_size": [
+    3000,
+    3000
+  ],
+  "screen_size": [
+    2000,
+    1525
+  ],
+  "screen_quad": [
+    [
+      296.6045227050781,
+      482.3651428222656
+    ],
+    [
+      2996.245361328125,
+      427.27032470703125
+    ],
+    [
+      3038.266845703125,
+      2486.310546875
+    ],
+    [
+      338.6258544921875,
+      2541.405517578125
+    ]
+  ],
+  "rectify_method": "corners",
+  "ocr_fixture": "tests/fixtures/yizumi_30_retained_ocr.json",
+  "ocr_sha256": "f3b2e546cd1b4b06462e723bbae6a32a7e2731825d144be2a06a38a91acb9f46",
+  "truth_scope": "developer visual transcription; not independent acceptance truth",
+  "original_path": "datasets/r6_yizumi/retained.jpg"
+}

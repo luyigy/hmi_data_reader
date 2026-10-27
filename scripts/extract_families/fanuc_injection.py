@@ -94,9 +94,12 @@ def extract_injection_fanuc(toks: list[dict], template: dict) -> dict:
     win = template.get("value_window", {"dy": 0.02, "dx_max": 0.35})
     detail: dict = {}
     raw: dict[str, list[float] | None] = {}
+    field_issues = {}
 
     def label_hits(spec):
-        return [t for t in toks if spec.get("label") and _anchor_match(spec["label"], t["text"])]
+        return [t for t in toks if spec.get("label") and _anchor_match(spec["label"], t["text"])
+                and (spec.get("x_hint") is None
+                     or t["x"] >= spec["x_hint"] - win["dx_max"])]
 
     for name, spec in anchors.items():
         count, rng = spec["count"], spec["range"]
@@ -120,12 +123,18 @@ def extract_injection_fanuc(toks: list[dict], template: dict) -> dict:
             dy_lo, dy_hi = spec["below"]
             got = None
             for lab in sorted(label_hits(spec), key=lambda t: t["y"]):
-                cands = [(t["y"] - lab["y"], v) for t in toks
+                cands = [(t["y"] - lab["y"], v, t) for t in toks
                          if dy_lo <= t["y"] - lab["y"] <= dy_hi
                          and abs(t["x"] - lab["x"]) <= spec.get("dx", 0.04)
                          for v in _split_nums(t["text"]) if rng[0] <= v <= rng[1]]
+                rejected = [t for _, _, t in cands if t.get("conf", 1.0) < 0.8]
+                cands = [c for c in cands if c[2].get("conf", 1.0) >= 0.8]
+                if rejected:
+                    field_issues[name] = dict(reading="uncertain", reason="low_confidence_ocr",
+                                              candidates=rejected)
                 if cands:
-                    got = [min(cands)[1]]
+                    got = [min(cands, key=lambda c: c[0])[1]]
+                    field_issues.pop(name, None)
                     break
             raw[name] = got
             if got is None:
@@ -171,6 +180,9 @@ def extract_injection_fanuc(toks: list[dict], template: dict) -> dict:
         if got is None or len(got) < count:
             warnings.append(f"VALUE_MISSING({name})")
             raw[name] = None
+            if name == "back_pressure_mpa":
+                field_issues[name] = dict(reading="missing", reason="manual_region_value_missing",
+                                          candidates=[])
         else:
             raw[name] = got
 
@@ -217,5 +229,12 @@ def extract_injection_fanuc(toks: list[dict], template: dict) -> dict:
     }
     if template.get("profile_id") == "fanuc.injection_metering.injection_holding_metering":
         detail["page_variant"] = "injection_holding_metering"
-        detail["page_observations"] = fanuc_page_observations(fields, template)
+        detail["page_observations"] = fanuc_page_observations(fields, template, field_issues)
+    if field_issues:
+        labels = {"back_pressure_mpa": "手动背压", "decompress_position_mm": "减压位置",
+                  "metering_position_mm": "计量位置"}
+        detail["field_issues"] = [dict(field=name, label=labels[name], **issue)
+                                  for name, issue in field_issues.items()]
+        warnings.extend(f"FANUC_FIELD_UNVERIFIED({labels[name]}): 无可靠读数，请核对原图"
+                        for name in field_issues)
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}

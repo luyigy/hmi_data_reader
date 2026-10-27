@@ -4,8 +4,21 @@ import re
 from pathlib import Path
 from classify_ui import find_page
 from extract_families.common import _anchor_hits
+from extractor_registry import template_error
 
 TEMPLATES_DIR = Path("templates")
+BLOCKED_PAGE_SOURCES = {
+    "disabled_template": "PAGE_TEMPLATE_DISABLED",
+    "ambiguous_template_anchors": "PAGE_TEMPLATE_CONFLICT",
+    "PAGE_TEMPLATE_DISABLED": "PAGE_TEMPLATE_DISABLED",
+    "PAGE_EXTRACTOR_INVALID": "PAGE_EXTRACTOR_INVALID",
+    "EXTRACTOR_ID_UNREGISTERED": "EXTRACTOR_ID_UNREGISTERED",
+    "EXTRACTOR_VERSION_INCOMPATIBLE": "EXTRACTOR_VERSION_INCOMPATIBLE",
+    "EXTRACTOR_PAGE_INCOMPATIBLE": "EXTRACTOR_PAGE_INCOMPATIBLE",
+    "EXTRACTOR_CONTRACT_INCOMPATIBLE": "EXTRACTOR_CONTRACT_INCOMPATIBLE",
+}
+from controller_binding import BLOCKED_CODES
+BLOCKED_PAGE_SOURCES.update({code: code for code in BLOCKED_CODES})
 
 def registered_page_templates(family: str, templates_dir: Path,
                               page: str | None = None,
@@ -119,18 +132,50 @@ def load_template(family: str, page: str, templates_dir: Path = TEMPLATES_DIR,
     return json.loads(path.read_text())
 
 
+def _selection_error(family, page, lines, templates_dir):
+    candidates = registered_page_templates(family, templates_dir, page=page, lines=lines,
+                                          include_disabled=True)
+    if not candidates:
+        candidates = [item for item in registered_page_templates(
+            family, templates_dir, page=page, include_disabled=True)
+            if not item.get("require_anchor_match")]
+    if any(item.get("enabled", True) is not True for item in candidates):
+        return "disabled_template"
+    if len(candidates) > 1:
+        return "ambiguous_template_anchors"
+    return None
+
+
 def resolve_page_template(stem: str, lines: list[dict], family: str,
                           templates_dir: Path = TEMPLATES_DIR,
                           extra_anchor_lines: list[dict] | None = None) -> tuple[str, str, dict | None]:
     """Route one image and select its template with the shared legacy page aliases."""
     page, source = route_page(stem, lines, family, templates_dir,
                               extra_anchor_lines=extra_anchor_lines)
+    if source in BLOCKED_PAGE_SOURCES:
+        return page, source, None
+    error = _selection_error(family, page, lines, templates_dir)
+    if error:
+        return page, error, None
     template = load_template(family, page, templates_dir, lines=lines)
     if template is None and source != "ambiguous_template_anchors" and (
                             (family == "DEMAG" and page in ("injection_metering", "monitor_curve"))
                              or (family == "TRD6" and page in ("injection_metering", "settings"))
                              or (family == "ARBURG" and page in ("injection_metering", "monitor_curve", "unknown"))):
+        error = _selection_error(family, "injection_metering", lines, templates_dir)
+        if error:
+            return page, error, None
         template = load_template(family, "injection_metering", templates_dir, lines=lines)
         if template is not None:
             page = "injection_metering"
+    if (template is not None and template.get("ui_family") == "TACT"
+            and template.get("page") == "injection_metering"):
+        texts = [line["text"] for line in lines]
+        # TACT5 PB/VSL cells contradict the legacy TACT BP/SD layout.
+        if all(_anchor_hits(anchor, texts) for anchor in ("PB1", "PB2", "PB3", "VSL2")):
+            return "unknown", "PAGE_BINDING_MISMATCH", None
+    if template is not None:
+        error = template_error(template)
+        if error:
+            return page, error, None
     return page, source, template

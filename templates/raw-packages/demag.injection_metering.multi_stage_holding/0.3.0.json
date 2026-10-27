@@ -1,0 +1,1010 @@
+{
+  "legacy_package": {
+    "sha256": "eb2805600170250dbbc84f0aa646c867844c86654d4712e2fe12faa54b5d338e",
+    "version": "0.2.1"
+  },
+  "package_schema": "hmi_raw_page_package.v2",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "raw_contract": {
+    "$id": "urn:hmi:page_observations:v2",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "allOf": [
+      {
+        "else": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "image_sha256"
+                ]
+              },
+              {
+                "required": [
+                  "recognizer"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "actor": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "created_at": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string"
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              }
+            },
+            "revision": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "actor",
+            "created_at",
+            "revision"
+          ]
+        },
+        "if": {
+          "properties": {
+            "source": {
+              "const": "image_recognition"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "engine": {
+              "properties": {
+                "library": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "library",
+                "version"
+              ],
+              "type": "object"
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "image_recognition"
+                  }
+                }
+              }
+            },
+            "image_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "original_size": {
+              "items": {
+                "maximum": 100000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "image_sha256",
+            "original_size",
+            "raw_contract_sha256",
+            "recognizer",
+            "package_sha256",
+            "engine"
+          ]
+        }
+      }
+    ],
+    "properties": {
+      "fields": {
+        "items": {
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "bbox": {
+                    "type": "null"
+                  },
+                  "confidence": {
+                    "type": "null"
+                  },
+                  "original_bbox": {
+                    "type": "null"
+                  },
+                  "text": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "order": {
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "original_bbox": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "items": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                }
+              ]
+            },
+            "original_label": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "original_unit": {
+              "maxLength": 32,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "original_value": {
+              "maxLength": 2048,
+              "type": [
+                "number",
+                "string",
+                "boolean",
+                "null"
+              ]
+            },
+            "reading": {
+              "enum": [
+                "known",
+                "missing",
+                "uncertain",
+                "unsupported",
+                "conflict"
+              ]
+            },
+            "role": {
+              "enum": [
+                "setting",
+                "actual",
+                "unknown"
+              ]
+            },
+            "screen_field_key": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            "section": {
+              "maxLength": 160,
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "image_recognition",
+                "manual"
+              ]
+            },
+            "stage": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "state": {
+              "enum": [
+                "enabled",
+                "disabled",
+                "unknown"
+              ]
+            },
+            "zone_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zone_source": {
+              "enum": [
+                "nozzle",
+                "barrel",
+                "hot_runner",
+                "mold_fixed",
+                "mold_moving",
+                "mold_slide",
+                "other",
+                null
+              ]
+            }
+          },
+          "required": [
+            "screen_field_key",
+            "source",
+            "original_label",
+            "original_value",
+            "original_unit",
+            "role",
+            "state",
+            "reading",
+            "original_bbox"
+          ],
+          "type": "object"
+        },
+        "maxItems": 1000,
+        "type": "array"
+      },
+      "image_reference": {
+        "additionalProperties": false,
+        "properties": {
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "package_sha256": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "profile_id": {
+        "maxLength": 160,
+        "type": "string"
+      },
+      "raw_contract_sha256": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "raw_field_definition_sha256": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "recognizer": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sha256",
+          "files"
+        ],
+        "type": "object"
+      },
+      "schema_version": {
+        "const": "page_observations.v2"
+      },
+      "source": {
+        "enum": [
+          "image_recognition",
+          "manual"
+        ]
+      }
+    },
+    "required": [
+      "schema_version",
+      "source",
+      "profile_id",
+      "fields",
+      "raw_field_definition_sha256"
+    ],
+    "title": "Pure original-screen observations",
+    "type": "object"
+  },
+  "raw_contract_sha256": "199b61caa60c60e3e5984c8e99034d0a7d9d06e820d3c1a6b90cae899f6215f6",
+  "raw_field_definition": {
+    "coordinate_space": "normalized_rectified",
+    "fields": [
+      {
+        "label": "速度",
+        "label_region": [
+          0.15,
+          0.566,
+          0.35,
+          0.616
+        ],
+        "legacy_key": "stage_holding_velocity_mms",
+        "order": 4,
+        "region": [
+          0.827,
+          0.566,
+          0.883,
+          0.606
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.velocity.stage-1",
+        "section": "holding",
+        "segment_id": "holding-stage-1",
+        "stage": 1,
+        "state_evidence": "cell_brightness",
+        "unit": "mm/s",
+        "value_type": "number"
+      },
+      {
+        "label": "速度",
+        "label_region": [
+          0.15,
+          0.566,
+          0.35,
+          0.616
+        ],
+        "legacy_key": "stage_holding_velocity_mms",
+        "order": 3,
+        "region": [
+          0.7669999999999999,
+          0.566,
+          0.823,
+          0.606
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.velocity.stage-2",
+        "section": "holding",
+        "segment_id": "holding-stage-2",
+        "stage": 2,
+        "state_evidence": "cell_brightness",
+        "unit": "mm/s",
+        "value_type": "number"
+      },
+      {
+        "label": "速度",
+        "label_region": [
+          0.15,
+          0.566,
+          0.35,
+          0.616
+        ],
+        "legacy_key": "stage_holding_velocity_mms",
+        "order": 2,
+        "region": [
+          0.707,
+          0.566,
+          0.763,
+          0.606
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.velocity.stage-3",
+        "section": "holding",
+        "segment_id": "holding-stage-3",
+        "stage": 3,
+        "state_evidence": "cell_brightness",
+        "unit": "mm/s",
+        "value_type": "number"
+      },
+      {
+        "label": "速度",
+        "label_region": [
+          0.15,
+          0.566,
+          0.35,
+          0.616
+        ],
+        "legacy_key": "stage_holding_velocity_mms",
+        "order": 1,
+        "region": [
+          0.647,
+          0.566,
+          0.7030000000000001,
+          0.606
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.velocity.stage-4",
+        "section": "holding",
+        "segment_id": "holding-stage-4",
+        "stage": 4,
+        "state_evidence": "cell_brightness",
+        "unit": "mm/s",
+        "value_type": "number"
+      },
+      {
+        "label": "压力",
+        "label_region": [
+          0.15,
+          0.612,
+          0.35,
+          0.662
+        ],
+        "legacy_key": "stage_holding_pressure_bar",
+        "order": 4,
+        "region": [
+          0.827,
+          0.612,
+          0.883,
+          0.652
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.pressure.stage-1",
+        "section": "holding",
+        "segment_id": "holding-stage-1",
+        "stage": 1,
+        "state_evidence": "cell_brightness",
+        "unit": "bar",
+        "value_type": "number"
+      },
+      {
+        "label": "压力",
+        "label_region": [
+          0.15,
+          0.612,
+          0.35,
+          0.662
+        ],
+        "legacy_key": "stage_holding_pressure_bar",
+        "order": 3,
+        "region": [
+          0.7669999999999999,
+          0.612,
+          0.823,
+          0.652
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.pressure.stage-2",
+        "section": "holding",
+        "segment_id": "holding-stage-2",
+        "stage": 2,
+        "state_evidence": "cell_brightness",
+        "unit": "bar",
+        "value_type": "number"
+      },
+      {
+        "label": "压力",
+        "label_region": [
+          0.15,
+          0.612,
+          0.35,
+          0.662
+        ],
+        "legacy_key": "stage_holding_pressure_bar",
+        "order": 2,
+        "region": [
+          0.707,
+          0.612,
+          0.763,
+          0.652
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.pressure.stage-3",
+        "section": "holding",
+        "segment_id": "holding-stage-3",
+        "stage": 3,
+        "state_evidence": "cell_brightness",
+        "unit": "bar",
+        "value_type": "number"
+      },
+      {
+        "label": "压力",
+        "label_region": [
+          0.15,
+          0.612,
+          0.35,
+          0.662
+        ],
+        "legacy_key": "stage_holding_pressure_bar",
+        "order": 1,
+        "region": [
+          0.647,
+          0.612,
+          0.7030000000000001,
+          0.652
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.pressure.stage-4",
+        "section": "holding",
+        "segment_id": "holding-stage-4",
+        "stage": 4,
+        "state_evidence": "cell_brightness",
+        "unit": "bar",
+        "value_type": "number"
+      },
+      {
+        "label": "时间",
+        "label_region": [
+          0.15,
+          0.66,
+          0.35,
+          0.7100000000000001
+        ],
+        "legacy_key": "stage_holding_time_s",
+        "order": 3,
+        "region": [
+          0.765,
+          0.66,
+          0.8210000000000001,
+          0.7000000000000001
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.duration.stage-1",
+        "section": "holding",
+        "segment_id": "holding-stage-1",
+        "stage": 1,
+        "state_evidence": "cell_brightness",
+        "unit": "s",
+        "value_type": "number"
+      },
+      {
+        "label": "时间",
+        "label_region": [
+          0.15,
+          0.66,
+          0.35,
+          0.7100000000000001
+        ],
+        "legacy_key": "stage_holding_time_s",
+        "order": 2,
+        "region": [
+          0.7050000000000001,
+          0.66,
+          0.7610000000000001,
+          0.7000000000000001
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.duration.stage-2",
+        "section": "holding",
+        "segment_id": "holding-stage-2",
+        "stage": 2,
+        "state_evidence": "cell_brightness",
+        "unit": "s",
+        "value_type": "number"
+      },
+      {
+        "label": "时间",
+        "label_region": [
+          0.15,
+          0.66,
+          0.35,
+          0.7100000000000001
+        ],
+        "legacy_key": "stage_holding_time_s",
+        "order": 1,
+        "region": [
+          0.645,
+          0.66,
+          0.7010000000000001,
+          0.7000000000000001
+        ],
+        "role": "setting",
+        "screen_field_key": "holding.duration.stage-3",
+        "section": "holding",
+        "segment_id": "holding-stage-3",
+        "stage": 3,
+        "state_evidence": "cell_brightness",
+        "unit": "s",
+        "value_type": "number"
+      },
+      {
+        "label": "实际切换",
+        "label_region": [
+          0,
+          0.035,
+          0.13,
+          0.07500000000000001
+        ],
+        "region": [
+          0,
+          0.07500000000000001,
+          0.12,
+          0.125
+        ],
+        "role": "actual",
+        "screen_field_key": "actual.switch_pressure",
+        "section": "actual",
+        "unit": "bar",
+        "value_type": "number"
+      },
+      {
+        "label": "保压",
+        "label_region": [
+          0,
+          0.13,
+          0.13,
+          0.17
+        ],
+        "region": [
+          0,
+          0.17,
+          0.12,
+          0.22
+        ],
+        "role": "actual",
+        "screen_field_key": "actual.holding_pressure",
+        "section": "actual",
+        "unit": "bar",
+        "value_type": "number"
+      },
+      {
+        "label": "位置",
+        "label_region": [
+          0,
+          0.22499999999999998,
+          0.13,
+          0.26499999999999996
+        ],
+        "region": [
+          0,
+          0.26499999999999996,
+          0.12,
+          0.315
+        ],
+        "role": "actual",
+        "screen_field_key": "actual.position",
+        "section": "actual",
+        "unit": "mm",
+        "value_type": "number"
+      },
+      {
+        "label": "余料量",
+        "label_region": [
+          0,
+          0.315,
+          0.13,
+          0.355
+        ],
+        "region": [
+          0,
+          0.355,
+          0.12,
+          0.405
+        ],
+        "role": "actual",
+        "screen_field_key": "actual.cushion",
+        "section": "actual",
+        "unit": "mm",
+        "value_type": "number"
+      },
+      {
+        "label": "曲线时间范围",
+        "region": [
+          0.15,
+          0.52,
+          0.25,
+          0.56
+        ],
+        "role": "unknown",
+        "screen_field_key": "chart.time_extent",
+        "section": "chart",
+        "unit": "s",
+        "value_type": "number"
+      },
+      {
+        "label": null,
+        "region": [
+          0.73,
+          0.85,
+          0.79,
+          0.89
+        ],
+        "role": "unknown",
+        "screen_field_key": "status.left_displacement",
+        "section": "status",
+        "semantic_status": "unverified",
+        "unit": "mm",
+        "value_type": "number"
+      },
+      {
+        "label": null,
+        "region": [
+          0.8,
+          0.85,
+          0.87,
+          0.89
+        ],
+        "role": "unknown",
+        "screen_field_key": "status.middle_displacement",
+        "section": "status",
+        "semantic_status": "unverified",
+        "unit": "mm",
+        "value_type": "number"
+      },
+      {
+        "label": null,
+        "region": [
+          0.89,
+          0.85,
+          0.96,
+          0.89
+        ],
+        "role": "unknown",
+        "screen_field_key": "status.right_displacement",
+        "section": "status",
+        "semantic_status": "unverified",
+        "unit": "mm",
+        "value_type": "number"
+      },
+      {
+        "label": null,
+        "region": [
+          0.49,
+          0.885,
+          0.56,
+          0.92
+        ],
+        "role": "unknown",
+        "screen_field_key": "status.integer_display",
+        "section": "status",
+        "semantic_status": "unverified",
+        "unit": null,
+        "value_type": "number"
+      },
+      {
+        "label": null,
+        "region": [
+          0.61,
+          0.885,
+          0.67,
+          0.92
+        ],
+        "role": "unknown",
+        "screen_field_key": "status.duration_display",
+        "section": "status",
+        "semantic_status": "unverified",
+        "unit": "s",
+        "value_type": "number"
+      },
+      {
+        "label": "曲线时间原点",
+        "region": [
+          0.895,
+          0.51,
+          0.94,
+          0.55
+        ],
+        "role": "unknown",
+        "screen_field_key": "chart.time_origin",
+        "section": "chart",
+        "unit": "s",
+        "value_type": "number"
+      },
+      {
+        "label": null,
+        "reading_support": "unsupported",
+        "region": [
+          0.77,
+          0.71,
+          0.8,
+          0.76
+        ],
+        "role": "unknown",
+        "screen_field_key": "holding.transition-1.enabled",
+        "section": "holding",
+        "semantic_status": "unverified",
+        "stage": 1,
+        "unit": null,
+        "value_type": "boolean"
+      },
+      {
+        "label": null,
+        "reading_support": "unsupported",
+        "region": [
+          0.71,
+          0.71,
+          0.74,
+          0.76
+        ],
+        "role": "unknown",
+        "screen_field_key": "holding.transition-2.enabled",
+        "section": "holding",
+        "semantic_status": "unverified",
+        "stage": 2,
+        "unit": null,
+        "value_type": "boolean"
+      },
+      {
+        "label": null,
+        "reading_support": "unsupported",
+        "region": [
+          0.65,
+          0.71,
+          0.68,
+          0.76
+        ],
+        "role": "unknown",
+        "screen_field_key": "holding.transition-3.enabled",
+        "section": "holding",
+        "semantic_status": "unverified",
+        "stage": 3,
+        "unit": null,
+        "value_type": "boolean"
+      },
+      {
+        "label": null,
+        "reading_support": "unsupported",
+        "region": [
+          0.91,
+          0.79,
+          0.95,
+          0.84
+        ],
+        "role": "unknown",
+        "screen_field_key": "holding.multistage_velocity.enabled",
+        "section": "holding",
+        "semantic_status": "unverified",
+        "stage": null,
+        "unit": null,
+        "value_type": "boolean"
+      },
+      {
+        "label": null,
+        "reading_support": "unsupported",
+        "region": [
+          0.92,
+          0.875,
+          0.95,
+          0.91
+        ],
+        "role": "unknown",
+        "screen_field_key": "status.unlabelled_checkbox",
+        "section": "status",
+        "semantic_status": "unverified",
+        "stage": null,
+        "unit": null,
+        "value_type": "boolean"
+      }
+    ],
+    "issues": [
+      {
+        "code": "CONTROLLER_METADATA_UNVERIFIED"
+      },
+      {
+        "code": "STATE_TRUTH_CONFLICT",
+        "reason": "Aug 5 says third zero disabled; Aug 6 explicitly says ab30f6f6 light zero enabled. Preserve unknown until page-specific arbitration.",
+        "screen_field_key": "holding.pressure.stage-3",
+        "sources": [
+          "ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json",
+          "ground_truth/demag_holding/holding_Z002_barspez_65f50de2.truth.json"
+        ]
+      }
+    ],
+    "page_identity": {
+      "brand": "DEMAG",
+      "controller_family": null,
+      "interface_generation": null,
+      "layout_variant": "multi_stage_holding",
+      "metadata_status": "controller_unverified",
+      "page_type": "injection_metering",
+      "page_version": "1"
+    },
+    "profile_id": "demag.injection_metering.multi_stage_holding",
+    "schema_version": "raw_field_definition.v2",
+    "scope": "All numeric readouts and checkbox controls on the original page. Plotted curves, navigation buttons and decorative icons are retained in the original image and OCR evidence. No process conversion or business destinations.",
+    "version": "0.3.0"
+  },
+  "raw_field_definition_sha256": "b0a574430a5c8e7fba72eebe534c9f0a1f4c0b29741205621fecd168166c7307",
+  "recognizer": {
+    "files": {
+      "scripts/extract_families/coordinates.py": "e3ebf166c6df86558e7263ed00475033290ecf3d74b0810e1c97d8aa9154cbe6",
+      "scripts/extract_families/demag/curve.py": "d99aaaf8d798add8fc0e77c64b1d7909b2c7c91b2ce916c1c2c47f50f292c719",
+      "scripts/quality.py": "e23e40b68a3a8e77d5179bcfeadcffed241760c6757175b940b6a065a09015dd",
+      "scripts/raw_contract.py": "e8779010a89518fa791a164029f06e0c6a027ebc7e99b9b7cc38fe1fced847a8",
+      "scripts/raw_page.py": "017e67a22ab000c0e518baa33e3cdc50ec1cc6596f588d2c56f7ba005d6f28a4",
+      "scripts/raw_page_ocr.py": "53fec475c5d78e7994e7f33369abf945f2ae61ecbca0e6f76347ba97c1b4a24b"
+    },
+    "id": "demag_holding_numeric.v2",
+    "sha256": "5f71eede811ac8ff981e6de584da0b3e25da8600e3cb6fd95370c98b9554b3f5"
+  },
+  "samples": [
+    {
+      "full_page_transcription": {
+        "independent": false,
+        "source": "R01 implementer visual audit of repository original, 2026-10-18",
+        "state_arbitration": "Third pressure state remains unknown because the dated source rulings conflict. No updated human ruling is invented.",
+        "uncertain_ocr": [
+          "status.middle_displacement"
+        ],
+        "unsupported_readings": [
+          "checkbox controls"
+        ],
+        "unverified_semantics": [
+          "status.*",
+          "chart.*",
+          "controller_family",
+          "interface_generation"
+        ],
+        "values": {
+          "actual.cushion": 12.52,
+          "actual.holding_pressure": 53.1,
+          "actual.position": 12.52,
+          "actual.switch_pressure": 38,
+          "chart.time_extent": 5,
+          "chart.time_origin": 0,
+          "holding.duration.stage-1": 2,
+          "holding.duration.stage-2": 3,
+          "holding.duration.stage-3": 0,
+          "holding.pressure.stage-1": 65,
+          "holding.pressure.stage-2": 50,
+          "holding.pressure.stage-3": 0,
+          "holding.pressure.stage-4": 0,
+          "holding.velocity.stage-1": 15,
+          "holding.velocity.stage-2": 10,
+          "holding.velocity.stage-3": 5,
+          "holding.velocity.stage-4": 0,
+          "status.duration_display": 0.456,
+          "status.integer_display": 15070717,
+          "status.left_displacement": 0,
+          "status.middle_displacement": -0.52,
+          "status.right_displacement": 12.52
+        }
+      },
+      "human_truth": {
+        "path": "ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json",
+        "scope": "holding pressure stages 1-3, duration stages 1-2, velocity stages 1-3; state of pressure stage 3 is disputed",
+        "sha256": "b2e3364d636067b5f0b19b1b19b4c1025afa6fb38dd376ca628d457a8bcf9755"
+      },
+      "original_path": "ground_truth/demag_holding/holding_Z002_ab30f6f6.jpeg",
+      "original_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+      "original_size": [
+        994,
+        650
+      ],
+      "purpose": "development_exposed_not_independent_test",
+      "sample_id": "Z002_ab30f6f6"
+    }
+  ],
+  "version": "0.3.0"
+}

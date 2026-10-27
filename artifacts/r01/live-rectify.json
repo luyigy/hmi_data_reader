@@ -1,0 +1,33 @@
+{
+  "filename": "holding_Z002_ab30f6f6.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      992.75732421875,
+      0.0
+    ],
+    [
+      992.75732421875,
+      648.5848388671875
+    ],
+    [
+      0.0,
+      648.5848388671875
+    ]
+  ],
+  "screen_size": [
+    1400,
+    914
+  ],
+  "original_size": [
+    994,
+    650
+  ],
+  "output_path": "/tmp/pytest-of-hello/pytest-2/r01-live0/holding_Z002_ab30f6f6.png",
+  "warnings": []
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "source_commit": "c5aa25a752d7912f114e30970c55b594346dd0f5",
+    "patch_sha256": "ad761f798a60af143260da52542d2b02e909139d36cde43f32858255f4dd1326",
+    "check": "git apply --check passed",
+    "application": "working files only; no Git metadata writes",
+    "integration_sha": null
+  },
+  {
+    "source_commit": "982ef2d021286ffff4e2e352af68b2efd6f0bf77",
+    "patch_sha256": "3cd89fa4c71266546584c72f05c77310ff89574e0a7b28ed96c0061f7a398f0d",
+    "check": "git apply --check passed",
+    "application": "working files only; no Git metadata writes",
+    "integration_sha": null
+  }
+]

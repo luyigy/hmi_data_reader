@@ -34,14 +34,15 @@ OBSERVATION_ONLY = {
 }
 
 
-def fanuc_page_observations(fields: dict, template: dict) -> dict:
+def fanuc_page_observations(fields: dict, template: dict, field_issues: dict | None = None) -> dict:
     candidate = template["business_profile_candidate"]
     aliases = candidate["possible_names"]
     units = candidate["field_units"]
     observations = []
 
     def add(field_id: str, alias_id: str, value):
-        if value is None:
+        issue = (field_issues or {}).get(SCALARS.get(field_id))
+        if value is None and issue is None:
             return
         section = field_id.split(".")[0]
         stage = int(field_id.rsplit(".", 1)[1]) if field_id.rsplit(".", 1)[-1].isdigit() else None
@@ -57,6 +58,14 @@ def fanuc_page_observations(fields: dict, template: dict) -> dict:
             line_indexes=[], reasons=["source_box_unavailable", "stage_state_unverified"]
             if stage else ["source_box_unavailable"],
         ))
+        if issue is not None:
+            candidates = issue["candidates"]
+            observations[-1].update(
+                reading=issue["reading"], text=" | ".join(t["text"] for t in candidates),
+                confidence=max((t.get("conf", 0.0) for t in candidates), default=0.0),
+                line_indexes=[t["line_index"] for t in candidates if "line_index" in t],
+                reasons=["source_box_unavailable", issue["reason"]],
+            )
 
     for prefix, source in FIELD_SOURCES.items():
         for number, value in enumerate(fields.get(source) or [], 1):

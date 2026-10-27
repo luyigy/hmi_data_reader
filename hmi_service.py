@@ -43,6 +43,8 @@ from quality import THRESHOLD_PERSPECTIVE, assess, measure_perspective
 from rectify import DEFAULT_MAX_SIZE, rectify
 from vlm_qwen import VlmError, draft_from_ocr
 from page_template_admin import router as page_template_router
+from extractor_capabilities import router as capabilities_router
+from page_template_registry import BLOCKED_PAGE_SOURCES
 
 # 083 S01 分辨率救援：提取失败时按此 max_size 重跑一轮矫正+OCR（见 run_attempt 调用处）
 RESCUE_MAX_SIZE = 4000
@@ -57,6 +59,7 @@ for k in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy",
 
 app = FastAPI(title="HMI GPU Recognition Service", version="1.0.0")
 app.include_router(page_template_router)
+app.include_router(capabilities_router)
 cors_origins = [origin.strip() for origin in os.getenv("HMI_CORS_ORIGINS", "*").split(",")
                 if origin.strip()]
 app.add_middleware(
@@ -72,7 +75,7 @@ async def authenticate_recognition(request: Request, call_next):
     """Optional shared Bearer token; unset HMI_API_KEY keeps current open behavior."""
     expected = os.getenv("HMI_API_KEY", "").strip()
     protected = request.url.path in ("/api/v1/recognize", "/recognize", "/api/v1/draft") or (
-        request.method == "GET" and request.url.path.startswith("/api/v1/page-templates"))
+        request.method == "GET" and request.url.path.startswith(("/api/v1/page-templates", "/api/v1/capabilities")))
     if expected and protected:
         supplied = request.headers.get("authorization", "")
         if not supplied.startswith("Bearer ") or not hmac.compare_digest(
@@ -139,7 +142,16 @@ async def readiness_check():
 
 @app.post("/api/v1/recognize")
 @app.post("/recognize")
-async def recognize_image(file: UploadFile = File(...), include_review_image: bool = False):
+async def recognize_image(file: UploadFile = File(...), include_review_image: bool = False,
+                          observations_version: str = "v1", controller_hint: str | None = None):
+    if controller_hint is not None:
+        from controller_binding import parse_hint
+        try:
+            controller_hint = parse_hint(controller_hint)
+        except (ValueError, TypeError):
+            raise HTTPException(422, detail={"code": "CONTROLLER_HINT_INVALID"}) from None
+    if observations_version not in ("v1", "v2"):
+        raise HTTPException(status_code=422, detail="OBSERVATIONS_VERSION_UNSUPPORTED")
     if not is_ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -346,7 +358,8 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 # 6. 字段提取
                 record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
                 machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
-                extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates")
+                extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates",
+                                          controller_hint=controller_hint)
                 if (extract_res.get("profile_id") == "tact5.process_settings.injection_holding_metering"
                         and rr.get("ok")):
                     try:
@@ -377,7 +390,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                         ocr_data["line_count"] = len(lines)
                         ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
                         extract_res = extract_one(stem, rect_dir, record_report,
-                                                  machine_labels, HERE / "templates")
+                                                  machine_labels, HERE / "templates", controller_hint=controller_hint)
                 # 6b. 083 S03 温度表逐格重读救援：B&R/DEMAG 温度页缺格/列结构失败时，
                 # 按实测网格逐格 rec 重读生成旁车（ocr_tcells）后重提取一次；
                 # 仅缺格变少才采用，网格实测失败不生成旁车、保持原结果。
@@ -397,7 +410,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                             measured=extract_res.get("extraction_detail"))
                         if n_cells:
                             ext2 = extract_one(stem, rect_dir, record_report,
-                                               machine_labels, HERE / "templates")
+                                               machine_labels, HERE / "templates", controller_hint=controller_hint)
                             if cell_rescue_better(extract_res, ext2):
                                 ext2.setdefault("warnings", []).append(
                                     f"CELL_GRID_RESCUE({n_cells})")
@@ -416,6 +429,8 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 return cls_res, extract_res, {
                     **review_image,
                     "_rectify_meta": rr,
+                    **({"_raw_gray": cv2.imread(str(ocr_target), cv2.IMREAD_GRAYSCALE)}
+                       if observations_version == "v2" else {}),
                     "model": ocr_data["model"],
                     "screen_size": rr["screen_size"],
                     "lines": [{
@@ -428,7 +443,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
 
             cls_res, extract_res, ocr_evidence = run_attempt(DEFAULT_MAX_SIZE)
             if extract_res.get("fields") is None and not any(
-                    "NO_TEMPLATE" in w or "RECTIF" in w
+                    "NO_TEMPLATE" in w or "RECTIF" in w or w in BLOCKED_PAGE_SOURCES.values()
                     for w in extract_res.get("warnings", [])):
                 # 083 S01 分辨率救援：提取失败（非路由/模板缺失）时以更高 max_size
                 # 重跑一轮——4K 原图经 2000 长边封顶后小字表格（B&R 灰底温度表等）
@@ -444,6 +459,38 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             review_image = ocr_evidence.pop("_review_image", None)
             rectify_meta = ocr_evidence.pop("_rectify_meta", {})
             page_observations = (extract_res.get("extraction_detail") or {}).get("page_observations")
+            if observations_version == "v2":
+                import hashlib
+                from raw_observations import (observe_temperature_time_page, select_raw_profile,
+                                              recover_temperature_time_cells, DEFINITIONS, RawPageRejected,
+                                              VERSIONED_RECOVERY)
+                from raw_page_ocr import engine_identity, recover_raw_cells
+                try:
+                    raw_profile = select_raw_profile(extract_res.get("profile_id"), ocr_evidence["lines"])
+                except ValueError:
+                    reason = next((warning for warning in extract_res.get("warnings", [])
+                                   if warning in BLOCKED_PAGE_SOURCES.values()), "RAW_PAGE_UNSUPPORTED")
+                    raise HTTPException(status_code=422, detail={"code": reason,
+                                                                "profile_id": extract_res.get("profile_id")})
+                raw_gray = ocr_evidence.pop("_raw_gray", None)
+                if extract_res.get("profile_id") == "demag.injection_metering.multi_stage_holding" and raw_gray is not None:
+                    ocr_evidence["lines"] = recover_raw_cells(ocr_model, raw_gray, rectify_meta,
+                                                            ocr_evidence["lines"])
+                if raw_profile in DEFINITIONS and raw_gray is not None:
+                    ocr_evidence["lines"] = recover_temperature_time_cells(
+                        ocr_model, raw_gray, rectify_meta, ocr_evidence["lines"], raw_profile)
+                recovery = VERSIONED_RECOVERY.get((raw_profile, extract_res.get("template_version", "1.0.0")))
+                if recovery is not None and raw_gray is not None:
+                    ocr_evidence["lines"] = recovery(ocr_model, raw_gray, rectify_meta, ocr_evidence["lines"])
+                try:
+                    page_observations = observe_temperature_time_page(
+                        raw_profile, ocr_evidence["lines"], rectify_meta,
+                        hashlib.sha256(content).hexdigest(),
+                        raw_gray, package_root=HERE,
+                        package_version=extract_res.get("template_version", "1.0.0"))
+                except RawPageRejected as exc:
+                    raise HTTPException(status_code=422, detail=exc.detail) from exc
+                page_observations["engine"] = engine_identity(ocr_model)
             if page_observations and page_observations.get("fields"):
                 from extract_families.tact5_process import project_boxes
                 project_boxes(page_observations["fields"], rectify_meta)
@@ -487,6 +534,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                     "page_confidence": cls_res.get("page_confidence"),
                 },
                 "fields": extract_res.get("fields", {}),
+                "compatibility": extract_res.get("compatibility"),
                 "hmi_variant": extract_res.get("hmi_variant"),
                 # 039_FIX：模板指纹兜底解析出的家族/页面（classify_ui 关键词表之外的家族
                 # 如 EST）必须透出，否则响应里只剩 classification 的 unknown，Web 门禁误杀。

@@ -1,0 +1,444 @@
+{
+  "version": "0.2.1",
+  "profile_id": "tact5.process_settings.injection_holding_metering",
+  "ui_family": "TACT5",
+  "page": "process_settings",
+  "layout_variant": "injection_holding_metering",
+  "coordinate_system": "rectified_pixels",
+  "source": "Z077/Z078 nissei-tact5-20260926；人工确认 TACT5；开发样本，非独立验收",
+  "route_families": [
+    "TACT",
+    "TACT5",
+    "unknown"
+  ],
+  "layout_anchors": [
+    "VSL1",
+    "Pp1",
+    "SM",
+    "计量前",
+    "计量后"
+  ],
+  "stage_limits": {
+    "injection": 6,
+    "holding": 3,
+    "plasticizing": 3
+  },
+  "enum_labels": {
+    "V-P转换": {
+      "label": "V-P转换方式",
+      "values": [
+        "位置",
+        "时间",
+        "压力"
+      ],
+      "direction": "right"
+    },
+    "V-P切换应答": {
+      "label": "V-P切换应答",
+      "values": [
+        "高应答",
+        "低应答"
+      ]
+    },
+    "手动背压": {
+      "label": "手动背压",
+      "values": [
+        "ON",
+        "OFF"
+      ]
+    }
+  },
+  "field_labels": {
+    "V1": {
+      "section": "injection",
+      "stage": 1,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V2": {
+      "section": "injection",
+      "stage": 2,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V3": {
+      "section": "injection",
+      "stage": 3,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V4": {
+      "section": "injection",
+      "stage": 4,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V5": {
+      "section": "injection",
+      "stage": 5,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V6": {
+      "section": "injection",
+      "stage": 6,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "Sv1": {
+      "section": "injection",
+      "stage": 1,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv2": {
+      "section": "injection",
+      "stage": 2,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv3": {
+      "section": "injection",
+      "stage": 3,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv4": {
+      "section": "injection",
+      "stage": 4,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv5": {
+      "section": "injection",
+      "stage": 5,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Pp1": {
+      "section": "holding",
+      "stage": 1,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pp2": {
+      "section": "holding",
+      "stage": 2,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pp3": {
+      "section": "holding",
+      "stage": 3,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Tp1": {
+      "section": "holding",
+      "stage": 1,
+      "direction": "below",
+      "unit": "s"
+    },
+    "Tp2": {
+      "section": "holding",
+      "stage": 2,
+      "direction": "below",
+      "unit": "s"
+    },
+    "VS1": {
+      "section": "plasticizing",
+      "stage": 1,
+      "direction": "below",
+      "unit": "rpm"
+    },
+    "VS2": {
+      "section": "plasticizing",
+      "stage": 2,
+      "direction": "below",
+      "unit": "rpm"
+    },
+    "VS3": {
+      "section": "plasticizing",
+      "stage": 3,
+      "direction": "below",
+      "unit": "rpm"
+    },
+    "PB1": {
+      "section": "plasticizing",
+      "stage": 1,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "PB2": {
+      "section": "plasticizing",
+      "stage": 2,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "PB3": {
+      "section": "plasticizing",
+      "stage": 3,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "VSL1": {
+      "section": "plasticizing",
+      "stage": 1,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "VSL2": {
+      "section": "plasticizing",
+      "stage": 2,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Pv1": {
+      "section": "pressure",
+      "stage": 1,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pv2": {
+      "section": "pressure",
+      "stage": 2,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pv3": {
+      "section": "pressure",
+      "stage": 3,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "SM": {
+      "section": "scalar",
+      "direction": "below",
+      "unit": "mm",
+      "role": "setting"
+    },
+    "LV": {
+      "section": "scalar",
+      "direction": "below",
+      "unit": "mm/s",
+      "role": "setting"
+    },
+    "射出": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting"
+    },
+    "冷却": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting"
+    },
+    "中间": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting"
+    },
+    "螺杆位置": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "mm",
+      "role": "actual"
+    },
+    "树脂压力": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "MPa",
+      "role": "actual"
+    },
+    "旋转速度": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "rpm",
+      "role": "actual"
+    },
+    "充填过量防止": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting",
+      "label": "充填过量防止时间"
+    },
+    "位置": {
+      "section": "scalar",
+      "direction": "below",
+      "unit": "mm",
+      "role": "setting",
+      "label": "VP转换位置"
+    }
+  },
+  "page_version": "1",
+  "rule_version": "s05.1",
+  "sample_ids": [
+    "Z078_20260910_shebao"
+  ],
+  "business_profile_candidate": {
+    "page_id": "tact5.process_settings.injection_holding_metering",
+    "legacy_page_ids": [
+      "nissei.tact5"
+    ],
+    "page_version": "1",
+    "rule_version": "s05.1",
+    "algorithm": "protocol_replay_v1",
+    "decision_source": "docs/dev/499_PLAN_20261005_机台字段映射三阶段总计划.md",
+    "verification_status": "contract_confirmed_synthetic_only",
+    "controller": "NISSEI_TACT5",
+    "page_kind": "process_settings",
+    "structural_markers": [
+      "Pp",
+      "SM"
+    ],
+    "speed_unit": "mm/s",
+    "pressure_basis": "plastic_pressure",
+    "holding_time_meaning": "segment_duration",
+    "derive_last_holding_time": true,
+    "last_holding_time_disabled": true,
+    "post_suck_back": {
+      "enabled": true,
+      "value_meaning": "distance",
+      "reference_origin": "metering_end",
+      "direction": "away_from_cavity"
+    },
+    "pre_suck_back": {
+      "enabled": true,
+      "value_meaning": "distance",
+      "reference_origin": "metering_end",
+      "direction": "away_from_cavity"
+    },
+    "field_units": {
+      "plasticizing.speed.{n}": "rpm",
+      "plasticizing.pressure.{n}": "MPa",
+      "plasticizing.end.{n}": "mm",
+      "metering.end": "mm",
+      "vp.position": "mm",
+      "retract.pre.distance": "mm",
+      "retract.pre.speed": "mm/s",
+      "retract.post.distance": "mm",
+      "retract.post.speed": "mm/s",
+      "injection.speed.{n}": "mm/s",
+      "injection.end.{n}": "mm",
+      "holding.pressure.{n}": "MPa",
+      "holding.time.{n}": "s",
+      "holding.speed.shared": "mm/s",
+      "injection.pressure.shared": "MPa",
+      "cooling.time": "s",
+      "total.injection.time": "s",
+      "actual.filling.time": "s"
+    },
+    "possible_names": {
+      "plasticizing.speed.{n}": [
+        "熔胶转速{n}",
+        "VS{n}"
+      ],
+      "plasticizing.pressure.{n}": [
+        "熔胶背压{n}",
+        "PB{n}",
+        "BP{n}"
+      ],
+      "plasticizing.end.{n}": [
+        "熔胶终点{n}",
+        "VSL{n}"
+      ],
+      "metering.end": [
+        "SM",
+        "计量结束位置"
+      ],
+      "vp.position": [
+        "VP转换位置",
+        "转保压位置"
+      ],
+      "retract.pre.distance": [
+        "押出前抽胶",
+        "计量前距离",
+        "计量前位置",
+        "前抽距离",
+        "减压"
+      ],
+      "retract.pre.speed": [
+        "计量前速度",
+        "前抽速度"
+      ],
+      "retract.post.distance": [
+        "押出后抽胶",
+        "计量后距离",
+        "计量后位置",
+        "后抽"
+      ],
+      "retract.post.speed": [
+        "计量后速度",
+        "后抽速度",
+        "松退速度"
+      ],
+      "injection.speed.{n}": [
+        "V{n}",
+        "射胶速度{n}"
+      ],
+      "injection.end.{n}": [
+        "Sv{n}",
+        "射胶终点{n}"
+      ],
+      "holding.pressure.{n}": [
+        "Pp{n}",
+        "保压压力{n}"
+      ],
+      "holding.time.{n}": [
+        "Tp{n}",
+        "保压时间{n}"
+      ],
+      "holding.speed.shared": [
+        "LV",
+        "保压限速"
+      ],
+      "injection.pressure.shared": [
+        "射胶限压",
+        "Pv1",
+        "限制压力"
+      ],
+      "cooling.time": [
+        "冷却",
+        "冷却时间"
+      ],
+      "total.injection.time": [
+        "总射出时间",
+        "射出"
+      ],
+      "actual.filling.time": [
+        "实际充填时间"
+      ]
+    },
+    "field_write_review": {
+      "plasticizing.speed.{n}": "validate_in_main",
+      "plasticizing.pressure.{n}": "validate_in_main",
+      "plasticizing.end.{n}": "validate_in_main",
+      "metering.end": "validate_in_main",
+      "vp.position": "validate_in_main",
+      "retract.pre.distance": "validate_in_main",
+      "retract.pre.speed": "validate_in_main",
+      "retract.post.distance": "validate_in_main",
+      "retract.post.speed": "validate_in_main",
+      "injection.speed.{n}": "validate_in_main",
+      "injection.end.{n}": "validate_in_main",
+      "holding.pressure.{n}": "validate_in_main",
+      "holding.time.{n}": "validate_in_main",
+      "holding.speed.shared": "validate_in_main",
+      "injection.pressure.shared": "validate_in_main",
+      "cooling.time": "validate_in_main",
+      "total.injection.time": "validate_in_main",
+      "actual.filling.time": "observation_only",
+      "vp.switch.mode": "observation_only_until_main_target_exists",
+      "vp.switch.response": "observation_only_until_main_target_exists",
+      "plasticizing.manual_back_pressure": "observation_only_until_main_target_exists"
+    },
+    "migration_notes": [
+      "末段 VSL 灰显残值不写入；末段计量位置以 SM 为准。",
+      "射胶实际起点与熔胶实际终点 = SM + 计量前抽胶距离 + 计量后抽胶距离，各加一次。"
+    ]
+  }
+}

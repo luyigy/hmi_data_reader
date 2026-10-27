@@ -1,0 +1,309 @@
+{
+  "profile_id": "arburg.storage_cooling.selogica_two_stage",
+  "version": "1.0.0",
+  "page_identity": {
+    "brand": "ARBURG",
+    "controller_family": "SELOGICA",
+    "interface_generation": null,
+    "page_type": "storage_cooling",
+    "layout_variant": "selogica_two_stage"
+  },
+  "fields": [
+    {
+      "screen_field_key": "metering.speed.actual",
+      "label": "v",
+      "unit": "mm/s",
+      "role": "actual",
+      "section": "metering",
+      "region": [
+        0.34299999999999997,
+        0.74,
+        0.385,
+        0.786
+      ],
+      "unit_region": [
+        0.476,
+        0.74,
+        0.51,
+        0.786
+      ]
+    },
+    {
+      "screen_field_key": "metering.speed.stage-1",
+      "label": "v",
+      "unit": "mm/s",
+      "role": "setting",
+      "section": "metering",
+      "stage": 1,
+      "segment_id": "metering-1",
+      "order": 1,
+      "region": [
+        0.38899999999999996,
+        0.74,
+        0.431,
+        0.786
+      ],
+      "unit_region": [
+        0.476,
+        0.74,
+        0.51,
+        0.786
+      ]
+    },
+    {
+      "screen_field_key": "metering.speed.stage-2",
+      "label": "v",
+      "unit": "mm/s",
+      "role": "setting",
+      "section": "metering",
+      "stage": 2,
+      "segment_id": "metering-2",
+      "order": 2,
+      "region": [
+        0.435,
+        0.74,
+        0.47700000000000004,
+        0.786
+      ],
+      "unit_region": [
+        0.476,
+        0.74,
+        0.51,
+        0.786
+      ]
+    },
+    {
+      "screen_field_key": "metering.back_pressure.actual",
+      "label": "p",
+      "unit": "bar",
+      "role": "actual",
+      "section": "metering",
+      "region": [
+        0.34299999999999997,
+        0.7979999999999999,
+        0.385,
+        0.844
+      ],
+      "unit_region": [
+        0.476,
+        0.7979999999999999,
+        0.51,
+        0.844
+      ]
+    },
+    {
+      "screen_field_key": "metering.back_pressure.stage-1",
+      "label": "p",
+      "unit": "bar",
+      "role": "setting",
+      "section": "metering",
+      "stage": 1,
+      "segment_id": "metering-1",
+      "order": 1,
+      "region": [
+        0.38899999999999996,
+        0.7979999999999999,
+        0.431,
+        0.844
+      ],
+      "unit_region": [
+        0.476,
+        0.7979999999999999,
+        0.51,
+        0.844
+      ]
+    },
+    {
+      "screen_field_key": "metering.back_pressure.stage-2",
+      "label": "p",
+      "unit": "bar",
+      "role": "setting",
+      "section": "metering",
+      "stage": 2,
+      "segment_id": "metering-2",
+      "order": 2,
+      "region": [
+        0.435,
+        0.7979999999999999,
+        0.47700000000000004,
+        0.844
+      ],
+      "unit_region": [
+        0.476,
+        0.7979999999999999,
+        0.51,
+        0.844
+      ]
+    },
+    {
+      "screen_field_key": "metering.end_position.actual",
+      "label": "s",
+      "unit": "mm",
+      "role": "actual",
+      "section": "metering",
+      "region": [
+        0.34299999999999997,
+        0.855,
+        0.385,
+        0.901
+      ],
+      "unit_region": [
+        0.476,
+        0.855,
+        0.51,
+        0.901
+      ]
+    },
+    {
+      "screen_field_key": "metering.end_position.stage-1",
+      "label": "s",
+      "unit": "mm",
+      "role": "setting",
+      "section": "metering",
+      "stage": 1,
+      "segment_id": "metering-1",
+      "order": 1,
+      "region": [
+        0.38899999999999996,
+        0.855,
+        0.431,
+        0.901
+      ],
+      "unit_region": [
+        0.476,
+        0.855,
+        0.51,
+        0.901
+      ]
+    },
+    {
+      "screen_field_key": "metering.end_position.stage-2",
+      "label": "s",
+      "unit": "mm",
+      "role": "setting",
+      "section": "metering",
+      "stage": 2,
+      "segment_id": "metering-2",
+      "order": 2,
+      "region": [
+        0.435,
+        0.855,
+        0.47700000000000004,
+        0.901
+      ],
+      "unit_region": [
+        0.476,
+        0.855,
+        0.51,
+        0.901
+      ]
+    },
+    {
+      "screen_field_key": "decompression.speed",
+      "label": "v",
+      "unit": "mm/s",
+      "role": "setting",
+      "section": "decompression",
+      "region": [
+        0.576,
+        0.7969999999999999,
+        0.624,
+        0.847
+      ]
+    },
+    {
+      "screen_field_key": "decompression.distance",
+      "label": "s",
+      "unit": "mm",
+      "role": "setting",
+      "section": "decompression",
+      "region": [
+        0.576,
+        0.853,
+        0.624,
+        0.903
+      ]
+    },
+    {
+      "screen_field_key": "time.remaining_cooling",
+      "label": "剩余冷却时间",
+      "unit": "s",
+      "role": "unknown",
+      "section": "time",
+      "region": [
+        0.576,
+        0.302,
+        0.624,
+        0.35200000000000004
+      ],
+      "time_kind": "remaining_cooling"
+    },
+    {
+      "screen_field_key": "time.unlabeled_left",
+      "label": "时钟图标右侧",
+      "unit": "s",
+      "role": "unknown",
+      "section": "time",
+      "region": [
+        0.436,
+        0.373,
+        0.48400000000000004,
+        0.42300000000000004
+      ],
+      "time_kind": "unlabeled_left"
+    },
+    {
+      "screen_field_key": "time.unlabeled_right",
+      "label": "未标注时间",
+      "unit": "s",
+      "role": "unknown",
+      "section": "time",
+      "region": [
+        0.576,
+        0.373,
+        0.624,
+        0.42300000000000004
+      ],
+      "time_kind": "unlabeled_right"
+    },
+    {
+      "screen_field_key": "control.enable_icons",
+      "label": "图标启用状态",
+      "unit": null,
+      "role": "unknown",
+      "section": "control",
+      "region": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "reading_support": "unsupported"
+    }
+  ],
+  "samples": [
+    {
+      "sample_id": "development",
+      "image": "datasets/r6_arburg/development.jpg",
+      "image_sha256": "ae58e75cd7263a785e71693140081ba820ee094393ffb531d87ba51c5dffa32a",
+      "truth": "datasets/r6_arburg/development.truth.json",
+      "purpose": "development"
+    },
+    {
+      "sample_id": "retained",
+      "image": "datasets/r6_arburg/retained.jpg",
+      "image_sha256": "3f8a26b1109fd45f8699229a4b4339476a48a9bf59c02fa9532dfb7278c584d8",
+      "truth": "datasets/r6_arburg/retained.truth.json",
+      "purpose": "retained_regression_not_blind"
+    }
+  ],
+  "issues": [
+    {
+      "code": "ENABLE_STATE_UNVERIFIED"
+    },
+    {
+      "code": "TIME_ROLES_UNVERIFIED"
+    }
+  ],
+  "scope": "Two-stage feed table and post-feed decompression only. Graphs, icons, header sensors and footer duplicate readback are not decoded. No conversion to rpm or process cooling_time."
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "paths": [
+    "output/r01"
+  ],
+  "readOnlyPaths": [
+    "output/r01/input-materials",
+    "output/r01/MATERIALS_READY.md"
+  ]
+}

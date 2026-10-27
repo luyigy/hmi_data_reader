@@ -1,0 +1,373 @@
+{
+  "schema_version": "1.0",
+  "machine_type": "日精 NISSEI / TACT5（五代控制器）",
+  "page": "射出·计量",
+  "fields": {
+    "时间/射出": {
+      "value": 5.2,
+      "unit": "s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        6.0,
+        28.5,
+        16.2,
+        30.5
+      ]
+    },
+    "时间/冷却": {
+      "value": 8.0,
+      "unit": "s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        6.0,
+        31.0,
+        16.2,
+        32.9
+      ]
+    },
+    "时间/中间": {
+      "value": 0.5,
+      "unit": "s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        9.815,
+        32.708,
+        13.981,
+        34.115
+      ]
+    },
+    "充填/充填段数": {
+      "value": 3,
+      "unit": "段",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        2.5,
+        36.8,
+        9.0,
+        38.2
+      ]
+    },
+    "充填/V3": {
+      "value": 18.0,
+      "unit": "mm/s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        33.0,
+        36.1,
+        39.6,
+        37.7
+      ]
+    },
+    "充填/V2": {
+      "value": 125.0,
+      "unit": "mm/s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        40.1,
+        36.1,
+        46.8,
+        37.7
+      ]
+    },
+    "充填/V1": {
+      "value": 145.0,
+      "unit": "mm/s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        46.8,
+        36.1,
+        53.7,
+        37.7
+      ]
+    },
+    "充填/Sv2": {
+      "value": 18.0,
+      "unit": "mm",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        34.9,
+        38.6,
+        41.6,
+        40.1
+      ]
+    },
+    "充填/Sv1": {
+      "value": 25.0,
+      "unit": "mm",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        41.9,
+        38.6,
+        48.3,
+        40.1
+      ]
+    },
+    "充填/SM": {
+      "value": 40.0,
+      "unit": "mm",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        52.3,
+        38.3,
+        60.2,
+        40.6
+      ]
+    },
+    "V-P转换/方式": {
+      "value": "位置",
+      "unit": "1",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        17.0,
+        41.2,
+        25.7,
+        42.7
+      ]
+    },
+    "V-P转换/位置": {
+      "value": 13.0,
+      "unit": "mm",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        6.0,
+        44.1,
+        12.0,
+        45.5
+      ]
+    },
+    "限制压力/段数": {
+      "value": 1,
+      "unit": "段",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        26.8,
+        42.1,
+        34.5,
+        43.5
+      ]
+    },
+    "限制压力/Pv1": {
+      "value": 110.0,
+      "unit": "MPa",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        49.1,
+        41.4,
+        56.0,
+        43.6
+      ]
+    },
+    "保压/保压段数": {
+      "value": 2,
+      "unit": "段",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        6.0,
+        46.7,
+        11.2,
+        48.2
+      ]
+    },
+    "保压/Pp2": {
+      "value": 80.0,
+      "unit": "MPa",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        21.3,
+        46.5,
+        27.8,
+        48.0
+      ]
+    },
+    "保压/Pp1": {
+      "value": 85.0,
+      "unit": "MPa",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        27.9,
+        46.5,
+        34.5,
+        48.0
+      ]
+    },
+    "保压/Tp1": {
+      "value": 3.0,
+      "unit": "s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        25.3,
+        49.0,
+        31.8,
+        50.5
+      ]
+    },
+    "保压/LV": {
+      "value": 10.0,
+      "unit": "mm/s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        33.0,
+        49.0,
+        39.6,
+        50.5
+      ]
+    },
+    "V-P切换应答/应答": {
+      "value": "高应答",
+      "unit": "1",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        37.1,
+        46.8,
+        45.6,
+        48.2
+      ]
+    },
+    "计量/计量段数": {
+      "value": 1,
+      "unit": "段",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        65.833,
+        35.677,
+        67.037,
+        36.771
+      ]
+    },
+    "计量/VS1": {
+      "value": 165,
+      "unit": "rpm",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        63.611,
+        39.01,
+        67.037,
+        40.26
+      ]
+    },
+    "计量/PB1": {
+      "value": 5.0,
+      "unit": "MPa",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        63.889,
+        41.51,
+        67.222,
+        42.969
+      ]
+    },
+    "减压/计量前/速度": {
+      "value": 0.0,
+      "unit": "mm/s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        68.148,
+        48.073,
+        71.944,
+        49.375
+      ]
+    },
+    "减压/计量后/速度": {
+      "value": 30.0,
+      "unit": "mm/s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        73.148,
+        48.073,
+        77.222,
+        49.375
+      ]
+    },
+    "减压/计量前/距离": {
+      "value": 0.0,
+      "unit": "mm",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        67.5,
+        49.479,
+        71.944,
+        50.781
+      ]
+    },
+    "减压/计量后/距离": {
+      "value": 10.0,
+      "unit": "mm",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        72.222,
+        49.479,
+        77.222,
+        50.833
+      ]
+    },
+    "充填过量防止/时间": {
+      "value": 0.0,
+      "unit": "s",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        74.907,
+        51.25,
+        79.352,
+        52.5
+      ]
+    },
+    "手动背压/开关": {
+      "value": "OFF",
+      "unit": "1",
+      "kind": "other",
+      "unit_source": "image",
+      "bbox": [
+        6.7,
+        51.2,
+        15.2,
+        52.5
+      ]
+    },
+    "保压/末段有效时间（推导）": {
+      "value": null,
+      "unit": "s",
+      "kind": "other",
+      "unit_source": "user"
+    }
+  },
+  "observations": {
+    "layout": "TACT5 蓝色新 UI 射出·计量页（配方 TX23028-100度，斜拍）。监视值不采集。",
+    "order": "充填段号自右向左（V1 最右，绿色下划线为活动段）；保压 Pp1 最右；计量 VS/PB 左起。",
+    "holding_time": "按 先判断保压段数再算末段时间——两段：射出时间−实际充填时间−Tp1；灰显时间字段未启用、残留数字不作有效设定值；末段仍执行，其时间依赖缺失的实际充填时间，记未知。",
+    "position": "V-P 转换方式=位置，切换位置有专设框；Sv/SM 保留原标签原值。"
+  },
+  "uncertainties": [
+    "灰显未启用段不采集（字段已删），残留显示不作有效设定值：充填/V4~V6=18.0、充填/Sv4/Sv5=0.00、保压/Pp3=80.0、保压/Tp2=0.50、保压/RAMP Pp1=0.10、计量/VS2/VS3=165、计量/PB2/PB3=5.0、计量/VSL1=30.00、计量/VSL2=0.00、限制压力/Sp1/Sp2=0.00。",
+    "末段保压有效时间按段数推导：一段＝射出时间−实际充填时间，两段再减 Tp1，三段再减 Tp1+Tp2；本页未显示实际充填时间，记未知、不输出数值；灰显时间字段未启用不代表末段不执行。",
+    "VSL、Sp 字段含义未明确，字段已删。",
+    "灰显未启用段不采集（字段已删），残留显示不作有效设定值：限制压力/Pv2=110.0、限制压力/Pv3=110.0、充填/Sv3=20.0。"
+  ]
+}

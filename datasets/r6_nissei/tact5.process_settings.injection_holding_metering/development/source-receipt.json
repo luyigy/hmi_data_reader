@@ -1,0 +1,16 @@
+{
+  "repository": "/data1/code/mold-data-webpage-tool",
+  "commit": "f6a4c64e7dbd94431391e1018a1065df8221c75d",
+  "head_verified": "f6a4c64e7dbd94431391e1018a1065df8221c75d",
+  "untracked_paths": [
+    ".agent-platform/",
+    "contracts/hmi-reader/process-screen/"
+  ],
+  "method": "git show fixed commit; untracked work files not consumed",
+  "files": {
+    "original.jpg": "3f0cd45905b1b33b2f837b19f23003c26a563976bdde02988ef6ea4ddc18dc9d",
+    "manifest.json": "8f6c2cc8f7332c2e75f0fc3a93d6a689c3aa8f20b388e9d6ef3c531ca4a8e888",
+    "truth.json": "de9f3694d5bc578dbb88d55449eeee0276b270c432d5ade0e0d92ce8c427baf5",
+    "ocr_evidence.json": "52b70c87a50a5950673d679eabf5614a1b6818dc8817acb3aab58c9781f19e95"
+  }
+}

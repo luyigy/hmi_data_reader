@@ -1,0 +1,15 @@
+contracts/page_observations.v2.schema.json
+contracts/raw-pages/demag-holding-0.3.0.json
+contracts/raw-pages/demag-holding-sample.json
+docs/specs/hmi-protocol-library/raw-contract.md
+docs/specs/hmi-protocol-library/spec.md
+hmi_service.py
+scripts/export_page_package.py
+scripts/extract_fields.py
+scripts/raw_contract.py
+scripts/raw_page.py
+scripts/raw_page_ocr.py
+scripts/rectify.py
+templates/packages/demag.injection_metering.multi_stage_holding/0.2.1.json
+templates/raw-packages/demag.injection_metering.multi_stage_holding/0.3.0.json
+tests/test_hmi_protocol_library_r01.py

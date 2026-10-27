@@ -1,0 +1,33 @@
+{
+  "filename": "ae58e75cd7263a785e71693140081ba820ee094393ffb531d87ba51c5dffa32a.jpg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      265.0,
+      360.0
+    ],
+    [
+      3600.0,
+      530.0
+    ],
+    [
+      3580.0,
+      2240.0
+    ],
+    [
+      225.0,
+      2245.0
+    ]
+  ],
+  "screen_size": [
+    2000,
+    1074
+  ],
+  "original_size": [
+    4000,
+    3000
+  ],
+  "original_sha256": "ae58e75cd7263a785e71693140081ba820ee094393ffb531d87ba51c5dffa32a",
+  "warnings": []
+}

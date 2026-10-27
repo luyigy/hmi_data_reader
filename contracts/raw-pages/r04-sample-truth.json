@@ -1,0 +1,18 @@
+{
+  "provenance": {
+    "author": "implementation agent visual transcription",
+    "date": "2026-10-18",
+    "independent": false,
+    "warning": "Development evidence only; not human or independent acceptance truth."
+  },
+  "samples": [
+    {
+      "image_sha256": "bd716e77c9091650fc61b17785e47dc721dc25c8bb0e992a075508824e051f70",
+      "fields": {
+        "storage.pre_cooling.duration": 3.0,
+        "mold.cooling.duration": 10.0
+      },
+      "unit": "s"
+    }
+  ]
+}

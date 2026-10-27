@@ -1,0 +1,78 @@
+[
+  {
+    "target": "extractor_capabilities.py",
+    "new_file": true
+  },
+  {
+    "target": "authenticate_recognition",
+    "file_path": "hmi_service.py"
+  },
+  {
+    "target": "recognize_image",
+    "file_path": "hmi_service.py"
+  },
+  {
+    "target": "_atomic_json",
+    "file_path": "page_template_admin.py"
+  },
+  {
+    "target": "save_template",
+    "file_path": "page_template_admin.py"
+  },
+  {
+    "target": "get_template_versions",
+    "file_path": "page_template_admin.py"
+  },
+  {
+    "target": "preview_template",
+    "file_path": "page_template_admin.py"
+  },
+  {
+    "target": "page_template_drafts.py",
+    "new_file": true
+  },
+  {
+    "target": "page_template_lifecycle.py",
+    "new_file": true
+  },
+  {
+    "target": "page_template_store.py",
+    "new_file": true
+  },
+  {
+    "target": "_profile_registry",
+    "file_path": "scripts/contract.py"
+  },
+  {
+    "target": "attach_contract",
+    "file_path": "scripts/contract.py"
+  },
+  {
+    "target": "export_page_package",
+    "file_path": "scripts/export_page_package.py"
+  },
+  {
+    "target": "extract_page_fields",
+    "file_path": "scripts/extract_fields.py"
+  },
+  {
+    "target": "extract_one",
+    "file_path": "scripts/extract_fields.py"
+  },
+  {
+    "target": "main",
+    "file_path": "scripts/extract_fields.py"
+  },
+  {
+    "target": "scripts/extractor_registry.py",
+    "new_file": true
+  },
+  {
+    "target": "scripts/manage_page_templates.py",
+    "new_file": true
+  },
+  {
+    "target": "resolve_page_template",
+    "file_path": "scripts/page_template_registry.py"
+  }
+]

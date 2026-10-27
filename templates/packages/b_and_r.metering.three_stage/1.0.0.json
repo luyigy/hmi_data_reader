@@ -1,0 +1,3689 @@
+{
+  "package_schema": "hmi_raw_page_package.v2",
+  "profile_id": "b_and_r.metering.three_stage",
+  "raw_contract": {
+    "$id": "urn:hmi:page_observations:v2",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "allOf": [
+      {
+        "else": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "image_sha256"
+                ]
+              },
+              {
+                "required": [
+                  "recognizer"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "actor": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "created_at": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string"
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              }
+            },
+            "revision": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "actor",
+            "created_at",
+            "revision"
+          ]
+        },
+        "if": {
+          "properties": {
+            "source": {
+              "const": "image_recognition"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "engine": {
+              "properties": {
+                "library": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "library",
+                "version"
+              ],
+              "type": "object"
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "image_recognition"
+                  }
+                }
+              }
+            },
+            "image_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "original_size": {
+              "items": {
+                "maximum": 100000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "image_sha256",
+            "original_size",
+            "raw_contract_sha256",
+            "recognizer",
+            "package_sha256",
+            "engine"
+          ]
+        }
+      }
+    ],
+    "properties": {
+      "fields": {
+        "items": {
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "bbox": {
+                    "type": "null"
+                  },
+                  "confidence": {
+                    "type": "null"
+                  },
+                  "original_bbox": {
+                    "type": "null"
+                  },
+                  "text": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "order": {
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "original_bbox": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "items": {
+                    "maximum": 100,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                }
+              ]
+            },
+            "original_label": {
+              "maxLength": 512,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "original_unit": {
+              "maxLength": 32,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "original_value": {
+              "maxLength": 2048,
+              "type": [
+                "number",
+                "string",
+                "boolean",
+                "null"
+              ]
+            },
+            "reading": {
+              "enum": [
+                "known",
+                "missing",
+                "uncertain",
+                "unsupported",
+                "conflict"
+              ]
+            },
+            "role": {
+              "enum": [
+                "setting",
+                "actual",
+                "unknown"
+              ]
+            },
+            "screen_field_key": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            "section": {
+              "maxLength": 160,
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "image_recognition",
+                "manual"
+              ]
+            },
+            "stage": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "state": {
+              "enum": [
+                "enabled",
+                "disabled",
+                "unknown"
+              ]
+            },
+            "zone_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zone_source": {
+              "enum": [
+                "nozzle",
+                "barrel",
+                "hot_runner",
+                "mold_fixed",
+                "mold_moving",
+                "mold_slide",
+                "other",
+                null
+              ]
+            }
+          },
+          "required": [
+            "screen_field_key",
+            "source",
+            "original_label",
+            "original_value",
+            "original_unit",
+            "role",
+            "state",
+            "reading",
+            "original_bbox"
+          ],
+          "type": "object"
+        },
+        "maxItems": 1000,
+        "type": "array"
+      },
+      "image_reference": {
+        "additionalProperties": false,
+        "properties": {
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "package_sha256": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "profile_id": {
+        "maxLength": 160,
+        "type": "string"
+      },
+      "raw_contract_sha256": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "raw_field_definition_sha256": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "recognizer": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sha256",
+          "files"
+        ],
+        "type": "object"
+      },
+      "schema_version": {
+        "const": "page_observations.v2"
+      },
+      "source": {
+        "enum": [
+          "image_recognition",
+          "manual"
+        ]
+      }
+    },
+    "required": [
+      "schema_version",
+      "source",
+      "profile_id",
+      "fields",
+      "raw_field_definition_sha256"
+    ],
+    "title": "Pure original-screen observations",
+    "type": "object"
+  },
+  "raw_contract_sha256": "199b61caa60c60e3e5984c8e99034d0a7d9d06e820d3c1a6b90cae899f6215f6",
+  "raw_field_definition": {
+    "coverage_scope": "All 38 process display slots including eight header actuals, four metering actuals, three-stage settings, pre/post decompression, three enum controls and five timer values. Clock, date, recipe/user identity, navigation and indicator icons remain in original OCR evidence; they are not declared process values.",
+    "fields": [
+      {
+        "label": "模板位置",
+        "role": "actual",
+        "screen_field_key": "header.mold_position",
+        "section": "header",
+        "unit": "mm"
+      },
+      {
+        "label": "顶针位置",
+        "role": "actual",
+        "screen_field_key": "header.ejector_position",
+        "section": "header",
+        "unit": "mm"
+      },
+      {
+        "label": "射胶位置",
+        "role": "actual",
+        "screen_field_key": "header.injection_position",
+        "section": "header",
+        "unit": "mm"
+      },
+      {
+        "label": "射台位置",
+        "role": "actual",
+        "screen_field_key": "header.carriage_position",
+        "section": "header",
+        "unit": "mm"
+      },
+      {
+        "label": "熔胶转速",
+        "role": "actual",
+        "screen_field_key": "header.screw_speed",
+        "section": "header",
+        "unit": "rpm"
+      },
+      {
+        "label": "主泵流量",
+        "role": "actual",
+        "screen_field_key": "header.pump_flow",
+        "section": "header",
+        "unit": "%"
+      },
+      {
+        "label": "主泵压力",
+        "role": "actual",
+        "screen_field_key": "header.pump_pressure",
+        "section": "header",
+        "unit": "bar"
+      },
+      {
+        "label": "系统压力",
+        "role": "actual",
+        "screen_field_key": "header.system_pressure",
+        "section": "header",
+        "unit": "bar"
+      },
+      {
+        "label": "实际速度",
+        "role": "actual",
+        "screen_field_key": "metering.actual.speed",
+        "section": "actual",
+        "unit": "mm/s"
+      },
+      {
+        "label": "实际位置",
+        "role": "actual",
+        "screen_field_key": "metering.actual.position",
+        "section": "actual",
+        "unit": "mm"
+      },
+      {
+        "label": "熔胶背压",
+        "role": "actual",
+        "screen_field_key": "metering.actual.back_pressure",
+        "section": "actual",
+        "unit": "bar"
+      },
+      {
+        "label": "实际转速",
+        "role": "actual",
+        "screen_field_key": "metering.actual.rotation",
+        "section": "actual",
+        "unit": "rpm"
+      },
+      {
+        "label": "速度",
+        "order": 1,
+        "role": "setting",
+        "screen_field_key": "storage.speed.stage-1",
+        "section": "storage",
+        "segment_id": "storage-stage-1",
+        "stage": 1,
+        "unit": "%"
+      },
+      {
+        "label": "速度",
+        "order": 2,
+        "role": "setting",
+        "screen_field_key": "storage.speed.stage-2",
+        "section": "storage",
+        "segment_id": "storage-stage-2",
+        "stage": 2,
+        "unit": "%"
+      },
+      {
+        "label": "速度",
+        "order": 3,
+        "role": "setting",
+        "screen_field_key": "storage.speed.stage-3",
+        "section": "storage",
+        "segment_id": "storage-stage-3",
+        "stage": 3,
+        "unit": "%"
+      },
+      {
+        "label": "压力",
+        "order": 1,
+        "role": "setting",
+        "screen_field_key": "storage.pressure.stage-1",
+        "section": "storage",
+        "segment_id": "storage-stage-1",
+        "stage": 1,
+        "unit": "bar"
+      },
+      {
+        "label": "压力",
+        "order": 2,
+        "role": "setting",
+        "screen_field_key": "storage.pressure.stage-2",
+        "section": "storage",
+        "segment_id": "storage-stage-2",
+        "stage": 2,
+        "unit": "bar"
+      },
+      {
+        "label": "压力",
+        "order": 3,
+        "role": "setting",
+        "screen_field_key": "storage.pressure.stage-3",
+        "section": "storage",
+        "segment_id": "storage-stage-3",
+        "stage": 3,
+        "unit": "bar"
+      },
+      {
+        "label": "背压",
+        "order": 1,
+        "role": "setting",
+        "screen_field_key": "storage.back_pressure.stage-1",
+        "section": "storage",
+        "segment_id": "storage-stage-1",
+        "stage": 1,
+        "unit": "bar"
+      },
+      {
+        "label": "背压",
+        "order": 2,
+        "role": "setting",
+        "screen_field_key": "storage.back_pressure.stage-2",
+        "section": "storage",
+        "segment_id": "storage-stage-2",
+        "stage": 2,
+        "unit": "bar"
+      },
+      {
+        "label": "背压",
+        "order": 3,
+        "role": "setting",
+        "screen_field_key": "storage.back_pressure.stage-3",
+        "section": "storage",
+        "segment_id": "storage-stage-3",
+        "stage": 3,
+        "unit": "bar"
+      },
+      {
+        "label": "位置",
+        "order": 1,
+        "role": "setting",
+        "screen_field_key": "storage.end_position.stage-1",
+        "section": "storage",
+        "segment_id": "storage-stage-1",
+        "stage": 1,
+        "unit": "mm"
+      },
+      {
+        "label": "位置",
+        "order": 2,
+        "role": "setting",
+        "screen_field_key": "storage.end_position.stage-2",
+        "section": "storage",
+        "segment_id": "storage-stage-2",
+        "stage": 2,
+        "unit": "mm"
+      },
+      {
+        "label": "位置",
+        "order": 3,
+        "role": "setting",
+        "screen_field_key": "storage.end_position.stage-3",
+        "section": "storage",
+        "segment_id": "storage-stage-3",
+        "stage": 3,
+        "unit": "mm"
+      },
+      {
+        "label": "速度",
+        "role": "setting",
+        "screen_field_key": "decompression.before_storage.speed",
+        "section": "decompression",
+        "segment_id": "before_storage",
+        "unit": "%"
+      },
+      {
+        "label": "压力",
+        "role": "setting",
+        "screen_field_key": "decompression.before_storage.pressure",
+        "section": "decompression",
+        "segment_id": "before_storage",
+        "unit": "bar"
+      },
+      {
+        "label": "位置",
+        "role": "setting",
+        "screen_field_key": "decompression.before_storage.distance",
+        "section": "decompression",
+        "segment_id": "before_storage",
+        "unit": "mm"
+      },
+      {
+        "label": "速度",
+        "role": "setting",
+        "screen_field_key": "decompression.after_storage.speed",
+        "section": "decompression",
+        "segment_id": "after_storage",
+        "unit": "%"
+      },
+      {
+        "label": "压力",
+        "role": "setting",
+        "screen_field_key": "decompression.after_storage.pressure",
+        "section": "decompression",
+        "segment_id": "after_storage",
+        "unit": "bar"
+      },
+      {
+        "label": "位置",
+        "role": "setting",
+        "screen_field_key": "decompression.after_storage.distance",
+        "section": "decompression",
+        "segment_id": "after_storage",
+        "unit": "mm"
+      },
+      {
+        "label": "模式",
+        "role": "setting",
+        "screen_field_key": "control.mode",
+        "section": "control",
+        "unit": null,
+        "value_type": "string"
+      },
+      {
+        "label": "熔胶零背压阀",
+        "role": "setting",
+        "screen_field_key": "control.storage_zero_backpressure",
+        "section": "control",
+        "unit": null,
+        "value_type": "string"
+      },
+      {
+        "label": "抽胶零背压阀",
+        "role": "setting",
+        "screen_field_key": "control.decompression_zero_backpressure",
+        "section": "control",
+        "unit": null,
+        "value_type": "string"
+      },
+      {
+        "label": "熔胶延时",
+        "role": "setting",
+        "screen_field_key": "time.storage_delay",
+        "section": "time",
+        "time_kind": "storage_delay",
+        "unit": "s"
+      },
+      {
+        "label": "熔胶超时",
+        "role": "setting",
+        "screen_field_key": "time.storage_timeout",
+        "section": "time",
+        "time_kind": "storage_timeout",
+        "unit": "s"
+      },
+      {
+        "label": "熔胶超时",
+        "role": "actual",
+        "screen_field_key": "time.storage_timeout_actual",
+        "section": "time",
+        "time_kind": "storage_timeout_actual",
+        "unit": "s"
+      },
+      {
+        "label": "前抽胶延时",
+        "role": "setting",
+        "screen_field_key": "time.before_decompression_delay",
+        "section": "time",
+        "time_kind": "before_decompression_delay",
+        "unit": "s"
+      },
+      {
+        "label": "后抽胶延时",
+        "role": "setting",
+        "screen_field_key": "time.after_decompression_delay",
+        "section": "time",
+        "time_kind": "after_decompression_delay",
+        "unit": "s"
+      }
+    ],
+    "issues": [
+      {
+        "code": "ENABLE_STATE_UNVERIFIED",
+        "reason": "Observed setting values do not prove per-stage enable state"
+      }
+    ],
+    "page_identity": {
+      "brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "interface_generation": null,
+      "layout_variant": "three_stage_metering",
+      "page_type": "storage_cooling"
+    },
+    "profile_id": "b_and_r.metering.three_stage",
+    "samples": [
+      {
+        "image": "datasets/r05/b_and_r.metering.three_stage/development.jpg",
+        "image_sha256": "ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163",
+        "purpose": "development",
+        "sample_id": "development",
+        "source": {
+          "path": "/home/hello/.agent-platform/project-materials/published/f6bad71418b88831e393f6dbeb2d8ecc89140b1d7b96752339fc650e26e5a6b5/ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163.jpg",
+          "purpose": "development",
+          "sha256": "ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163",
+          "source": "training/recuQJJFYYwEDU/成型条件-储料/冷却/0"
+        },
+        "truth": "datasets/r05/b_and_r.metering.three_stage/development.truth.json"
+      },
+      {
+        "image": "datasets/r05/b_and_r.metering.three_stage/acceptance.jpg",
+        "image_sha256": "4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91",
+        "purpose": "user_supplied_validation",
+        "sample_id": "acceptance",
+        "source": {
+          "feishu_message_id": "om_x100b6244b435fcf4b0e1ce2a70f9027",
+          "first_result": "38 declared slots; critical table values correct; header OCR 2mm disagrees with 52.2mm. This image now participates in regression, not a pristine blind acceptance claim.",
+          "path": "/home/hello/.agent-platform/task-materials/c90480550f5bd0bcc051446e/5f40765d6c2b28ae2bffdae4d7d91f35bc938a6cea019a63be7b972809a2d609.jpg",
+          "prior_exposure": "visual source/selection inspection before implementation; no OCR-driven tuning",
+          "purpose": "reserved_acceptance",
+          "sha256": "4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91",
+          "source_message_id": "cmvgbt2r0000hp1fl1f68p3ua",
+          "tuning_involvement": "none"
+        },
+        "truth": "datasets/r05/b_and_r.metering.three_stage/acceptance.truth.json"
+      },
+      {
+        "image": "datasets/r05/b_and_r.metering.three_stage/independent.jpg",
+        "image_sha256": "9344107611dd2456d406368dc51d8d331cf8036c95199d12d88a07af359c85c3",
+        "purpose": "independent_acceptance",
+        "sample_id": "independent",
+        "source": {
+          "field": "成型条件-储料/冷却",
+          "group_note": "EKS_140 TX22045_ABS, same recipe as development, distinct capture and actual sensor values. Not a machine-disjoint or zero-history blind benchmark.",
+          "index": 0,
+          "prior_exposure": "Source selection visual inspection only, no OCR or tuning before code freeze",
+          "receipt_sha256": "d123d4e5065f6fcb7d5233f3119e73f49003d181d373c6e7bafd5f7502447946",
+          "record_id": "recuQJJFYYWuuH",
+          "source": "training",
+          "tuning_involvement": "none"
+        },
+        "truth": "datasets/r05/b_and_r.metering.three_stage/independent.truth.json"
+      }
+    ],
+    "state_policy": "unknown for every numeric/control slot; no brightness or stage-activity decoder",
+    "version": "1.0.0"
+  },
+  "raw_field_definition_sha256": "6c499fb39eb655e68336cac6a40b4ba9a505967a5e3ebcb7ef8a0e055e9fec53",
+  "recognizer": {
+    "files": {
+      "contracts/raw-pages/b-and-r-metering-1.0.0.json": "2a7358952b1c6e52cd5adc40ec7e23e2e6e96f9d94d8011442e26808704c7c92",
+      "scripts/extract_families/b_and_r_metering.py": "ec26943ce3cc22e138f4a48be7f2f401584ebe4f13cc4eb272fe6e3e0cb1e160",
+      "scripts/extract_families/coordinates.py": "e3ebf166c6df86558e7263ed00475033290ecf3d74b0810e1c97d8aa9154cbe6",
+      "scripts/quality.py": "e23e40b68a3a8e77d5179bcfeadcffed241760c6757175b940b6a065a09015dd",
+      "scripts/raw_contract.py": "e8779010a89518fa791a164029f06e0c6a027ebc7e99b9b7cc38fe1fced847a8",
+      "scripts/raw_metering.py": "e3c340611fbc6027b65c64b0270a2decff920706cdf3709e367750626c66b857",
+      "scripts/raw_page.py": "017e67a22ab000c0e518baa33e3cdc50ec1cc6596f588d2c56f7ba005d6f28a4"
+    },
+    "id": "b_and_r.metering.v2",
+    "sha256": "0bd548223a0f683aa6074793056ef654c4905386a89e9a25d0d196b526f98a31",
+    "sources": {
+      "contracts/raw-pages/b-and-r-metering-1.0.0.json": "{\n  \"profile_id\": \"b_and_r.metering.three_stage\",\n  \"version\": \"1.0.0\",\n  \"page_identity\": {\n    \"brand\": \"BOLE\",\n    \"controller_family\": \"B_AND_R\",\n    \"interface_generation\": null,\n    \"page_type\": \"storage_cooling\",\n    \"layout_variant\": \"three_stage_metering\"\n  },\n  \"fields\": [\n    {\n      \"screen_field_key\": \"header.mold_position\",\n      \"label\": \"模板位置\",\n      \"unit\": \"mm\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"header.ejector_position\",\n      \"label\": \"顶针位置\",\n      \"unit\": \"mm\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"header.injection_position\",\n      \"label\": \"射胶位置\",\n      \"unit\": \"mm\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"header.carriage_position\",\n      \"label\": \"射台位置\",\n      \"unit\": \"mm\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"header.screw_speed\",\n      \"label\": \"熔胶转速\",\n      \"unit\": \"rpm\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"header.pump_flow\",\n      \"label\": \"主泵流量\",\n      \"unit\": \"%\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"header.pump_pressure\",\n      \"label\": \"主泵压力\",\n      \"unit\": \"bar\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"header.system_pressure\",\n      \"label\": \"系统压力\",\n      \"unit\": \"bar\",\n      \"role\": \"actual\",\n      \"section\": \"header\"\n    },\n    {\n      \"screen_field_key\": \"metering.actual.speed\",\n      \"label\": \"实际速度\",\n      \"unit\": \"mm/s\",\n      \"role\": \"actual\",\n      \"section\": \"actual\"\n    },\n    {\n      \"screen_field_key\": \"metering.actual.position\",\n      \"label\": \"实际位置\",\n      \"unit\": \"mm\",\n      \"role\": \"actual\",\n      \"section\": \"actual\"\n    },\n    {\n      \"screen_field_key\": \"metering.actual.back_pressure\",\n      \"label\": \"熔胶背压\",\n      \"unit\": \"bar\",\n      \"role\": \"actual\",\n      \"section\": \"actual\"\n    },\n    {\n      \"screen_field_key\": \"metering.actual.rotation\",\n      \"label\": \"实际转速\",\n      \"unit\": \"rpm\",\n      \"role\": \"actual\",\n      \"section\": \"actual\"\n    },\n    {\n      \"screen_field_key\": \"storage.speed.stage-1\",\n      \"label\": \"速度\",\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 1,\n      \"segment_id\": \"storage-stage-1\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"storage.speed.stage-2\",\n      \"label\": \"速度\",\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 2,\n      \"segment_id\": \"storage-stage-2\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"storage.speed.stage-3\",\n      \"label\": \"速度\",\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 3,\n      \"segment_id\": \"storage-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"storage.pressure.stage-1\",\n      \"label\": \"压力\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 1,\n      \"segment_id\": \"storage-stage-1\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"storage.pressure.stage-2\",\n      \"label\": \"压力\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 2,\n      \"segment_id\": \"storage-stage-2\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"storage.pressure.stage-3\",\n      \"label\": \"压力\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 3,\n      \"segment_id\": \"storage-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"storage.back_pressure.stage-1\",\n      \"label\": \"背压\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 1,\n      \"segment_id\": \"storage-stage-1\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"storage.back_pressure.stage-2\",\n      \"label\": \"背压\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 2,\n      \"segment_id\": \"storage-stage-2\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"storage.back_pressure.stage-3\",\n      \"label\": \"背压\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 3,\n      \"segment_id\": \"storage-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"storage.end_position.stage-1\",\n      \"label\": \"位置\",\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 1,\n      \"segment_id\": \"storage-stage-1\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"storage.end_position.stage-2\",\n      \"label\": \"位置\",\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 2,\n      \"segment_id\": \"storage-stage-2\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"storage.end_position.stage-3\",\n      \"label\": \"位置\",\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"storage\",\n      \"stage\": 3,\n      \"segment_id\": \"storage-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"decompression.before_storage.speed\",\n      \"label\": \"速度\",\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"decompression\",\n      \"segment_id\": \"before_storage\"\n    },\n    {\n      \"screen_field_key\": \"decompression.before_storage.pressure\",\n      \"label\": \"压力\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"decompression\",\n      \"segment_id\": \"before_storage\"\n    },\n    {\n      \"screen_field_key\": \"decompression.before_storage.distance\",\n      \"label\": \"位置\",\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"decompression\",\n      \"segment_id\": \"before_storage\"\n    },\n    {\n      \"screen_field_key\": \"decompression.after_storage.speed\",\n      \"label\": \"速度\",\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"decompression\",\n      \"segment_id\": \"after_storage\"\n    },\n    {\n      \"screen_field_key\": \"decompression.after_storage.pressure\",\n      \"label\": \"压力\",\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"decompression\",\n      \"segment_id\": \"after_storage\"\n    },\n    {\n      \"screen_field_key\": \"decompression.after_storage.distance\",\n      \"label\": \"位置\",\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"decompression\",\n      \"segment_id\": \"after_storage\"\n    },\n    {\n      \"screen_field_key\": \"control.mode\",\n      \"label\": \"模式\",\n      \"unit\": null,\n      \"role\": \"setting\",\n      \"section\": \"control\",\n      \"value_type\": \"string\"\n    },\n    {\n      \"screen_field_key\": \"control.storage_zero_backpressure\",\n      \"label\": \"熔胶零背压阀\",\n      \"unit\": null,\n      \"role\": \"setting\",\n      \"section\": \"control\",\n      \"value_type\": \"string\"\n    },\n    {\n      \"screen_field_key\": \"control.decompression_zero_backpressure\",\n      \"label\": \"抽胶零背压阀\",\n      \"unit\": null,\n      \"role\": \"setting\",\n      \"section\": \"control\",\n      \"value_type\": \"string\"\n    },\n    {\n      \"screen_field_key\": \"time.storage_delay\",\n      \"label\": \"熔胶延时\",\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"time\",\n      \"time_kind\": \"storage_delay\"\n    },\n    {\n      \"screen_field_key\": \"time.storage_timeout\",\n      \"label\": \"熔胶超时\",\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"time\",\n      \"time_kind\": \"storage_timeout\"\n    },\n    {\n      \"screen_field_key\": \"time.storage_timeout_actual\",\n      \"label\": \"熔胶超时\",\n      \"unit\": \"s\",\n      \"role\": \"actual\",\n      \"section\": \"time\",\n      \"time_kind\": \"storage_timeout_actual\"\n    },\n    {\n      \"screen_field_key\": \"time.before_decompression_delay\",\n      \"label\": \"前抽胶延时\",\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"time\",\n      \"time_kind\": \"before_decompression_delay\"\n    },\n    {\n      \"screen_field_key\": \"time.after_decompression_delay\",\n      \"label\": \"后抽胶延时\",\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"time\",\n      \"time_kind\": \"after_decompression_delay\"\n    }\n  ],\n  \"samples\": [\n    {\n      \"sample_id\": \"development\",\n      \"image\": \"datasets/r05/b_and_r.metering.three_stage/development.jpg\",\n      \"image_sha256\": \"ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163\",\n      \"truth\": \"datasets/r05/b_and_r.metering.three_stage/development.truth.json\",\n      \"purpose\": \"development\",\n      \"source\": {\n        \"path\": \"/home/hello/.agent-platform/project-materials/published/f6bad71418b88831e393f6dbeb2d8ecc89140b1d7b96752339fc650e26e5a6b5/ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163.jpg\",\n        \"sha256\": \"ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163\",\n        \"source\": \"training/recuQJJFYYwEDU/成型条件-储料/冷却/0\",\n        \"purpose\": \"development\"\n      }\n    },\n    {\n      \"sample_id\": \"acceptance\",\n      \"image\": \"datasets/r05/b_and_r.metering.three_stage/acceptance.jpg\",\n      \"image_sha256\": \"4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91\",\n      \"truth\": \"datasets/r05/b_and_r.metering.three_stage/acceptance.truth.json\",\n      \"purpose\": \"user_supplied_validation\",\n      \"source\": {\n        \"path\": \"/home/hello/.agent-platform/task-materials/c90480550f5bd0bcc051446e/5f40765d6c2b28ae2bffdae4d7d91f35bc938a6cea019a63be7b972809a2d609.jpg\",\n        \"sha256\": \"4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91\",\n        \"source_message_id\": \"cmvgbt2r0000hp1fl1f68p3ua\",\n        \"feishu_message_id\": \"om_x100b6244b435fcf4b0e1ce2a70f9027\",\n        \"purpose\": \"reserved_acceptance\",\n        \"tuning_involvement\": \"none\",\n        \"prior_exposure\": \"visual source/selection inspection before implementation; no OCR-driven tuning\",\n        \"first_result\": \"38 declared slots; critical table values correct; header OCR 2mm disagrees with 52.2mm. This image now participates in regression, not a pristine blind acceptance claim.\"\n      }\n    },\n    {\n      \"sample_id\": \"independent\",\n      \"image\": \"datasets/r05/b_and_r.metering.three_stage/independent.jpg\",\n      \"image_sha256\": \"9344107611dd2456d406368dc51d8d331cf8036c95199d12d88a07af359c85c3\",\n      \"truth\": \"datasets/r05/b_and_r.metering.three_stage/independent.truth.json\",\n      \"purpose\": \"independent_acceptance\",\n      \"source\": {\n        \"source\": \"training\",\n        \"record_id\": \"recuQJJFYYWuuH\",\n        \"field\": \"成型条件-储料/冷却\",\n        \"index\": 0,\n        \"receipt_sha256\": \"d123d4e5065f6fcb7d5233f3119e73f49003d181d373c6e7bafd5f7502447946\",\n        \"tuning_involvement\": \"none\",\n        \"prior_exposure\": \"Source selection visual inspection only, no OCR or tuning before code freeze\",\n        \"group_note\": \"EKS_140 TX22045_ABS, same recipe as development, distinct capture and actual sensor values. Not a machine-disjoint or zero-history blind benchmark.\"\n      }\n    }\n  ],\n  \"coverage_scope\": \"All 38 process display slots including eight header actuals, four metering actuals, three-stage settings, pre/post decompression, three enum controls and five timer values. Clock, date, recipe/user identity, navigation and indicator icons remain in original OCR evidence; they are not declared process values.\",\n  \"state_policy\": \"unknown for every numeric/control slot; no brightness or stage-activity decoder\",\n  \"issues\": [\n    {\n      \"code\": \"ENABLE_STATE_UNVERIFIED\",\n      \"reason\": \"Observed setting values do not prove per-stage enable state\"\n    }\n  ]\n}\n",
+      "scripts/extract_families/b_and_r_metering.py": "\"\"\"Physical observations for the BOLE B&R three-stage metering screen.\"\"\"\n\nimport json\nimport re\nfrom pathlib import Path\nfrom statistics import median\n\nfrom raw_page import _line_box\nfrom extract_families.coordinates import project_boxes\n\n\nPROFILE = \"b_and_r.metering.three_stage\"\nDEFINITION = Path(__file__).resolve().parents[2] / \"contracts/raw-pages/b-and-r-metering-1.0.0.json\"\nNUMBER = re.compile(r\"^\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*(mm/s|rpm|bar|mm|%|sec|s)?\\s*$\", re.I)\n\n\ndef extract_metering(lines, template, meta):\n    definition = json.loads(DEFINITION.read_text())\n    size = meta.get(\"screen_size\")\n    if not size or template.get(\"profile_id\") != PROFILE:\n        return dict(fields=None, heater_columns=0, warnings=[\"METERING_IDENTITY_INVALID\"], detail={})\n    cells = []\n    for index, line in enumerate(lines):\n        box = _line_box(line)\n        cells.append(dict(line=line, index=index, text=re.sub(r\"\\s+\", \"\", line[\"text\"]),\n                          confidence=float(line.get(\"conf\", line.get(\"confidence\", 0))),\n                          x=(box[0] + box[2]) / (2 * size[0]), y=(box[1] + box[3]) / (2 * size[1]),\n                          height=(box[3] - box[1]) / size[1], match=NUMBER.fullmatch(line[\"text\"])))\n\n    def labels(text):\n        return [cell for cell in cells if cell[\"text\"] == text]\n\n    anchors = [labels(text) for text in (\"前抽\", \"后抽\", \"模式\", \"计时器\")]\n    if any(len(group) != 1 for group in anchors):\n        return dict(fields=None, heater_columns=0, warnings=[\"METERING_LAYOUT_UNVERIFIED\"], detail={})\n    before, after, mode, timer = [group[0] for group in anchors]\n    if not before[\"x\"] < after[\"x\"] or not before[\"y\"] < mode[\"y\"] < timer[\"y\"]:\n        return dict(fields=None, heater_columns=0, warnings=[\"METERING_LAYOUT_CONFLICT\"], detail={})\n    numeric = [cell for cell in cells if cell[\"match\"]]\n    table = [cell for cell in numeric if before[\"y\"] + before[\"height\"] < cell[\"y\"] < mode[\"y\"] - mode[\"height\"]]\n    groups = []\n    for cell in sorted(table, key=lambda item: item[\"y\"]):\n        group = next((row for row in groups if abs(median(c[\"y\"] for c in row) - cell[\"y\"])\n                      < median(c[\"height\"] for c in row) * .9), None)\n        if group is None:\n            groups.append([cell])\n        else:\n            group.append(cell)\n    if len(groups) != 4:\n        return dict(fields=None, heater_columns=0, warnings=[\"METERING_ROWS_INCOMPLETE\"], detail={})\n    stage_heads = sorted([cell for cell in cells if cell[\"text\"] in (\"1\", \"2\", \"3\")\n                          and cell[\"x\"] < before[\"x\"] and abs(cell[\"y\"] - before[\"y\"]) < .03],\n                         key=lambda cell: cell[\"x\"])\n    observed_ids = [int(cell[\"text\"]) for cell in stage_heads]\n    if len(observed_ids) != len(set(observed_ids)):\n        return dict(fields=None, heater_columns=0, warnings=[\"STAGE_IDENTITY_CONFLICT\"], detail={})\n    stage_order = observed_ids if set(observed_ids) == {1, 2, 3} else [1, 2, 3]\n    assignments, row_units, row_labels = {}, {}, {}\n    issues = list(definition[\"issues\"])\n    if len(stage_heads) != 3:\n        issues.append(dict(code=\"STAGE_HEADERS_PARTIAL\", reason=\"Physical slots use the verified definition; unread headings remain unverified\"))\n    for row_name, group in zip((\"speed\", \"pressure\", \"back_pressure\", \"end_position\"), groups):\n        row_y = median(cell[\"y\"] for cell in group)\n        row_label = [cell for cell in cells if cell[\"x\"] < min(c[\"x\"] for c in group)\n                     and abs(cell[\"y\"] - row_y) < .02 and not cell[\"match\"]]\n        unit_cells = [cell for cell in cells if cell[\"text\"].lower() in (\"%\", \"bar\", \"mm\")\n                      and abs(cell[\"y\"] - row_y) < .02]\n        left = sorted([cell for cell in group if cell[\"x\"] < before[\"x\"] - .08], key=lambda cell: cell[\"x\"])\n        right = sorted([cell for cell in group if cell[\"x\"] >= before[\"x\"] - .08], key=lambda cell: cell[\"x\"])\n        for position, stage in enumerate(stage_order):\n            key = f\"storage.{row_name}.stage-{stage}\"\n            assignments[key] = [left[position]] if len(left) == 3 else []\n            if len(left) != 3:\n                issues.append(dict(code=\"STORAGE_ROW_CARDINALITY_CONFLICT\", screen_field_key=key))\n            row_units[key] = unit_cells[0] if len({cell[\"text\"].lower() for cell in unit_cells}) == 1 else None\n            row_labels[key] = row_label[0] if len(row_label) == 1 else None\n        if row_name != \"back_pressure\":\n            key_name = \"distance\" if row_name == \"end_position\" else row_name\n            for position, segment in enumerate((\"before_storage\", \"after_storage\")):\n                key = f\"decompression.{segment}.{key_name}\"\n                assignments[key] = [right[position]] if len(right) == 2 else []\n                row_units[key] = unit_cells[-1] if unit_cells else None\n                row_labels[key] = row_label[0] if len(row_label) == 1 else None\n    fields = []\n    for spec in definition[\"fields\"]:\n        key = spec[\"screen_field_key\"]\n        source_label = row_labels.get(key)\n        options = assignments.get(key)\n        unit_cell = row_units.get(key)\n        if options is None:\n            label_options = labels(spec[\"label\"])\n            if spec[\"section\"] == \"header\":\n                label_options = [cell for cell in label_options if cell[\"y\"] < before[\"y\"] - .08]\n            elif spec[\"section\"] == \"actual\":\n                label_options = [cell for cell in label_options if cell[\"y\"] < before[\"y\"]]\n            source_label = label_options[0] if len(label_options) == 1 else None\n            options = []\n            if source_label:\n                lx, ly = source_label[\"x\"], source_label[\"y\"]\n                if spec[\"section\"] in (\"header\", \"actual\"):\n                    options = [cell for cell in numeric if 0 < cell[\"y\"] - ly < .065\n                               and abs(cell[\"x\"] - lx) < .08]\n                elif spec[\"section\"] == \"control\":\n                    options = [cell for cell in cells if cell[\"x\"] > lx + .08\n                               and abs(cell[\"y\"] - ly) < .02 and cell[\"text\"] in (\"顺序动作\", \"同时动作\", \"关\", \"开\")]\n                else:\n                    nearby = sorted([cell for cell in numeric if cell[\"x\"] > lx + .04\n                                     and abs(cell[\"y\"] - ly) < .02], key=lambda cell: cell[\"x\"])\n                    offset = 1 if spec[\"role\"] == \"actual\" else 0\n                    options = nearby[offset:offset + 1]\n        source = options[0] if len(options) == 1 else None\n        confidence = source[\"confidence\"] if source else None\n        unit = source[\"match\"][2] if source and source[\"match\"] else None\n        if source and unit is None:\n            if unit_cell is None:\n                nearby_units = [cell for cell in cells if source[\"x\"] < cell[\"x\"] < source[\"x\"] + .15\n                                and abs(cell[\"y\"] - source[\"y\"]) < .02\n                                and cell[\"text\"].lower() in (\"mm/s\", \"rpm\", \"bar\", \"mm\", \"%\", \"sec\", \"s\")]\n                unit_cell = nearby_units[0] if len(nearby_units) == 1 else None\n            unit = unit_cell[\"line\"][\"text\"] if unit_cell else None\n        reading = (\"conflict\" if len(options) > 1 else \"missing\" if source is None else\n                   \"uncertain\" if confidence < .9 or source_label is None else \"known\")\n        normalized_unit = unit.lower() if unit else None\n        if normalized_unit == \"sec\":\n            normalized_unit = \"s\"\n        if unit is not None and normalized_unit != spec[\"unit\"]:\n            reading = \"conflict\"\n        if spec.get(\"stage\") and len(stage_heads) != 3 and reading == \"known\":\n            reading = \"uncertain\"\n        field = {name: spec[name] for name in (\"screen_field_key\", \"section\", \"role\", \"stage\", \"segment_id\", \"order\", \"time_kind\") if name in spec}\n        if spec.get(\"stage\"):\n            field[\"order\"] = stage_order.index(spec[\"stage\"]) + 1\n        field.update(source=\"image_recognition\", original_label=source_label[\"line\"][\"text\"] if source_label else None,\n                     original_value=(float(source[\"match\"][1]) if source[\"match\"] else source[\"line\"][\"text\"]) if source else None,\n                     original_unit=unit, effective_unit=unit or spec[\"unit\"], state=\"unknown\", reading=reading,\n                     text=source[\"line\"][\"text\"] if source else None, confidence=confidence,\n                     bbox=_line_box(source[\"line\"]) if source else None, original_bbox=None,\n                     reasons=[\"enable_state_unverified\"])\n        if reading != \"known\":\n            issues.append(dict(code=\"READING_\" + reading.upper(), screen_field_key=key))\n        fields.append(field)\n    by_key = {field[\"screen_field_key\"]: field for field in fields}\n    for header, actual in ((\"header.injection_position\", \"metering.actual.position\"),\n                           (\"header.screw_speed\", \"metering.actual.rotation\")):\n        pair = [by_key[header], by_key[actual]]\n        if all(field[\"original_value\"] is not None for field in pair) and pair[0][\"original_value\"] != pair[1][\"original_value\"]:\n            for field in pair:\n                field[\"reading\"] = \"conflict\"\n                field[\"reasons\"].append(\"same_sensor_readings_disagree\")\n            issues.append(dict(code=\"ACTUAL_SENSOR_CONFLICT\", screen_field_keys=[header, actual]))\n    project_boxes(fields, meta)\n    for field in fields:\n        if field[\"original_bbox\"] is None:\n            field[\"reasons\"].append(\"source_box_unavailable\")\n    return dict(fields={}, heater_columns=0, warnings=[\"RAW_SCREEN_REVIEW_REQUIRED\"], detail=dict(\n        page_observations=dict(profile_id=PROFILE, fields=fields, issues=issues,\n                               coverage=dict(status=\"partial\", declared=len(fields), known=sum(f[\"reading\"] == \"known\" for f in fields)))))\n",
+      "scripts/extract_families/coordinates.py": "\"\"\"Shared geometric projection; coordinates retain the original-percent contract.\"\"\"\n\ndef project_boxes(observations, meta):\n    \"\"\"用矫正时的屏幕四角将字段框投回原图百分比坐标；元数据缺失则保持未定位。\"\"\"\n    if not meta.get('original_size') or not meta.get('screen_quad'):\n        return\n    import cv2\n    import numpy as np\n    from quality import order_points\n    w, h = meta['screen_size']\n    ow, oh = meta['original_size']\n    src = np.array([[0, 0], [w-1, 0], [w-1, h-1], [0, h-1]], dtype=np.float32)\n    matrix = cv2.getPerspectiveTransform(src, order_points(np.array(meta['screen_quad'], dtype=np.float32)))\n    for observation in observations:\n        if observation['bbox'] is None:\n            continue\n        x1, y1, x2, y2 = observation['bbox']\n        corners = np.array([[[x1, y1], [x2, y1], [x2, y2], [x1, y2]]], dtype=np.float32)\n        points = cv2.perspectiveTransform(corners, matrix)[0]\n        box = [float(points[:, 0].min()/ow*100), float(points[:, 1].min()/oh*100),\n               float(points[:, 0].max()/ow*100), float(points[:, 1].max()/oh*100)]\n        if all(0 <= value <= 100 for value in box) and box[0] < box[2] and box[1] < box[3]:\n            observation['original_bbox'] = box\n",
+      "scripts/quality.py": "\"\"\"HMI 图片质量门禁。\n\n输出 JSON 报告，对每张图给出：\n- triage: green | yellow | red\n- reject_codes: 拒绝原因码列表（来自 docs/002 的硬拒绝集）\n- warn_codes: 警告原因码列表（黄灯）\n- metrics: 各分项指标\n- reshoot_guidance: 给现场操作员的重拍建议\n\n硬拒绝原因码：\nDUPLICATE_ATTACHMENT, CROSS_RECORD_DUPLICATE, SCREEN_NOT_FOUND, SCREEN_TOO_SMALL,\nSEVERE_GLARE, SEVERE_BLUR, SEVERE_PERSPECTIVE, PAGE_UNKNOWN,\nSCREEN_CLIPPED, SEVERE_UNDEREXPOSURE（064 S02 新增，五类原因映射见 064 PLAN §3.1）\n\n警告原因码（黄灯）：\nNEEDS_RECTIFICATION, LOW_TEXT_SIZE, MINOR_GLARE, LOW_CLASS_CONFIDENCE\n\n判定策略（013 S1 校准集 2026-07-31 第二轮校准）：\n- 用 OpenCV 检测屏幕区域：四边最长的水平/垂直线 + 暗色矩形估计\n- 透视：有屏幕四角时取对边长度比（>1.80 且可矫正仍硬拒；无四角回退启发式 >1.30 硬拒）\n- 反光：高亮区域比例（>230 像素值）>0.15 且画面纹理已破坏（Laplacian 方差 <300）才硬拒\n- 模糊：Laplacian 方差\n- 屏幕太小：屏幕有效宽度 < 500px 且屏占比 <30% 硬拒；仅一项不足时黄灯\n- 完整性（064 S02）：屏幕 bbox 贴图像边（余量 <1%）且四角未命中时 SCREEN_CLIPPED\n  硬拒；四角命中说明屏幕完整入镜，不误判。无法定界屏幕 ROI 时不下质量结论\n  （安全降级，SCREEN_NOT_FOUND 已覆盖）\n- 欠曝（064 S02）：屏幕 ROI 欠曝比例 >0.85 且纹理已破坏（blur<300）才\n  SEVERE_UNDEREXPOSURE 硬拒；语料无欠曝样本，阈值保守取值待补采校准\n- 多码命中（064 S02）：reject_codes 返回全部机器码，red 时 reshoot_guidance\n  只保留一个主提示（按 REJECT_GUIDANCE 顺序取最可操作者），yellow 维持原多提示\n\n用法：\n    python scripts/quality.py <image>... --output <report.json>\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport json\nimport sys\nfrom dataclasses import dataclass, field, asdict\nfrom pathlib import Path\n\nimport cv2\nimport numpy as np\n\n\n@dataclass\nclass QualityMetrics:\n    width: int = 0\n    height: int = 0\n    screen_bbox: tuple[int, int, int, int] | None = None\n    screen_area_ratio: float = 0.0\n    perspective_ratio: float = 1.0  # 越大越倾斜\n    blur_score: float = 0.0  # Laplacian variance\n    glare_ratio: float = 0.0  # >230 像素比例\n    dark_ratio: float = 0.0\n    corners_found: bool = False  # detect_screen_corners 是否命中（命中则透视可被 rectify 矫正）\n    screen_clipped: bool = False  # 屏幕 bbox 贴图像边且四角未命中（064 S02，疑似屏幕被裁切）\n    roi_dark_ratio: float = 0.0  # 屏幕 ROI 内欠曝(<30)像素比例（064 S02；无 ROI 时保持 0 不强拒）\n\n\n@dataclass\nclass QualityReport:\n    filename: str\n    triage: str = \"green\"  # green | yellow | red\n    reject_codes: list[str] = field(default_factory=list)\n    warn_codes: list[str] = field(default_factory=list)\n    metrics: QualityMetrics = field(default_factory=QualityMetrics)\n    reshoot_guidance: list[str] = field(default_factory=list)\n\n\n# 阈值（013 S1 校准集 2026-07-31 第二轮校准：按误杀案例分析放宽，见 014 HANDOVER）\nTHRESHOLD_SCREEN_MIN_WIDTH = 500  # 绝对像素宽度下限（OCR 可用性取决于绝对像素，不取决于屏占比）\nTHRESHOLD_SCREEN_MIN_AREA_RATIO = 0.30  # 屏占比低于此值仅黄灯提示（高分辨率远景照绝对像素仍充足，不再红灯）\nTHRESHOLD_BLUR_VARIANCE = 30.0\nTHRESHOLD_GLARE_RATIO = 0.05\nTHRESHOLD_PERSPECTIVE = 1.30  # 无四角（不可矫正）时的硬拒阈值\nTHRESHOLD_PERSPECTIVE_RECTIFIABLE = 1.80  # 有四角（rectify 可矫正）时的硬拒阈值\n# 反光硬拒需同时满足\"纹理已被破坏\"：白底高亮屏（如佳明过曝图）虽然 >230 比例高，\n# 但 Laplacian 方差大（文字梯度仍在），OCR 可读，不应红灯\nTHRESHOLD_GLARE_SEVERE = 0.15\nTHRESHOLD_GLARE_BLUR_MAX = 300.0\n# 064 S02 新增（五类原因补齐）：\nTHRESHOLD_EDGE_MARGIN_RATIO = 0.01  # 屏幕 bbox 距图像边不足 1% 视为贴边（疑似裁切）\nTHRESHOLD_DARK_SEVERE = 0.85  # 屏幕 ROI 欠曝比例硬拒下限（须同时 blur<300；语料无样本，保守值待补采校准）\n\n# 064 S02：五类原因的硬拒码 → 中文重拍提示（064 PLAN §3.1 / 065 §3.1 冻结映射）。\n# red 多码命中时 reject_codes 全部返回，reshoot_guidance 只保留列表中最靠前的一个主提示。\nREJECT_GUIDANCE = {\n    \"SCREEN_CLIPPED\": \"屏幕未拍完整，请将完整屏幕框入取景框。\",\n    \"SCREEN_NOT_FOUND\": \"请正对屏幕拍摄，四个屏幕边角全部入镜，不要从侧面斜拍。\",\n    \"SEVERE_PERSPECTIVE\": \"请正对屏幕拍摄，四个屏幕边角全部入镜，不要从侧面斜拍。\",\n    \"SCREEN_TOO_SMALL\": \"请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。\",\n    \"SEVERE_UNDEREXPOSURE\": \"画面过暗：请改善照明，确保屏幕数字区域清晰可辨后重拍。\",\n    \"SEVERE_GLARE\": \"反光严重：请调整站位或关闭闪光灯，确保反光不覆盖数字区域。\",\n    \"SEVERE_BLUR\": \"画面模糊：请擦净镜头、保持手机稳定，点击屏幕区域对焦后重拍。\",\n    \"READ_ERROR\": \"图片无法读取，请重新拍照或检查文件格式。\",\n}\n\n\ndef detect_screen_bbox(img: np.ndarray) -> tuple[int, int, int, int] | None:\n    \"\"\"用暗色矩形估计屏幕四边，返回 (x, y, w, h)。\n\n    启发式：屏幕通常有黑色边框 + 内部有亮色文本。找最大内部颜色方差的中等暗矩形。\n    这里用简化方法：Canny + 形态学找最大轮廓 + 验证长宽比。\n    \"\"\"\n    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img\n    h, w = gray.shape\n\n    # 边缘\n    edges = cv2.Canny(gray, 50, 150)\n    edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)\n\n    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)\n    if not contours:\n        return None\n\n    # 取最大外接矩形（不做面积过滤，让 triage() 决定 SCREEN_TOO_SMALL）\n    best = None\n    best_area = 0\n    for c in contours:\n        x, y, cw, ch = cv2.boundingRect(c)\n        area = cw * ch\n        # 最低面积 1%（防止噪音框），不做精确过滤\n        if area < h * w * 0.01:\n            continue\n        if cw < 200:  # 太窄的不要\n            continue\n        aspect = max(cw, ch) / max(1, min(cw, ch))\n        if aspect > 4.0:  # 太扁的不要（很可能是边缘）\n            continue\n        if area > best_area:\n            best_area = area\n            best = (x, y, cw, ch)\n    return best\n\n\ndef order_points(pts: np.ndarray) -> np.ndarray:\n    \"\"\"把 4 个点排序为 [左上, 右上, 右下, 左下]。\"\"\"\n    pts = np.asarray(pts, dtype=np.float32)\n    s = pts.sum(axis=1)\n    diff = np.diff(pts, axis=1).ravel()\n    return np.array([\n        pts[np.argmin(s)],      # 左上：x+y 最小\n        pts[np.argmin(diff)],   # 右上：y-x 最小\n        pts[np.argmax(s)],      # 右下：x+y 最大\n        pts[np.argmax(diff)],   # 左下：y-x 最大\n    ], dtype=np.float32)\n\n\ndef detect_screen_corners(img: np.ndarray,\n                          bbox: tuple[int, int, int, int] | None = None) -> np.ndarray | None:\n    \"\"\"检测显示屏面板四角，返回 (4,2) 像素坐标 [左上, 右上, 右下, 左下]；失败返回 None。\n\n    启发式：显示屏面板是图中最亮的低饱和区域（浅灰/白），边框与机身明显更暗。\n    在缩略图上做 (V>140 且 S<90) 阈值 → 形态学闭/开 → 最大轮廓 →\n    approxPolyDP 逼近四边形；逼近不出四点则用 minAreaRect 的旋转矩形四角。\n\n    S4（2026-07-30）新增：供 rectify.py 透视矫正与 compute_perspective_ratio 真实测量复用。\n    083 S05：传入 bbox（detect_screen_bbox 结果）时做子面板防护——局部亮区\n    （如屏幕下半功能面板）被当作整屏会让矫正裁掉上部温度区；四角候选面积\n    显著小于 bbox 且基本被其包含时判为子面板，返回 None 走 bbox 回退。\n    \"\"\"\n    h, w = img.shape[:2]\n    scale = 800 / max(h, w)\n    small = cv2.resize(img, (int(w * scale), int(h * scale))) if scale < 1 else img.copy()\n    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)\n    _, S, V = cv2.split(hsv)\n    mask = ((V > 140) & (S < 90)).astype(np.uint8) * 255\n    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))\n    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))\n\n    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)\n    sh, sw = mask.shape\n    best, best_area = None, 0.0\n    for c in contours:\n        area = cv2.contourArea(c)\n        if area < sh * sw * 0.05:  # 至少占图 5%，防噪声\n            continue\n        if area > best_area:\n            best, best_area = c, area\n    if best is None:\n        return None\n\n    inv = 1.0 / scale if scale < 1 else 1.0\n    peri = cv2.arcLength(best, True)\n    approx = cv2.approxPolyDP(best, 0.02 * peri, True)\n    if len(approx) == 4:\n        quad = approx.reshape(-1, 2).astype(np.float32) * inv\n    else:\n        quad = cv2.boxPoints(cv2.minAreaRect(best)).astype(np.float32) * inv\n\n    quad = order_points(quad)\n    # 基本合理性：四边都 > 100px（原图尺度），长宽比不过分离谱\n    widths = [np.linalg.norm(quad[1] - quad[0]), np.linalg.norm(quad[2] - quad[3])]\n    heights = [np.linalg.norm(quad[3] - quad[0]), np.linalg.norm(quad[2] - quad[1])]\n    if min(widths + heights) < 100:\n        return None\n    aspect = max(widths) / max(1.0, min(heights))\n    if not 0.4 <= aspect <= 4.0:\n        return None\n    if bbox is not None:\n        bx, by, bw, bh = bbox\n        if bw > 0 and bh > 0:\n            qx0, qy0 = float(quad[:, 0].min()), float(quad[:, 1].min())\n            qx1, qy1 = float(quad[:, 0].max()), float(quad[:, 1].max())\n            mx, my = bw * 0.10, bh * 0.10\n            inside = (qx0 >= bx - mx and qx1 <= bx + bw + mx\n                      and qy0 >= by - my and qy1 <= by + bh + my)\n            # 083 S07：bbox 已接近整幅（≥60% 图幅，整机面板被当成屏幕）且四角\n            # 候选在 bbox 内均匀留边（上缘距 bbox 顶 ≤25% 高度）时，bbox 是\n            # 「机器」而非「屏幕」——其内部四角候选（真 LCD）不应被子面板防护\n            # 否决（伯乐 500EKS 竖屏整机实拍 bbox 占 79%、真屏上缘距仅 6% 被误杀；\n            # 伯乐 Z001 斜拍 bbox 占 72%、真屏上缘距 5%）。S05 原子面板场景\n            # （EST Luban：局部亮区 quad 深陷屏幕 bbox 下半部，上缘距 42%、\n            # 下缘距 2%）不满足豁免，防护行为不变。\n            bbox_is_frame = bw * bh >= 0.6 * (w * h)\n            quad_evenly_nested = (qy0 - by) <= 0.25 * bh\n            # 083 S09：整机面板上缘留白较大（手写告示/机台 logo 占顶部 >25%）时\n            # 真屏四角仍被误杀（伯乐 TX25024 720px 整机照，真屏四缘留边\n            # 17%~44% 均匀居中）。四缘留边均 ≥10% 的居中候选与「贴顶真屏」\n            # 一样不是局部亮面子面板，同样豁免；S05 EST 子面板（下缘距 2%\n            # 贴底）不满足四缘条件，防护行为不变。\n            all_margins = (qx0 - bx >= 0.10 * bw and bx + bw - qx1 >= 0.10 * bw\n                           and qy0 - by >= 0.10 * bh and by + bh - qy1 >= 0.10 * bh)\n            exempt = bbox_is_frame and (quad_evenly_nested or all_margins)\n            if (inside and not exempt\n                    and cv2.contourArea(quad) < 0.55 * bw * bh):\n                return None\n    return quad\n\n\ndef compute_perspective_ratio(bbox: tuple[int, int, int, int] | None, gray: np.ndarray,\n                              quad: np.ndarray | None = None) -> float:\n    \"\"\"估计屏幕透视畸变程度，>=1.0，越大越倾斜。\n\n    S4 起为真实测量（修正此前\"名为透视、实为长宽比罚分\"的名不副实问题）：\n    有屏幕四角（detect_screen_corners）时取对边长度比\n    max(上/下, 下/上, 左/右, 右/左)——正对屏幕拍摄时平行边等长，比值≈1.0；\n    斜拍时近大远小，比值增大。\n\n    四角不可得时回退旧启发式：屏幕长宽比偏离 [0.7, 2.5] 罚 1.3；屏幕被图像边\n    严重裁切罚 1.5。阈值（THRESHOLD_PERSPECTIVE=1.30）两种口径下语义一致。\n    \"\"\"\n    if quad is not None:\n        q = order_points(quad)\n        top = float(np.linalg.norm(q[1] - q[0]))\n        bottom = float(np.linalg.norm(q[2] - q[3]))\n        left = float(np.linalg.norm(q[3] - q[0]))\n        right = float(np.linalg.norm(q[2] - q[1]))\n        ratios = []\n        for a, b in ((top, bottom), (left, right)):\n            lo, hi = min(a, b), max(a, b)\n            if lo > 0:\n                ratios.append(hi / lo)\n        return max(ratios) if ratios else 1.0\n\n    if bbox is None:\n        return 1.0\n    x, y, bw, bh = bbox\n    # 检查屏幕长宽比是否在合理范围（屏幕本身通常宽 > 高，或接近方形）\n    aspect = bw / max(bh, 1)\n    # 屏幕长宽比偏离 [0.7, 2.5] -> 罚分\n    if 0.7 <= aspect <= 2.5:\n        aspect_penalty = 1.0\n    else:\n        aspect_penalty = 1.3\n\n    # 屏幕被图像边严重裁切（边界外推 > 50px）-> reject\n    h, w = gray.shape\n    margin = 50\n    heavily_clipped = (x < -margin or y < -margin\n                       or x + bw > w + margin or y + bh > h + margin)\n    if heavily_clipped:\n        return 1.5  # 严重\n\n    return aspect_penalty\n\n\ndef measure_perspective(image_path: Path) -> float:\n    \"\"\"测量指定图像的透视畸变比（083 S05：管线对矫正图复测透视专用）。\n\n    与 assess 内部同一口径（compute_perspective_ratio），但不触发其他判据——\n    模糊/反光/裁切/尺寸等仍在原图上评估，只有「透视」这一项在矫正后的实际\n    OCR 输入上复测。读取失败返回 inf（复测失败，维持原拒识）。\n    \"\"\"\n    img = cv2.imread(str(image_path))\n    if img is None:\n        return float(\"inf\")\n    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)\n    bbox = detect_screen_bbox(img)\n    quad = detect_screen_corners(img)\n    return compute_perspective_ratio(bbox, gray, quad)\n\n\ndef compute_blur(gray: np.ndarray) -> float:\n    return float(cv2.Laplacian(gray, cv2.CV_64F).var())\n\n\ndef compute_glare(gray: np.ndarray) -> float:\n    high = (gray > 230).sum()\n    total = gray.size\n    return float(high / total) if total else 0.0\n\n\ndef compute_dark(gray: np.ndarray) -> float:\n    low = (gray < 30).sum()\n    total = gray.size\n    return float(low / total) if total else 0.0\n\n\ndef estimate_text_size(bbox: tuple[int, int, int, int] | None) -> int | None:\n    \"\"\"基于屏幕高度估计最小数字字符像素高度（启发式：屏幕高度的 5%）。\"\"\"\n    if bbox is None:\n        return None\n    return int(bbox[3] * 0.05)\n\n\ndef triage(report: QualityReport) -> None:\n    m = report.metrics\n    tri = \"green\"\n    reshoot = []\n\n    if m.screen_bbox is None:\n        report.reject_codes.append(\"SCREEN_NOT_FOUND\")\n        tri = \"red\"\n        reshoot.append(REJECT_GUIDANCE[\"SCREEN_NOT_FOUND\"])\n\n    # 064 S02 完整性独立机器码：bbox 贴图像边且四角未命中 → 屏幕疑似被裁切。\n    # 四角命中说明屏幕完整入镜；bbox 缺失（SCREEN_NOT_FOUND）时不重复判裁切。\n    if m.screen_bbox is not None and m.screen_clipped:\n        report.reject_codes.append(\"SCREEN_CLIPPED\")\n        tri = \"red\"\n        reshoot.append(REJECT_GUIDANCE[\"SCREEN_CLIPPED\"])\n\n    if m.screen_bbox is not None:\n        x, y, bw, bh = m.screen_bbox\n        if (bw < THRESHOLD_SCREEN_MIN_WIDTH\n                and m.screen_area_ratio < THRESHOLD_SCREEN_MIN_AREA_RATIO):\n            report.reject_codes.append(\"SCREEN_TOO_SMALL\")\n            tri = \"red\"\n            reshoot.append(REJECT_GUIDANCE[\"SCREEN_TOO_SMALL\"])\n        # 最小数字字符像素\n        text_h = estimate_text_size(m.screen_bbox)\n        if text_h is not None and text_h < 14:\n            report.warn_codes.append(\"LOW_TEXT_SIZE\")\n            if tri == \"green\":\n                tri = \"yellow\"\n            reshoot.append(\"屏幕内的数字太小，请靠近拍摄让数字字符清晰可辨。\")\n\n    if m.perspective_ratio > (THRESHOLD_PERSPECTIVE_RECTIFIABLE if m.corners_found else THRESHOLD_PERSPECTIVE):\n        report.reject_codes.append(\"SEVERE_PERSPECTIVE\")\n        tri = \"red\"\n        reshoot.append(REJECT_GUIDANCE[\"SEVERE_PERSPECTIVE\"])\n    elif m.perspective_ratio > 1.10:\n        report.warn_codes.append(\"NEEDS_RECTIFICATION\")\n        if tri == \"green\":\n            tri = \"yellow\"\n\n    if m.blur_score < THRESHOLD_BLUR_VARIANCE:\n        report.reject_codes.append(\"SEVERE_BLUR\")\n        tri = \"red\"\n        reshoot.append(REJECT_GUIDANCE[\"SEVERE_BLUR\"])\n\n    if m.glare_ratio > THRESHOLD_GLARE_SEVERE and m.blur_score < THRESHOLD_GLARE_BLUR_MAX:\n        report.reject_codes.append(\"SEVERE_GLARE\")\n        tri = \"red\"\n        reshoot.append(REJECT_GUIDANCE[\"SEVERE_GLARE\"])\n    elif m.glare_ratio > 0.05:\n        report.warn_codes.append(\"MINOR_GLARE\")\n        if tri == \"green\":\n            tri = \"yellow\"\n    elif m.glare_ratio > 0.02:\n        report.warn_codes.append(\"MINOR_GLARE\")\n        if tri == \"green\":\n            tri = \"yellow\"\n\n    # 064 S02 欠曝独立机器码：仅基于屏幕 ROI（不用全图背景做强拒识），\n    # 且须纹理已被破坏（blur<300），避免误伤暗底亮字的数码管面板。\n    if (m.screen_bbox is not None and m.roi_dark_ratio > THRESHOLD_DARK_SEVERE\n            and m.blur_score < THRESHOLD_GLARE_BLUR_MAX):\n        report.reject_codes.append(\"SEVERE_UNDEREXPOSURE\")\n        tri = \"red\"\n        reshoot.append(REJECT_GUIDANCE[\"SEVERE_UNDEREXPOSURE\"])\n\n    # 屏幕占比过低：只黄灯提示。OCR 可用性取决于屏幕绝对像素宽度（上方 width 规则），\n    # 高分辨率远景照屏占比低但绝对像素充足（校准集 rank06 2525px / rank11 2366px 宽被误杀）\n    if m.screen_bbox is not None and m.screen_area_ratio < THRESHOLD_SCREEN_MIN_AREA_RATIO:\n        report.warn_codes.append(\"LOW_TEXT_SIZE\")\n        if tri == \"green\":\n            tri = \"yellow\"\n        reshoot.append(\"屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。\")\n\n    # 064 S02：red 多码命中时只保留一个主提示（REJECT_GUIDANCE 声明顺序即优先级）；\n    # yellow/green 维持原有多提示行为不变。\n    if tri == \"red\":\n        for code, guidance in REJECT_GUIDANCE.items():\n            if code in report.reject_codes:\n                reshoot = [guidance]\n                break\n\n    report.triage = tri\n    report.reshoot_guidance = reshoot\n\n\ndef assess(image_path: Path) -> QualityReport:\n    img = cv2.imread(str(image_path))\n    if img is None:\n        r = QualityReport(filename=image_path.name)\n        r.reject_codes.append(\"READ_ERROR\")\n        r.triage = \"red\"\n        r.reshoot_guidance.append(REJECT_GUIDANCE[\"READ_ERROR\"])\n        return r\n    h, w = img.shape[:2]\n    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)\n\n    bbox = detect_screen_bbox(img)\n    # 083 S05：子面板防护只作用于 rectify 的矫正分支；质量门禁保持原口径\n    # （四角命中即视为屏幕完整入镜，不判裁切）。\n    quad = detect_screen_corners(img)\n    # 083 S09：bbox/四角反向失配修复——整机实拍里 Canny 外轮廓可能只闭合\n    # 屏幕内部某个小组件（伯乐 KEBA 整机照的键盘小窗 395px），而四角检测\n    # 命中的最大亮区才是真 LCD（2271px）。当四角包围盒完整包含 bbox 且面积\n    # 显著更大（≥2 倍）时，bbox 是屏幕内部子区域而非屏幕本体，改用四角\n    # 包围盒作为屏幕区域证据（占比/文本高度/欠曝 ROI 随之按真屏评估）。\n    # S05 子面板场景（四角亮区面积小于 bbox）方向相反，不触发本修复。\n    if bbox is not None and quad is not None:\n        qx0, qy0 = float(quad[:, 0].min()), float(quad[:, 1].min())\n        qx1, qy1 = float(quad[:, 0].max()), float(quad[:, 1].max())\n        bx, by, bw, bh = bbox\n        mx, my = (qx1 - qx0) * 0.10, (qy1 - qy0) * 0.10\n        contains = (bx >= qx0 - mx and bx + bw <= qx1 + mx\n                    and by >= qy0 - my and by + bh <= qy1 + my)\n        if contains and (qx1 - qx0) * (qy1 - qy0) >= 2.0 * bw * bh:\n            bbox = (int(qx0), int(qy0), int(qx1 - qx0), int(qy1 - qy0))\n    # 064 S02：贴边/欠曝判据只基于屏幕 ROI；四角命中视为屏幕完整入镜，不判裁切。\n    screen_clipped = False\n    roi_dark_ratio = 0.0\n    if bbox:\n        x, y, bw, bh = bbox\n        roi = gray[max(y, 0):y + bh, max(x, 0):x + bw]\n        if roi.size:\n            roi_dark_ratio = compute_dark(roi)\n        if quad is None:\n            mx = max(1, int(w * THRESHOLD_EDGE_MARGIN_RATIO))\n            my = max(1, int(h * THRESHOLD_EDGE_MARGIN_RATIO))\n            screen_clipped = (x <= mx or y <= my\n                              or x + bw >= w - mx or y + bh >= h - my)\n    metrics = QualityMetrics(\n        width=w,\n        height=h,\n        screen_bbox=bbox,\n        screen_area_ratio=(bbox[2] * bbox[3] / (w * h)) if bbox else 0.0,\n        perspective_ratio=compute_perspective_ratio(bbox, gray, quad),\n        blur_score=compute_blur(gray),\n        glare_ratio=compute_glare(gray),\n        dark_ratio=compute_dark(gray),\n        corners_found=quad is not None,\n        screen_clipped=screen_clipped,\n        roi_dark_ratio=roi_dark_ratio,\n    )\n\n    r = QualityReport(filename=image_path.name, metrics=metrics)\n    triage(r)\n    return r\n\n\ndef main():\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"images\", nargs=\"+\")\n    ap.add_argument(\"--output\", \"-o\", required=True)\n    ap.add_argument(\"--dedup\", help=\"可选：dedup JSON 路径，把重复文件直接标记为红灯\")\n    args = ap.parse_args()\n\n    dup_hashes = set()\n    if args.dedup:\n        dedup_report = json.loads(Path(args.dedup).read_text())\n        for grp in dedup_report.get(\"duplicate_within_record\", []):\n            dup_hashes.add(grp[\"sha256\"])\n        for grp in dedup_report.get(\"duplicate_across_records\", []):\n            dup_hashes.add(grp[\"sha256\"])\n\n    reports = []\n    counts = {\"green\": 0, \"yellow\": 0, \"red\": 0}\n    for img_str in args.images:\n        p = Path(img_str)\n        if not p.is_file():\n            continue\n        r = assess(p)\n        # 标记重复文件\n        if dup_hashes:\n            import hashlib\n            digest = hashlib.sha256(p.read_bytes()).hexdigest()\n            if digest in dup_hashes:\n                r.reject_codes.append(\"DUPLICATE_ATTACHMENT\")\n                if r.triage == \"green\":\n                    r.triage = \"yellow\"\n                r.reshoot_guidance.append(\"当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。\")\n        counts[r.triage] += 1\n        reports.append(asdict(r))\n\n    out = {\n        \"summary\": {\n            \"total\": len(reports),\n            \"green\": counts[\"green\"],\n            \"yellow\": counts[\"yellow\"],\n            \"red\": counts[\"red\"],\n        },\n        \"reports\": reports,\n    }\n    out_path = Path(args.output)\n    out_path.parent.mkdir(parents=True, exist_ok=True)\n    out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2))\n    print(f\"[quality] {len(reports)} images -> green={counts['green']} yellow={counts['yellow']} red={counts['red']}\")\n    print(f\"[quality] report -> {args.output}\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "scripts/raw_contract.py": "\"\"\"Offline integrity and semantic checks for original-screen packages.\"\"\"\n\nimport hashlib\nimport json\nimport math\nfrom datetime import datetime\n\n\ndef canonical_hash(document):\n    return hashlib.sha256(json.dumps(document, ensure_ascii=False, sort_keys=True,\n                                     separators=(\",\", \":\"), allow_nan=False).encode()).hexdigest()\n\n\ndef import_raw_package(document):\n    package = json.loads(json.dumps(document, allow_nan=False))\n    if package.get(\"package_schema\") != \"hmi_raw_page_package.v2\":\n        raise ValueError(\"RAW_PACKAGE_SCHEMA_UNSUPPORTED\")\n    for key in (\"raw_contract\", \"raw_field_definition\"):\n        if canonical_hash(package[key]) != package[key + \"_sha256\"]:\n            raise ValueError(\"RAW_PACKAGE_HASH_MISMATCH\")\n    definition = package[\"raw_field_definition\"]\n    if definition[\"profile_id\"] != package[\"profile_id\"] or definition[\"version\"] != package[\"version\"]:\n        raise ValueError(\"RAW_PACKAGE_IDENTITY_MISMATCH\")\n    keys = [field[\"screen_field_key\"] for field in definition[\"fields\"]]\n    if not keys or len(keys) != len(set(keys)):\n        raise ValueError(\"RAW_FIELD_IDENTITY_CONFLICT\")\n    return package\n\n\ndef validate_raw_record(record, package):\n    definition = import_raw_package(package)[\"raw_field_definition\"]\n    if record.get(\"schema_version\") != \"page_observations.v2\":\n        raise ValueError(\"RAW_CONTRACT_VERSION_UNSUPPORTED\")\n    required = {\"source\", \"profile_id\", \"fields\", \"raw_field_definition_sha256\"}\n    if not required <= record.keys():\n        raise ValueError(\"RAW_RECORD_INCOMPLETE\")\n    if (record.get(\"profile_id\") != package[\"profile_id\"] or\n            record.get(\"raw_field_definition_sha256\") != package[\"raw_field_definition_sha256\"]):\n        raise ValueError(\"RAW_DEFINITION_MISMATCH\")\n    source = record.get(\"source\")\n    if source == \"image_recognition\":\n        if not {\"original_size\", \"recognizer\", \"package_sha256\", \"raw_contract_sha256\", \"engine\"} <= record.keys():\n            raise ValueError(\"IMAGE_PROVENANCE_REQUIRED\")\n        image_hash = record.get(\"image_sha256\", \"\")\n        if len(image_hash) != 64 or any(char not in \"0123456789abcdef\" for char in image_hash):\n            raise ValueError(\"IMAGE_HASH_INVALID\")\n        if record.get(\"raw_contract_sha256\") != package[\"raw_contract_sha256\"]:\n            raise ValueError(\"RAW_CONTRACT_HASH_MISMATCH\")\n        if record[\"recognizer\"] != package[\"recognizer\"] or record[\"package_sha256\"] != canonical_hash(package):\n            raise ValueError(\"RAW_PACKAGE_HASH_MISMATCH\")\n        size = record[\"original_size\"]\n        if not isinstance(size, list) or len(size) != 2 or not all(type(x) is int and 1 <= x <= 100000 for x in size):\n            raise ValueError(\"IMAGE_DIMENSIONS_INVALID\")\n    elif source == \"manual\":\n        if not isinstance(record.get(\"actor\"), str) or not record[\"actor\"].strip() or type(record.get(\"revision\")) is not int or record[\"revision\"] < 1:\n            raise ValueError(\"MANUAL_AUDIT_REQUIRED\")\n        datetime.fromisoformat(record[\"created_at\"].replace(\"Z\", \"+00:00\"))\n        if \"image_sha256\" in record or \"recognizer\" in record:\n            raise ValueError(\"MANUAL_RECOGNITION_EVIDENCE_FORBIDDEN\")\n        if \"image_reference\" in record:\n            reference = record[\"image_reference\"]\n            if (not isinstance(reference, dict) or set(reference) != {\"sha256\"} or\n                    not isinstance(reference[\"sha256\"], str) or len(reference[\"sha256\"]) != 64 or\n                    any(char not in \"0123456789abcdef\" for char in reference[\"sha256\"])):\n                raise ValueError(\"MANUAL_IMAGE_REFERENCE_INVALID\")\n    else:\n        raise ValueError(\"RAW_SOURCE_UNSUPPORTED\")\n    specs = {field[\"screen_field_key\"]: field for field in definition[\"fields\"]}\n    seen = set()\n    if not isinstance(record[\"fields\"], list) or len(record[\"fields\"]) > 1000:\n        raise ValueError(\"RAW_FIELDS_INVALID\")\n    for field in record[\"fields\"]:\n        if not {\"screen_field_key\", \"source\", \"original_label\", \"original_value\", \"original_unit\",\n                \"role\", \"state\", \"reading\", \"original_bbox\"} <= field.keys():\n            raise ValueError(\"RAW_FIELD_INCOMPLETE\")\n        key = field[\"screen_field_key\"]\n        if key not in specs or key in seen:\n            raise ValueError(\"RAW_FIELD_IDENTITY_CONFLICT\")\n        seen.add(key)\n        if field.get(\"source\", source) != source:\n            raise ValueError(\"RAW_SOURCE_CONFLICT\")\n        for name, limit in ((\"original_label\", 512), (\"original_unit\", 32)):\n            if field[name] is not None and (not isinstance(field[name], str) or len(field[name]) > limit):\n                raise ValueError(\"RAW_TEXT_INVALID\")\n        if (field[\"role\"] not in (\"setting\", \"actual\", \"unknown\") or\n                field[\"state\"] not in (\"enabled\", \"disabled\", \"unknown\") or\n                field[\"reading\"] not in (\"known\", \"missing\", \"uncertain\", \"unsupported\", \"conflict\")):\n            raise ValueError(\"RAW_STATE_INVALID\")\n        value = field[\"original_value\"]\n        if value is not None and type(value) not in (str, int, float, bool):\n            raise ValueError(\"RAW_VALUE_INVALID\")\n        if isinstance(value, float) and not math.isfinite(value):\n            raise ValueError(\"RAW_VALUE_INVALID\")\n        if isinstance(value, str) and len(value) > 2048:\n            raise ValueError(\"RAW_VALUE_TOO_LONG\")\n        if field[\"reading\"] == \"known\" and value is None:\n            raise ValueError(\"RAW_READING_CONFLICT\")\n        confidence = field.get(\"confidence\")\n        if confidence is not None and (type(confidence) not in (float, int) or not math.isfinite(confidence) or not 0 <= confidence <= 1):\n            raise ValueError(\"RAW_CONFIDENCE_INVALID\")\n        if source == \"manual\" and any(field.get(key) is not None for key in\n                                      (\"confidence\", \"bbox\", \"original_bbox\", \"text\")):\n            raise ValueError(\"MANUAL_RECOGNITION_EVIDENCE_FORBIDDEN\")\n        box = field.get(\"original_bbox\")\n        if box is not None and (not isinstance(box, list) or len(box) != 4 or not all(type(x) in (int, float) and math.isfinite(x) for x in box)\n                                or not 0 <= box[0] < box[2] <= 100 or not 0 <= box[1] < box[3] <= 100):\n            raise ValueError(\"RAW_BOX_INVALID\")\n    if source == \"image_recognition\" and seen != set(specs):\n        raise ValueError(\"RAW_FIELD_COVERAGE_INCOMPLETE\")\n    return record\n",
+      "scripts/raw_metering.py": "\"\"\"Frozen physical metering-page packages and image provenance.\"\"\"\n\nimport copy\nimport hashlib\nimport json\nimport re\nfrom pathlib import Path\n\nfrom raw_contract import canonical_hash, import_raw_package\nfrom extract_families.b_and_r_metering import PROFILE, extract_metering\n\n\nROOT = Path(__file__).resolve().parents[1]\nFILES = (\"scripts/raw_metering.py\", \"scripts/extract_families/b_and_r_metering.py\",\n         \"scripts/raw_contract.py\", \"scripts/raw_page.py\", \"scripts/extract_families/coordinates.py\",\n         \"scripts/quality.py\", \"contracts/raw-pages/b-and-r-metering-1.0.0.json\")\n\n\ndef build_metering_package(template, samples):\n    definition = json.loads((ROOT / \"contracts/raw-pages/b-and-r-metering-1.0.0.json\").read_text())\n    expected = {sample[\"sample_id\"]: sample[\"image_sha256\"] for sample in definition[\"samples\"]}\n    provided = {sample[\"manifest\"][\"sample_id\"]: sample[\"manifest\"][\"original_sha256\"] for sample in samples}\n    if provided != expected or len(set(provided.values())) != len(expected):\n        raise ValueError(\"METERING_FROZEN_SAMPLES_REQUIRED\")\n    if template[\"profile_id\"] != PROFILE or template.get(\"extractor_id\") != \"b_and_r.metering\":\n        raise ValueError(\"METERING_PACKAGE_IDENTITY_INVALID\")\n    if any(template[\"page_identity\"].get(key) != value for key, value in definition[\"page_identity\"].items()):\n        raise ValueError(\"METERING_CONTROLLER_IDENTITY_CONFLICT\")\n    definition[\"version\"] = template[\"version\"]\n    contract = json.loads((ROOT / \"contracts/page_observations.v2.schema.json\").read_text())\n    sources = {path: (ROOT / path).read_text() for path in FILES}\n    files = {path: hashlib.sha256(source.encode()).hexdigest() for path, source in sources.items()}\n    return dict(package_schema=\"hmi_raw_page_package.v2\", profile_id=PROFILE, version=template[\"version\"],\n                template=template, raw_contract=contract, raw_contract_sha256=canonical_hash(contract),\n                raw_field_definition=definition, raw_field_definition_sha256=canonical_hash(definition),\n                recognizer=dict(id=\"b_and_r.metering.v2\", version=\"1.0.0\", files=files,\n                                sources=sources, sha256=canonical_hash(files)), samples=samples)\n\n\ndef metering_package(root=ROOT, version=\"1.0.0\"):\n    if not re.fullmatch(r\"\\d+\\.\\d+\\.\\d+\", version):\n        raise ValueError(\"RAW_PAGE_VERSION_UNSUPPORTED\")\n    package = import_raw_package(json.loads((Path(root) / \"templates/packages\" / PROFILE / f\"{version}.json\").read_text()))\n    if package[\"profile_id\"] != PROFILE or package[\"version\"] != version:\n        raise ValueError(\"RAW_PACKAGE_IDENTITY_MISMATCH\")\n    recognizer = package[\"recognizer\"]\n    if recognizer[\"id\"] != \"b_and_r.metering.v2\" or set(recognizer[\"files\"]) != set(FILES):\n        raise ValueError(\"RAW_RECOGNIZER_UNSUPPORTED\")\n    actual = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in FILES}\n    embedded = {path: hashlib.sha256(recognizer[\"sources\"][path].encode()).hexdigest() for path in FILES}\n    if actual != recognizer[\"files\"] or embedded != actual or canonical_hash(actual) != recognizer[\"sha256\"]:\n        raise ValueError(\"RAW_RECOGNIZER_HASH_MISMATCH\")\n    return package\n\n\ndef observe_metering_page(lines, meta, image_sha256, root=ROOT, version=\"1.0.0\"):\n    if not re.fullmatch(r\"[a-f0-9]{64}\", image_sha256):\n        raise ValueError(\"IMAGE_HASH_INVALID\")\n    package = metering_package(root, version)\n    result = extract_metering(lines, package[\"template\"], meta)\n    if not result[\"detail\"]:\n        raise ValueError(result[\"warnings\"][0])\n    observation = result[\"detail\"][\"page_observations\"]\n    for field in observation[\"fields\"]:\n        field[\"template_ref\"] = dict(profile_id=PROFILE, version=version,\n                                     sha256=package[\"raw_field_definition_sha256\"],\n                                     unit=field[\"effective_unit\"] if field[\"original_unit\"] is None else None)\n    transform = copy.deepcopy(meta)\n    transform.update(rectifier_input_sha256=meta.get(\"original_sha256\"), original_sha256=image_sha256)\n    observation.update(schema_version=\"page_observations.v2\", source=\"image_recognition\",\n                       page_identity=package[\"raw_field_definition\"][\"page_identity\"], image_sha256=image_sha256,\n                       original_size=meta.get(\"original_size\"), coordinate_space=\"original_percent\", transform=transform,\n                       raw_contract_sha256=package[\"raw_contract_sha256\"],\n                       raw_field_definition_sha256=package[\"raw_field_definition_sha256\"],\n                       raw_field_definition_version=version, recognizer=package[\"recognizer\"],\n                       package_sha256=canonical_hash(package),\n                       ocr_evidence=dict(coordinate_space=\"rectified_pixels\", screen_size=meta[\"screen_size\"], lines=lines))\n    return observation\n",
+      "scripts/raw_page.py": "\"\"\"Versioned raw numeric page observations, independent of business projection.\"\"\"\n\nimport copy\nimport hashlib\nimport json\nimport re\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parents[1]\nPROFILE = \"demag.injection_metering.multi_stage_holding\"\nDEFINITION = \"contracts/raw-pages/demag-holding-0.3.0.json\"\n\n\ndef content_hash(value):\n    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,\n                                     separators=(\",\", \":\"), allow_nan=False).encode()).hexdigest()\n\n\ndef load_raw_definition(root=ROOT):\n    return json.loads((root / DEFINITION).read_text())\n\n\ndef raw_page_package(profile_id, version, root=ROOT):\n    if profile_id != PROFILE or version != \"0.3.0\":\n        raise ValueError(\"RAW_PAGE_VERSION_UNSUPPORTED\")\n    frozen = root / \"templates/raw-packages\" / PROFILE / f\"{version}.json\"\n    if not frozen.is_file():\n        raise ValueError(\"RAW_PACKAGE_NOT_FROZEN\")\n    pinned = json.loads(frozen.read_text())\n    for key, value in build_raw_page_package(root).items():\n        if value != pinned.get(key):\n            raise ValueError(\"RAW_PACKAGE_FROZEN_CONTENT_MISMATCH: \" + key)\n    return pinned\n\n\ndef build_raw_page_package(root=ROOT):\n    profile_id, version = PROFILE, \"0.3.0\"\n    definition = load_raw_definition(root)\n    contract = json.loads((root / \"contracts/page_observations.v2.schema.json\").read_text())\n    implementation = {path: hashlib.sha256((root / path).read_bytes()).hexdigest()\n                      for path in (\"scripts/raw_page.py\", \"scripts/raw_page_ocr.py\",\n                                   \"scripts/extract_families/coordinates.py\",\n                                   \"scripts/extract_families/demag/curve.py\", \"scripts/quality.py\",\n                                   \"scripts/raw_contract.py\")}\n    package = {\"package_schema\": \"hmi_raw_page_package.v2\", \"profile_id\": profile_id,\n            \"version\": version, \"raw_field_definition\": definition,\n            \"raw_field_definition_sha256\": content_hash(definition),\n            \"raw_contract\": contract, \"raw_contract_sha256\": content_hash(contract),\n            \"samples\": [json.loads((root / \"contracts/raw-pages/demag-holding-sample.json\").read_text())],\n            \"recognizer\": {\"id\": \"demag_holding_numeric.v2\",\n                           \"sha256\": content_hash(implementation), \"files\": implementation},\n            \"legacy_package\": {\"version\": \"0.2.1\",\n                               \"sha256\": content_hash(json.loads((root / \"templates/packages\" / PROFILE / \"0.2.1.json\").read_text()))}}\n    return package\n\n\ndef _line_box(line):\n    box = line[\"bbox\"]\n    return [box[k] for k in (\"x_min\", \"y_min\", \"x_max\", \"y_max\")] if isinstance(box, dict) else box\n\n\ndef _inside(line, region, size):\n    x1, y1, x2, y2 = _line_box(line)\n    x, y = (x1 + x2) / (2 * size[0]), (y1 + y2) / (2 * size[1])\n    return region[0] <= x <= region[2] and region[1] <= y <= region[3]\n\n\ndef observe_raw_page(profile_id, lines, meta, image_sha256, rectified_image=None):\n    if profile_id != PROFILE:\n        raise ValueError(\"RAW_PAGE_UNSUPPORTED\")\n    if not re.fullmatch(r\"[0-9a-f]{64}\", image_sha256):\n        raise ValueError(\"IMAGE_HASH_INVALID\")\n    from extract_families.coordinates import project_boxes\n\n    package = raw_page_package(PROFILE, \"0.3.0\")\n    definition = package[\"raw_field_definition\"]\n    transform = copy.deepcopy(meta)\n    transform[\"rectifier_input_sha256\"] = transform.get(\"original_sha256\")\n    transform[\"original_sha256\"] = image_sha256\n    size = meta[\"screen_size\"]\n    observations, issues = [], copy.deepcopy(definition[\"issues\"])\n    numeric = re.compile(r\"^\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*(mm/s|bar_spez|bar|mm|s)?\\s*$\")\n    for spec in definition[\"fields\"]:\n        candidates = [(index, line) for index, line in enumerate(lines)\n                      if _inside(line, spec[\"region\"], size) and numeric.fullmatch(line[\"text\"])]\n        source = candidates[0][1] if len(candidates) == 1 else None\n        match = numeric.fullmatch(source[\"text\"]) if source else None\n        value = float(match[1]) if match else None\n        confidence = source.get(\"conf\", source.get(\"confidence\", 0)) if source else None\n        labels = [line[\"text\"] for line in lines if spec.get(\"label_region\")\n                  and _inside(line, spec[\"label_region\"], size)]\n        original_unit = match[2] if match else None\n        if original_unit is None:\n            original_unit = next((unit for unit in (\"mm/s\", \"bar_spez\", \"bar\", \"mm\", \"s\")\n                                  if any(re.search(r\"(?<![a-z])\" + re.escape(unit) + r\"(?![a-z])\", label)\n                                         for label in labels)), None)\n        reading = (\"conflict\" if len(candidates) > 1 else \"missing\" if source is None else\n                   \"uncertain\" if confidence < .9 else \"known\")\n        if spec.get(\"reading_support\") == \"unsupported\":\n            reading = \"unsupported\"\n        elif spec.get(\"semantic_status\") == \"unverified\" and source:\n            reading = \"uncertain\"\n        observation = {\"screen_field_key\": spec[\"screen_field_key\"],\n                       \"source\": \"image_recognition\", \"original_label\": \" \".join(labels) or None,\n                       \"original_value\": value, \"original_unit\": original_unit,\n                       \"effective_unit\": original_unit or spec[\"unit\"],\n                       \"label\": spec[\"label\"], \"value\": value, \"unit\": original_unit or spec[\"unit\"],\n                       \"role\": spec[\"role\"], \"state\": \"unknown\", \"reading\": reading,\n                       \"section\": spec[\"section\"], \"stage\": spec.get(\"stage\"),\n                       \"segment_id\": spec.get(\"segment_id\"), \"order\": spec.get(\"order\"),\n                       \"text\": source[\"text\"] if source else None, \"confidence\": confidence,\n                       \"bbox\": _line_box(source) if source else None, \"original_bbox\": None,\n                       \"line_indexes\": [index for index, _ in candidates], \"reasons\": [],\n                       \"template_ref\": {\"profile_id\": PROFILE, \"version\": definition[\"version\"],\n                                        \"sha256\": package[\"raw_field_definition_sha256\"],\n                                        \"role\": spec[\"role\"],\n                                        \"unit\": spec[\"unit\"] if original_unit is None else None}}\n        if reading != \"known\":\n            issues.append({\"code\": \"READING_\" + reading.upper(), \"screen_field_key\": spec[\"screen_field_key\"],\n                           \"reason\": \"No verified checkbox decoder\" if reading == \"unsupported\" else \"OCR evidence incomplete or uncertain\"})\n        if original_unit and spec[\"unit\"] and original_unit != spec[\"unit\"]:\n            issues.append({\"code\": \"UNIT_TEMPLATE_CONFLICT\", \"screen_field_key\": spec[\"screen_field_key\"]})\n        observations.append(observation)\n    if rectified_image is not None:\n        from extract_families.demag.curve import _stage_enabled\n\n        captures = {field[\"screen_field_key\"]: [((field[\"bbox\"][0] + field[\"bbox\"][2]) / (2 * size[0]),\n                                               (field[\"bbox\"][1] + field[\"bbox\"][3]) / (2 * size[1]))]\n                    for field in observations if field[\"stage\"] is not None and field[\"bbox\"]}\n        states = _stage_enabled(rectified_image, captures)\n        for field in observations:\n            state = states.get(field[\"screen_field_key\"])\n            if state:\n                field[\"state\"] = \"enabled\" if state[0] else \"disabled\"\n                field[\"state_basis\"] = \"calibrated_cell_brightness.v1\"\n            if field[\"screen_field_key\"] == \"holding.pressure.stage-3\":\n                field[\"state\"] = \"unknown\"\n                field[\"state_basis\"] = \"conflicting_recorded_truth\"\n    project_boxes(observations, meta)\n    for field in observations:\n        if field[\"original_bbox\"] is None:\n            field[\"reasons\"].append(\"source_box_unavailable\")\n    return {\"schema_version\": \"page_observations.v2\", \"profile_id\": PROFILE,\n            \"page_identity\": definition[\"page_identity\"], \"source\": \"image_recognition\",\n            \"image_sha256\": image_sha256, \"original_size\": meta.get(\"original_size\"),\n            \"coordinate_space\": \"original_percent\", \"transform\": transform,\n            \"raw_contract_sha256\": package[\"raw_contract_sha256\"],\n            \"raw_field_definition_version\": definition[\"version\"],\n            \"raw_field_definition_sha256\": package[\"raw_field_definition_sha256\"],\n            \"recognizer\": package[\"recognizer\"], \"package_sha256\": content_hash(package),\n            \"ocr_evidence\": {\"coordinate_space\": \"rectified_pixels\", \"screen_size\": size,\n                             \"lines\": lines},\n            \"fields\": observations, \"issues\": issues,\n            \"coverage\": {\"status\": \"partial\" if issues else \"complete\",\n                         \"declared\": len(observations),\n                         \"known\": sum(field[\"reading\"] == \"known\" for field in observations)}}\n"
+    },
+    "version": "1.0.0"
+  },
+  "samples": [
+    {
+      "manifest": {
+        "original_path": "datasets/r05/b_and_r.metering.three_stage/development.jpg",
+        "original_sha256": "ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163",
+        "original_size": [
+          3024,
+          4032
+        ],
+        "profile_id": "b_and_r.metering.three_stage",
+        "purpose": "development",
+        "sample_id": "development",
+        "screen_size": [
+          1499,
+          2000
+        ]
+      },
+      "ocr": {
+        "engine_identity": {
+          "class": "PaddleOCR",
+          "device": "unknown",
+          "library": "paddleocr",
+          "version": "2.7.3"
+        },
+        "lines": [
+          {
+            "bbox": {
+              "x_max": 1418.0,
+              "x_min": 1307.0,
+              "y_max": 40.0,
+              "y_min": 0.0
+            },
+            "conf": 0.9978163838386536,
+            "text": "操作员"
+          },
+          {
+            "bbox": {
+              "x_max": 101.0,
+              "x_min": 0.0,
+              "y_max": 90.0,
+              "y_min": 41.0
+            },
+            "conf": 0.8993217349052429,
+            "text": ":49:05"
+          },
+          {
+            "bbox": {
+              "x_max": 1472.0,
+              "x_min": 1339.0,
+              "y_max": 119.0,
+              "y_min": 70.0
+            },
+            "conf": 0.9946215748786926,
+            "text": "EKS_140"
+          },
+          {
+            "bbox": {
+              "x_max": 1487.0,
+              "x_min": 1282.0,
+              "y_max": 184.0,
+              "y_min": 143.0
+            },
+            "conf": 0.9931781888008118,
+            "text": "TX22045_ABS"
+          },
+          {
+            "bbox": {
+              "x_max": 1498.0,
+              "x_min": 1435.0,
+              "y_max": 256.0,
+              "y_min": 215.0
+            },
+            "conf": 0.9960619211196899,
+            "text": "系统"
+          },
+          {
+            "bbox": {
+              "x_max": 1082.0,
+              "x_min": 958.0,
+              "y_max": 265.0,
+              "y_min": 229.0
+            },
+            "conf": 0.9943356513977051,
+            "text": "主泵流量"
+          },
+          {
+            "bbox": {
+              "x_max": 1318.0,
+              "x_min": 1188.0,
+              "y_max": 263.0,
+              "y_min": 222.0
+            },
+            "conf": 0.992190957069397,
+            "text": "主泵压力"
+          },
+          {
+            "bbox": {
+              "x_max": 616.0,
+              "x_min": 487.0,
+              "y_max": 286.0,
+              "y_min": 241.0
+            },
+            "conf": 0.9944829940795898,
+            "text": "射台位置"
+          },
+          {
+            "bbox": {
+              "x_max": 848.0,
+              "x_min": 657.0,
+              "y_max": 280.0,
+              "y_min": 233.0
+            },
+            "conf": 0.9877318739891052,
+            "text": "熔胶转速"
+          },
+          {
+            "bbox": {
+              "x_max": 156.0,
+              "x_min": 31.0,
+              "y_max": 305.0,
+              "y_min": 253.0
+            },
+            "conf": 0.9882089495658875,
+            "text": "顶针位置"
+          },
+          {
+            "bbox": {
+              "x_max": 380.0,
+              "x_min": 253.0,
+              "y_max": 292.0,
+              "y_min": 250.0
+            },
+            "conf": 0.9946105480194092,
+            "text": "射胶位置"
+          },
+          {
+            "bbox": {
+              "x_max": 1071.0,
+              "x_min": 986.0,
+              "y_max": 350.0,
+              "y_min": 321.0
+            },
+            "conf": 0.9956949353218079,
+            "text": "6.0%"
+          },
+          {
+            "bbox": {
+              "x_max": 1327.0,
+              "x_min": 1207.0,
+              "y_max": 346.0,
+              "y_min": 310.0
+            },
+            "conf": 0.9957137703895569,
+            "text": "78.0bar"
+          },
+          {
+            "bbox": {
+              "x_max": 635.0,
+              "x_min": 520.0,
+              "y_max": 360.0,
+              "y_min": 331.0
+            },
+            "conf": 0.9824668169021606,
+            "text": "0.0mm"
+          },
+          {
+            "bbox": {
+              "x_max": 865.0,
+              "x_min": 747.0,
+              "y_max": 359.0,
+              "y_min": 325.0
+            },
+            "conf": 0.9878494143486023,
+            "text": "0.0rpm"
+          },
+          {
+            "bbox": {
+              "x_max": 177.0,
+              "x_min": 62.0,
+              "y_max": 381.0,
+              "y_min": 352.0
+            },
+            "conf": 0.96072918176651,
+            "text": "-0.2mm"
+          },
+          {
+            "bbox": {
+              "x_max": 405.0,
+              "x_min": 283.0,
+              "y_max": 373.0,
+              "y_min": 344.0
+            },
+            "conf": 0.996528148651123,
+            "text": "16.6mm"
+          },
+          {
+            "bbox": {
+              "x_max": 1467.0,
+              "x_min": 1418.0,
+              "y_max": 385.0,
+              "y_min": 354.0
+            },
+            "conf": 0.9988074898719788,
+            "text": "420"
+          },
+          {
+            "bbox": {
+              "x_max": 1482.0,
+              "x_min": 1405.0,
+              "y_max": 429.0,
+              "y_min": 388.0
+            },
+            "conf": 0.9929933547973633,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 72.0,
+              "x_min": 0.0,
+              "y_max": 460.0,
+              "y_min": 421.0
+            },
+            "conf": 0.9924204349517822,
+            "text": "胶斜率"
+          },
+          {
+            "bbox": {
+              "x_max": 275.0,
+              "x_min": 221.0,
+              "y_max": 450.0,
+              "y_min": 415.0
+            },
+            "conf": 0.994178295135498,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 1338.0,
+              "x_min": 1209.0,
+              "y_max": 515.0,
+              "y_min": 466.0
+            },
+            "conf": 0.9968039989471436,
+            "text": "实际转速"
+          },
+          {
+            "bbox": {
+              "x_max": 936.0,
+              "x_min": 808.0,
+              "y_max": 526.0,
+              "y_min": 474.0
+            },
+            "conf": 0.9817402958869934,
+            "text": "熔胶背压"
+          },
+          {
+            "bbox": {
+              "x_max": 528.0,
+              "x_min": 409.0,
+              "y_max": 532.0,
+              "y_min": 489.0
+            },
+            "conf": 0.9964417219161987,
+            "text": "实际位置"
+          },
+          {
+            "bbox": {
+              "x_max": 139.0,
+              "x_min": 20.0,
+              "y_max": 549.0,
+              "y_min": 499.0
+            },
+            "conf": 0.9971867203712463,
+            "text": "实际速度"
+          },
+          {
+            "bbox": {
+              "x_max": 909.0,
+              "x_min": 862.0,
+              "y_max": 571.0,
+              "y_min": 538.0
+            },
+            "conf": 0.9930329322814941,
+            "text": "0.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1312.0,
+              "x_min": 1267.0,
+              "y_max": 562.0,
+              "y_min": 533.0
+            },
+            "conf": 0.9977927803993225,
+            "text": "0.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1459.0,
+              "x_min": 1403.0,
+              "y_max": 560.0,
+              "y_min": 535.0
+            },
+            "conf": 0.9959619045257568,
+            "text": "rpm"
+          },
+          {
+            "bbox": {
+              "x_max": 515.0,
+              "x_min": 460.0,
+              "y_max": 583.0,
+              "y_min": 550.0
+            },
+            "conf": 0.9968451261520386,
+            "text": "16.6"
+          },
+          {
+            "bbox": {
+              "x_max": 649.0,
+              "x_min": 600.0,
+              "y_max": 581.0,
+              "y_min": 550.0
+            },
+            "conf": 0.9929652214050293,
+            "text": "mm"
+          },
+          {
+            "bbox": {
+              "x_max": 1043.0,
+              "x_min": 1011.0,
+              "y_max": 562.0,
+              "y_min": 546.0
+            },
+            "conf": 0.8288429379463196,
+            "text": "bal"
+          },
+          {
+            "bbox": {
+              "x_max": 126.0,
+              "x_min": 81.0,
+              "y_max": 594.0,
+              "y_min": 565.0
+            },
+            "conf": 0.9619737267494202,
+            "text": "-1.3"
+          },
+          {
+            "bbox": {
+              "x_max": 260.0,
+              "x_min": 190.0,
+              "y_max": 590.0,
+              "y_min": 560.0
+            },
+            "conf": 0.8774056434631348,
+            "text": "mm/s"
+          },
+          {
+            "bbox": {
+              "x_max": 745.0,
+              "x_min": 681.0,
+              "y_max": 675.0,
+              "y_min": 633.0
+            },
+            "conf": 0.9844132661819458,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 1086.0,
+              "x_min": 1018.0,
+              "y_max": 733.0,
+              "y_min": 694.0
+            },
+            "conf": 0.987460732460022,
+            "text": "前抽"
+          },
+          {
+            "bbox": {
+              "x_max": 1333.0,
+              "x_min": 1267.0,
+              "y_max": 727.0,
+              "y_min": 688.0
+            },
+            "conf": 0.9977583885192871,
+            "text": "后抽"
+          },
+          {
+            "bbox": {
+              "x_max": 718.0,
+              "x_min": 698.0,
+              "y_max": 733.0,
+              "y_min": 710.0
+            },
+            "conf": 0.9993721842765808,
+            "text": "3"
+          },
+          {
+            "bbox": {
+              "x_max": 1080.0,
+              "x_min": 1022.0,
+              "y_max": 798.0,
+              "y_min": 767.0
+            },
+            "conf": 0.9986052513122559,
+            "text": "50.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1327.0,
+              "x_min": 1271.0,
+              "y_max": 794.0,
+              "y_min": 762.0
+            },
+            "conf": 0.9973177313804626,
+            "text": "10.0"
+          },
+          {
+            "bbox": {
+              "x_max": 505.0,
+              "x_min": 447.0,
+              "y_max": 810.0,
+              "y_min": 777.0
+            },
+            "conf": 0.9955095052719116,
+            "text": "25.0"
+          },
+          {
+            "bbox": {
+              "x_max": 741.0,
+              "x_min": 683.0,
+              "y_max": 806.0,
+              "y_min": 775.0
+            },
+            "conf": 0.9975583553314209,
+            "text": "25.0"
+          },
+          {
+            "bbox": {
+              "x_max": 268.0,
+              "x_min": 215.0,
+              "y_max": 810.0,
+              "y_min": 785.0
+            },
+            "conf": 0.9985136389732361,
+            "text": "25.0"
+          },
+          {
+            "bbox": {
+              "x_max": 867.0,
+              "x_min": 845.0,
+              "y_max": 798.0,
+              "y_min": 777.0
+            },
+            "conf": 0.9430206418037415,
+            "text": "%"
+          },
+          {
+            "bbox": {
+              "x_max": 1080.0,
+              "x_min": 1020.0,
+              "y_max": 894.0,
+              "y_min": 860.0
+            },
+            "conf": 0.9964215755462646,
+            "text": "50.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1324.0,
+              "x_min": 1263.0,
+              "y_max": 892.0,
+              "y_min": 852.0
+            },
+            "conf": 0.9936081171035767,
+            "text": "20.0"
+          },
+          {
+            "bbox": {
+              "x_max": 743.0,
+              "x_min": 686.0,
+              "y_max": 900.0,
+              "y_min": 867.0
+            },
+            "conf": 0.9971300959587097,
+            "text": "65.0"
+          },
+          {
+            "bbox": {
+              "x_max": 888.0,
+              "x_min": 839.0,
+              "y_max": 898.0,
+              "y_min": 867.0
+            },
+            "conf": 0.9966721534729004,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 1456.0,
+              "x_min": 1416.0,
+              "y_max": 883.0,
+              "y_min": 860.0
+            },
+            "conf": 0.9966776967048645,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 30.0,
+              "x_min": 2.0,
+              "y_max": 910.0,
+              "y_min": 879.0
+            },
+            "conf": 0.9992353916168213,
+            "text": "力"
+          },
+          {
+            "bbox": {
+              "x_max": 279.0,
+              "x_min": 219.0,
+              "y_max": 906.0,
+              "y_min": 875.0
+            },
+            "conf": 0.9837517738342285,
+            "text": "65.0"
+          },
+          {
+            "bbox": {
+              "x_max": 509.0,
+              "x_min": 451.0,
+              "y_max": 904.0,
+              "y_min": 871.0
+            },
+            "conf": 0.9940580129623413,
+            "text": "65.0"
+          },
+          {
+            "bbox": {
+              "x_max": 283.0,
+              "x_min": 230.0,
+              "y_max": 996.0,
+              "y_min": 962.0
+            },
+            "conf": 0.9962582588195801,
+            "text": "15.0"
+          },
+          {
+            "bbox": {
+              "x_max": 513.0,
+              "x_min": 460.0,
+              "y_max": 992.0,
+              "y_min": 958.0
+            },
+            "conf": 0.9954786896705627,
+            "text": "15.0"
+          },
+          {
+            "bbox": {
+              "x_max": 743.0,
+              "x_min": 690.0,
+              "y_max": 988.0,
+              "y_min": 954.0
+            },
+            "conf": 0.9949537515640259,
+            "text": "15.0"
+          },
+          {
+            "bbox": {
+              "x_max": 34.0,
+              "x_min": 2.0,
+              "y_max": 996.0,
+              "y_min": 965.0
+            },
+            "conf": 0.9982360601425171,
+            "text": "压"
+          },
+          {
+            "bbox": {
+              "x_max": 879.0,
+              "x_min": 845.0,
+              "y_max": 979.0,
+              "y_min": 962.0
+            },
+            "conf": 0.8361472487449646,
+            "text": "bal"
+          },
+          {
+            "bbox": {
+              "x_max": 617.0,
+              "x_min": 560.0,
+              "y_max": 1075.0,
+              "y_min": 1042.0
+            },
+            "conf": 0.9955199360847473,
+            "text": "70.0"
+          },
+          {
+            "bbox": {
+              "x_max": 850.0,
+              "x_min": 781.0,
+              "y_max": 1074.0,
+              "y_min": 1035.0
+            },
+            "conf": 0.9951431155204773,
+            "text": "110.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1069.0,
+              "x_min": 1024.0,
+              "y_max": 1069.0,
+              "y_min": 1035.0
+            },
+            "conf": 0.9902521967887878,
+            "text": "0.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1318.0,
+              "x_min": 1263.0,
+              "y_max": 1067.0,
+              "y_min": 1033.0
+            },
+            "conf": 0.996914803981781,
+            "text": "10.0"
+          },
+          {
+            "bbox": {
+              "x_max": 45.0,
+              "x_min": 0.0,
+              "y_max": 1081.0,
+              "y_min": 1048.0
+            },
+            "conf": 0.7831523418426514,
+            "text": "立置"
+          },
+          {
+            "bbox": {
+              "x_max": 391.0,
+              "x_min": 331.0,
+              "y_max": 1080.0,
+              "y_min": 1041.0
+            },
+            "conf": 0.9979768395423889,
+            "text": "40.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1452.0,
+              "x_min": 1407.0,
+              "y_max": 1062.0,
+              "y_min": 1040.0
+            },
+            "conf": 0.9938286542892456,
+            "text": "mm"
+          },
+          {
+            "bbox": {
+              "x_max": 611.0,
+              "x_min": 549.0,
+              "y_max": 1196.0,
+              "y_min": 1162.0
+            },
+            "conf": 0.9958716630935669,
+            "text": "模式"
+          },
+          {
+            "bbox": {
+              "x_max": 879.0,
+              "x_min": 767.0,
+              "y_max": 1192.0,
+              "y_min": 1156.0
+            },
+            "conf": 0.9943999648094177,
+            "text": "顺序动作"
+          },
+          {
+            "bbox": {
+              "x_max": 611.0,
+              "x_min": 449.0,
+              "y_max": 1285.0,
+              "y_min": 1250.0
+            },
+            "conf": 0.9935720562934875,
+            "text": "熔胶零背压阀"
+          },
+          {
+            "bbox": {
+              "x_max": 843.0,
+              "x_min": 813.0,
+              "y_max": 1279.0,
+              "y_min": 1248.0
+            },
+            "conf": 0.9996787309646606,
+            "text": "关"
+          },
+          {
+            "bbox": {
+              "x_max": 613.0,
+              "x_min": 451.0,
+              "y_max": 1369.0,
+              "y_min": 1333.0
+            },
+            "conf": 0.9952377676963806,
+            "text": "抽胶零背压阀"
+          },
+          {
+            "bbox": {
+              "x_max": 843.0,
+              "x_min": 816.0,
+              "y_max": 1362.0,
+              "y_min": 1331.0
+            },
+            "conf": 0.9997487664222717,
+            "text": "关"
+          },
+          {
+            "bbox": {
+              "x_max": 777.0,
+              "x_min": 690.0,
+              "y_max": 1469.0,
+              "y_min": 1431.0
+            },
+            "conf": 0.9982600212097168,
+            "text": "计时器"
+          },
+          {
+            "bbox": {
+              "x_max": 622.0,
+              "x_min": 509.0,
+              "y_max": 1548.0,
+              "y_min": 1512.0
+            },
+            "conf": 0.9936943054199219,
+            "text": "熔胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 792.0,
+              "x_min": 737.0,
+              "y_max": 1546.0,
+              "y_min": 1515.0
+            },
+            "conf": 0.9980865716934204,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1212.0,
+              "x_min": 1180.0,
+              "y_max": 1538.0,
+              "y_min": 1523.0
+            },
+            "conf": 0.9440343976020813,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 622.0,
+              "x_min": 520.0,
+              "y_max": 1623.0,
+              "y_min": 1592.0
+            },
+            "conf": 0.996399998664856,
+            "text": "熔胶超时"
+          },
+          {
+            "bbox": {
+              "x_max": 794.0,
+              "x_min": 741.0,
+              "y_max": 1623.0,
+              "y_min": 1592.0
+            },
+            "conf": 0.9974151849746704,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1020.0,
+              "x_min": 982.0,
+              "y_max": 1615.0,
+              "y_min": 1598.0
+            },
+            "conf": 0.9919906258583069,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 624.0,
+              "x_min": 496.0,
+              "y_max": 1700.0,
+              "y_min": 1671.0
+            },
+            "conf": 0.988683819770813,
+            "text": "前抽胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 796.0,
+              "x_min": 745.0,
+              "y_max": 1702.0,
+              "y_min": 1671.0
+            },
+            "conf": 0.9972378611564636,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 626.0,
+              "x_min": 500.0,
+              "y_max": 1777.0,
+              "y_min": 1742.0
+            },
+            "conf": 0.9920735359191895,
+            "text": "后抽胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 794.0,
+              "x_min": 747.0,
+              "y_max": 1773.0,
+              "y_min": 1748.0
+            },
+            "conf": 0.9979078769683838,
+            "text": "0.00"
+          }
+        ],
+        "screen_size": [
+          1499,
+          2000
+        ]
+      },
+      "ocr_content_sha256": "a37fd4ec38e0d67cf9ae71f9286da020ec7ccf8858b0edb7f4fb8abaa0aba277"
+    },
+    {
+      "manifest": {
+        "original_path": "datasets/r05/b_and_r.metering.three_stage/acceptance.jpg",
+        "original_sha256": "4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91",
+        "original_size": [
+          790,
+          815
+        ],
+        "profile_id": "b_and_r.metering.three_stage",
+        "purpose": "user_supplied_validation",
+        "sample_id": "acceptance",
+        "screen_size": [
+          1356,
+          1400
+        ]
+      },
+      "ocr": {
+        "engine_identity": {
+          "class": "PaddleOCR",
+          "device": "unknown",
+          "library": "paddleocr",
+          "version": "2.7.3"
+        },
+        "lines": [
+          {
+            "bbox": {
+              "x_max": 1241.0,
+              "x_min": 1163.0,
+              "y_max": 36.0,
+              "y_min": 4.0
+            },
+            "conf": 0.9804975986480713,
+            "text": "贝加莱"
+          },
+          {
+            "bbox": {
+              "x_max": 272.0,
+              "x_min": 35.0,
+              "y_max": 53.0,
+              "y_min": 23.0
+            },
+            "conf": 0.9886816740036011,
+            "text": "2014-07-0621:39:33"
+          },
+          {
+            "bbox": {
+              "x_max": 1292.0,
+              "x_min": 1197.0,
+              "y_max": 92.0,
+              "y_min": 66.0
+            },
+            "conf": 0.9943081140518188,
+            "text": "EKS_100"
+          },
+          {
+            "bbox": {
+              "x_max": 167.0,
+              "x_min": 75.0,
+              "y_max": 139.0,
+              "y_min": 96.0
+            },
+            "conf": 0.9957834482192993,
+            "text": "BOLE"
+          },
+          {
+            "bbox": {
+              "x_max": 1289.0,
+              "x_min": 1192.0,
+              "y_max": 143.0,
+              "y_min": 109.0
+            },
+            "conf": 0.9933220744132996,
+            "text": "tx25031"
+          },
+          {
+            "bbox": {
+              "x_max": 311.0,
+              "x_min": 224.0,
+              "y_max": 207.0,
+              "y_min": 176.0
+            },
+            "conf": 0.9866840839385986,
+            "text": "顶针位置"
+          },
+          {
+            "bbox": {
+              "x_max": 479.0,
+              "x_min": 392.0,
+              "y_max": 203.0,
+              "y_min": 176.0
+            },
+            "conf": 0.9940823316574097,
+            "text": "射胶位置"
+          },
+          {
+            "bbox": {
+              "x_max": 649.0,
+              "x_min": 557.0,
+              "y_max": 201.0,
+              "y_min": 175.0
+            },
+            "conf": 0.9978111386299133,
+            "text": "射台位置"
+          },
+          {
+            "bbox": {
+              "x_max": 820.0,
+              "x_min": 712.0,
+              "y_max": 200.0,
+              "y_min": 174.0
+            },
+            "conf": 0.9751781225204468,
+            "text": "熔胶转速"
+          },
+          {
+            "bbox": {
+              "x_max": 994.0,
+              "x_min": 903.0,
+              "y_max": 197.0,
+              "y_min": 171.0
+            },
+            "conf": 0.9907222390174866,
+            "text": "主泵流量"
+          },
+          {
+            "bbox": {
+              "x_max": 1168.0,
+              "x_min": 1075.0,
+              "y_max": 195.0,
+              "y_min": 169.0
+            },
+            "conf": 0.9878546595573425,
+            "text": "主泵压力"
+          },
+          {
+            "bbox": {
+              "x_max": 1344.0,
+              "x_min": 1254.0,
+              "y_max": 194.0,
+              "y_min": 168.0
+            },
+            "conf": 0.9971368312835693,
+            "text": "系统压力"
+          },
+          {
+            "bbox": {
+              "x_max": 143.0,
+              "x_min": 55.0,
+              "y_max": 207.0,
+              "y_min": 178.0
+            },
+            "conf": 0.9677512049674988,
+            "text": "模板位置"
+          },
+          {
+            "bbox": {
+              "x_max": 327.0,
+              "x_min": 247.0,
+              "y_max": 265.0,
+              "y_min": 241.0
+            },
+            "conf": 0.996273398399353,
+            "text": "0.8mm"
+          },
+          {
+            "bbox": {
+              "x_max": 492.0,
+              "x_min": 431.0,
+              "y_max": 262.0,
+              "y_min": 241.0
+            },
+            "conf": 0.9925829768180847,
+            "text": "2mm"
+          },
+          {
+            "bbox": {
+              "x_max": 662.0,
+              "x_min": 575.0,
+              "y_max": 261.0,
+              "y_min": 236.0
+            },
+            "conf": 0.9898325204849243,
+            "text": "0.0mm"
+          },
+          {
+            "bbox": {
+              "x_max": 836.0,
+              "x_min": 726.0,
+              "y_max": 261.0,
+              "y_min": 233.0
+            },
+            "conf": 0.9846962690353394,
+            "text": "151.9rpm"
+          },
+          {
+            "bbox": {
+              "x_max": 989.0,
+              "x_min": 907.0,
+              "y_max": 260.0,
+              "y_min": 235.0
+            },
+            "conf": 0.991204559803009,
+            "text": "35.0%"
+          },
+          {
+            "bbox": {
+              "x_max": 1176.0,
+              "x_min": 1070.0,
+              "y_max": 258.0,
+              "y_min": 233.0
+            },
+            "conf": 0.9138840436935425,
+            "text": "120.0-bar"
+          },
+          {
+            "bbox": {
+              "x_max": 1355.0,
+              "x_min": 1265.0,
+              "y_max": 254.0,
+              "y_min": 233.0
+            },
+            "conf": 0.9925398826599121,
+            "text": "36.6bar"
+          },
+          {
+            "bbox": {
+              "x_max": 161.0,
+              "x_min": 82.0,
+              "y_max": 265.0,
+              "y_min": 245.0
+            },
+            "conf": 0.9945734143257141,
+            "text": "0.0mm"
+          },
+          {
+            "bbox": {
+              "x_max": 1277.0,
+              "x_min": 1241.0,
+              "y_max": 284.0,
+              "y_min": 267.0
+            },
+            "conf": 0.99875408411026,
+            "text": "420"
+          },
+          {
+            "bbox": {
+              "x_max": 244.0,
+              "x_min": 165.0,
+              "y_max": 318.0,
+              "y_min": 288.0
+            },
+            "conf": 0.9342929124832153,
+            "text": "熔胶斜率"
+          },
+          {
+            "bbox": {
+              "x_max": 396.0,
+              "x_min": 355.0,
+              "y_max": 315.0,
+              "y_min": 292.0
+            },
+            "conf": 0.7143548130989075,
+            "text": "培胶"
+          },
+          {
+            "bbox": {
+              "x_max": 1286.0,
+              "x_min": 1232.0,
+              "y_max": 316.0,
+              "y_min": 287.0
+            },
+            "conf": 0.9928946495056152,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 293.0,
+              "x_min": 204.0,
+              "y_max": 381.0,
+              "y_min": 351.0
+            },
+            "conf": 0.9889380931854248,
+            "text": "实际速度"
+          },
+          {
+            "bbox": {
+              "x_max": 581.0,
+              "x_min": 493.0,
+              "y_max": 381.0,
+              "y_min": 347.0
+            },
+            "conf": 0.9953792095184326,
+            "text": "实际位置"
+          },
+          {
+            "bbox": {
+              "x_max": 880.0,
+              "x_min": 793.0,
+              "y_max": 376.0,
+              "y_min": 350.0
+            },
+            "conf": 0.9930870532989502,
+            "text": "熔胶背压"
+          },
+          {
+            "bbox": {
+              "x_max": 1179.0,
+              "x_min": 1090.0,
+              "y_max": 375.0,
+              "y_min": 349.0
+            },
+            "conf": 0.9971065521240234,
+            "text": "实际转速"
+          },
+          {
+            "bbox": {
+              "x_max": 283.0,
+              "x_min": 244.0,
+              "y_max": 416.0,
+              "y_min": 394.0
+            },
+            "conf": 0.991822361946106,
+            "text": "13.9"
+          },
+          {
+            "bbox": {
+              "x_max": 382.0,
+              "x_min": 328.0,
+              "y_max": 419.0,
+              "y_min": 392.0
+            },
+            "conf": 0.9808326363563538,
+            "text": "mm/s"
+          },
+          {
+            "bbox": {
+              "x_max": 571.0,
+              "x_min": 527.0,
+              "y_max": 414.0,
+              "y_min": 392.0
+            },
+            "conf": 0.9860764145851135,
+            "text": "52.2"
+          },
+          {
+            "bbox": {
+              "x_max": 671.0,
+              "x_min": 637.0,
+              "y_max": 414.0,
+              "y_min": 397.0
+            },
+            "conf": 0.9952195882797241,
+            "text": "mm"
+          },
+          {
+            "bbox": {
+              "x_max": 864.0,
+              "x_min": 830.0,
+              "y_max": 414.0,
+              "y_min": 391.0
+            },
+            "conf": 0.9907318949699402,
+            "text": "5.0"
+          },
+          {
+            "bbox": {
+              "x_max": 967.0,
+              "x_min": 938.0,
+              "y_max": 411.0,
+              "y_min": 394.0
+            },
+            "conf": 0.997551441192627,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 1172.0,
+              "x_min": 1121.0,
+              "y_max": 413.0,
+              "y_min": 391.0
+            },
+            "conf": 0.9880644679069519,
+            "text": "151.9"
+          },
+          {
+            "bbox": {
+              "x_max": 1271.0,
+              "x_min": 1230.0,
+              "y_max": 414.0,
+              "y_min": 392.0
+            },
+            "conf": 0.9927899837493896,
+            "text": "rpm"
+          },
+          {
+            "bbox": {
+              "x_max": 94.0,
+              "x_min": 53.0,
+              "y_max": 449.0,
+              "y_min": 426.0
+            },
+            "conf": 0.9745714664459229,
+            "text": "射胶"
+          },
+          {
+            "bbox": {
+              "x_max": 738.0,
+              "x_min": 694.0,
+              "y_max": 483.0,
+              "y_min": 459.0
+            },
+            "conf": 0.9711854457855225,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 720.0,
+              "x_min": 704.0,
+              "y_max": 526.0,
+              "y_min": 512.0
+            },
+            "conf": 0.9887171983718872,
+            "text": "3"
+          },
+          {
+            "bbox": {
+              "x_max": 994.0,
+              "x_min": 947.0,
+              "y_max": 532.0,
+              "y_min": 505.0
+            },
+            "conf": 0.9903166890144348,
+            "text": "前抽"
+          },
+          {
+            "bbox": {
+              "x_max": 1178.0,
+              "x_min": 1132.0,
+              "y_max": 532.0,
+              "y_min": 505.0
+            },
+            "conf": 0.9984620809555054,
+            "text": "后抽"
+          },
+          {
+            "bbox": {
+              "x_max": 121.0,
+              "x_min": 42.0,
+              "y_max": 585.0,
+              "y_min": 560.0
+            },
+            "conf": 0.9951922297477722,
+            "text": "射胶功能"
+          },
+          {
+            "bbox": {
+              "x_max": 194.0,
+              "x_min": 152.0,
+              "y_max": 579.0,
+              "y_min": 556.0
+            },
+            "conf": 0.6302890777587891,
+            "text": "速度"
+          },
+          {
+            "bbox": {
+              "x_max": 384.0,
+              "x_min": 342.0,
+              "y_max": 580.0,
+              "y_min": 557.0
+            },
+            "conf": 0.9907435178756714,
+            "text": "35.0"
+          },
+          {
+            "bbox": {
+              "x_max": 560.0,
+              "x_min": 519.0,
+              "y_max": 579.0,
+              "y_min": 560.0
+            },
+            "conf": 0.9908849000930786,
+            "text": "35.0"
+          },
+          {
+            "bbox": {
+              "x_max": 735.0,
+              "x_min": 693.0,
+              "y_max": 580.0,
+              "y_min": 559.0
+            },
+            "conf": 0.9902557730674744,
+            "text": "35.0"
+          },
+          {
+            "bbox": {
+              "x_max": 991.0,
+              "x_min": 945.0,
+              "y_max": 580.0,
+              "y_min": 559.0
+            },
+            "conf": 0.9940323233604431,
+            "text": "20.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1175.0,
+              "x_min": 1131.0,
+              "y_max": 580.0,
+              "y_min": 559.0
+            },
+            "conf": 0.9911211729049683,
+            "text": "30.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1265.0,
+              "x_min": 1246.0,
+              "y_max": 580.0,
+              "y_min": 559.0
+            },
+            "conf": 0.9978906512260437,
+            "text": "%"
+          },
+          {
+            "bbox": {
+              "x_max": 197.0,
+              "x_min": 158.0,
+              "y_max": 649.0,
+              "y_min": 626.0
+            },
+            "conf": 0.993138313293457,
+            "text": "压力"
+          },
+          {
+            "bbox": {
+              "x_max": 390.0,
+              "x_min": 342.0,
+              "y_max": 649.0,
+              "y_min": 627.0
+            },
+            "conf": 0.9957688450813293,
+            "text": "120.0"
+          },
+          {
+            "bbox": {
+              "x_max": 565.0,
+              "x_min": 516.0,
+              "y_max": 649.0,
+              "y_min": 629.0
+            },
+            "conf": 0.9917228817939758,
+            "text": "120.0"
+          },
+          {
+            "bbox": {
+              "x_max": 741.0,
+              "x_min": 690.0,
+              "y_max": 649.0,
+              "y_min": 629.0
+            },
+            "conf": 0.9957664608955383,
+            "text": "120.0"
+          },
+          {
+            "bbox": {
+              "x_max": 845.0,
+              "x_min": 814.0,
+              "y_max": 649.0,
+              "y_min": 631.0
+            },
+            "conf": 0.9957281947135925,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 995.0,
+              "x_min": 944.0,
+              "y_max": 650.0,
+              "y_min": 630.0
+            },
+            "conf": 0.9916046261787415,
+            "text": "100.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1173.0,
+              "x_min": 1128.0,
+              "y_max": 652.0,
+              "y_min": 630.0
+            },
+            "conf": 0.9956343770027161,
+            "text": "95.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1279.0,
+              "x_min": 1242.0,
+              "y_max": 653.0,
+              "y_min": 631.0
+            },
+            "conf": 0.996559202671051,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 110.0,
+              "x_min": 69.0,
+              "y_max": 713.0,
+              "y_min": 691.0
+            },
+            "conf": 0.7439789175987244,
+            "text": "培胶"
+          },
+          {
+            "bbox": {
+              "x_max": 202.0,
+              "x_min": 159.0,
+              "y_max": 713.0,
+              "y_min": 690.0
+            },
+            "conf": 0.9908441305160522,
+            "text": "背压"
+          },
+          {
+            "bbox": {
+              "x_max": 381.0,
+              "x_min": 354.0,
+              "y_max": 713.0,
+              "y_min": 694.0
+            },
+            "conf": 0.9856536984443665,
+            "text": "5.0"
+          },
+          {
+            "bbox": {
+              "x_max": 557.0,
+              "x_min": 523.0,
+              "y_max": 716.0,
+              "y_min": 693.0
+            },
+            "conf": 0.9922745227813721,
+            "text": "5.0"
+          },
+          {
+            "bbox": {
+              "x_max": 732.0,
+              "x_min": 697.0,
+              "y_max": 716.0,
+              "y_min": 694.0
+            },
+            "conf": 0.9912207722663879,
+            "text": "5.0"
+          },
+          {
+            "bbox": {
+              "x_max": 845.0,
+              "x_min": 814.0,
+              "y_max": 715.0,
+              "y_min": 699.0
+            },
+            "conf": 0.9915018677711487,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 203.0,
+              "x_min": 164.0,
+              "y_max": 776.0,
+              "y_min": 753.0
+            },
+            "conf": 0.9963945150375366,
+            "text": "位置"
+          },
+          {
+            "bbox": {
+              "x_max": 465.0,
+              "x_min": 424.0,
+              "y_max": 779.0,
+              "y_min": 757.0
+            },
+            "conf": 0.987426221370697,
+            "text": "20.0"
+          },
+          {
+            "bbox": {
+              "x_max": 636.0,
+              "x_min": 596.0,
+              "y_max": 780.0,
+              "y_min": 758.0
+            },
+            "conf": 0.9942997097969055,
+            "text": "50.0"
+          },
+          {
+            "bbox": {
+              "x_max": 811.0,
+              "x_min": 772.0,
+              "y_max": 782.0,
+              "y_min": 760.0
+            },
+            "conf": 0.9897416830062866,
+            "text": "65.0"
+          },
+          {
+            "bbox": {
+              "x_max": 982.0,
+              "x_min": 951.0,
+              "y_max": 783.0,
+              "y_min": 763.0
+            },
+            "conf": 0.9916677474975586,
+            "text": "0.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1162.0,
+              "x_min": 1132.0,
+              "y_max": 783.0,
+              "y_min": 766.0
+            },
+            "conf": 0.9738877415657043,
+            "text": "7.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1273.0,
+              "x_min": 1239.0,
+              "y_max": 786.0,
+              "y_min": 769.0
+            },
+            "conf": 0.9941704273223877,
+            "text": "mm"
+          },
+          {
+            "bbox": {
+              "x_max": 116.0,
+              "x_min": 72.0,
+              "y_max": 845.0,
+              "y_min": 818.0
+            },
+            "conf": 0.980150580406189,
+            "text": "射台"
+          },
+          {
+            "bbox": {
+              "x_max": 633.0,
+              "x_min": 584.0,
+              "y_max": 876.0,
+              "y_min": 849.0
+            },
+            "conf": 0.9927096366882324,
+            "text": "模式"
+          },
+          {
+            "bbox": {
+              "x_max": 841.0,
+              "x_min": 752.0,
+              "y_max": 880.0,
+              "y_min": 848.0
+            },
+            "conf": 0.9854463338851929,
+            "text": "顺序动作"
+          },
+          {
+            "bbox": {
+              "x_max": 630.0,
+              "x_min": 505.0,
+              "y_max": 942.0,
+              "y_min": 913.0
+            },
+            "conf": 0.9720330834388733,
+            "text": "熔胶零背压阀"
+          },
+          {
+            "bbox": {
+              "x_max": 811.0,
+              "x_min": 786.0,
+              "y_max": 945.0,
+              "y_min": 917.0
+            },
+            "conf": 0.9989651441574097,
+            "text": "关"
+          },
+          {
+            "bbox": {
+              "x_max": 123.0,
+              "x_min": 80.0,
+              "y_max": 968.0,
+              "y_min": 946.0
+            },
+            "conf": 0.9986863732337952,
+            "text": "功能"
+          },
+          {
+            "bbox": {
+              "x_max": 631.0,
+              "x_min": 505.0,
+              "y_max": 1005.0,
+              "y_min": 975.0
+            },
+            "conf": 0.9964923858642578,
+            "text": "抽胶零背压阀"
+          },
+          {
+            "bbox": {
+              "x_max": 811.0,
+              "x_min": 786.0,
+              "y_max": 1008.0,
+              "y_min": 980.0
+            },
+            "conf": 0.9995637536048889,
+            "text": "关"
+          },
+          {
+            "bbox": {
+              "x_max": 754.0,
+              "x_min": 688.0,
+              "y_max": 1086.0,
+              "y_min": 1059.0
+            },
+            "conf": 0.9974965453147888,
+            "text": "计时器"
+          },
+          {
+            "bbox": {
+              "x_max": 148.0,
+              "x_min": 73.0,
+              "y_max": 1097.0,
+              "y_min": 1073.0
+            },
+            "conf": 0.9173241853713989,
+            "text": "射胶辅助"
+          },
+          {
+            "bbox": {
+              "x_max": 633.0,
+              "x_min": 549.0,
+              "y_max": 1143.0,
+              "y_min": 1117.0
+            },
+            "conf": 0.990538477897644,
+            "text": "熔胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 767.0,
+              "x_min": 728.0,
+              "y_max": 1145.0,
+              "y_min": 1123.0
+            },
+            "conf": 0.9947487711906433,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1096.0,
+              "x_min": 1064.0,
+              "y_max": 1151.0,
+              "y_min": 1135.0
+            },
+            "conf": 0.9472811222076416,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 636.0,
+              "x_min": 551.0,
+              "y_max": 1203.0,
+              "y_min": 1178.0
+            },
+            "conf": 0.9851993322372437,
+            "text": "熔胶超时"
+          },
+          {
+            "bbox": {
+              "x_max": 767.0,
+              "x_min": 728.0,
+              "y_max": 1208.0,
+              "y_min": 1184.0
+            },
+            "conf": 0.9976809024810791,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 947.0,
+              "x_min": 907.0,
+              "y_max": 1210.0,
+              "y_min": 1189.0
+            },
+            "conf": 0.9965442419052124,
+            "text": "2.50"
+          },
+          {
+            "bbox": {
+              "x_max": 1094.0,
+              "x_min": 1064.0,
+              "y_max": 1213.0,
+              "y_min": 1197.0
+            },
+            "conf": 0.9429863095283508,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 142.0,
+              "x_min": 89.0,
+              "y_max": 1254.0,
+              "y_min": 1234.0
+            },
+            "conf": 0.9980486035346985,
+            "text": "19525"
+          },
+          {
+            "bbox": {
+              "x_max": 634.0,
+              "x_min": 533.0,
+              "y_max": 1267.0,
+              "y_min": 1242.0
+            },
+            "conf": 0.9808245897293091,
+            "text": "前抽胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 767.0,
+              "x_min": 728.0,
+              "y_max": 1270.0,
+              "y_min": 1248.0
+            },
+            "conf": 0.9819144606590271,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1093.0,
+              "x_min": 1062.0,
+              "y_max": 1279.0,
+              "y_min": 1261.0
+            },
+            "conf": 0.9766237735748291,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 136.0,
+              "x_min": 102.0,
+              "y_max": 1304.0,
+              "y_min": 1279.0
+            },
+            "conf": 0.6397225856781006,
+            "text": "Co"
+          },
+          {
+            "bbox": {
+              "x_max": 149.0,
+              "x_min": 95.0,
+              "y_max": 1330.0,
+              "y_min": 1308.0
+            },
+            "conf": 0.993364691734314,
+            "text": "15.08"
+          },
+          {
+            "bbox": {
+              "x_max": 634.0,
+              "x_min": 535.0,
+              "y_max": 1327.0,
+              "y_min": 1302.0
+            },
+            "conf": 0.986903190612793,
+            "text": "后拍胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 767.0,
+              "x_min": 729.0,
+              "y_max": 1330.0,
+              "y_min": 1308.0
+            },
+            "conf": 0.9931628704071045,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1094.0,
+              "x_min": 1058.0,
+              "y_max": 1342.0,
+              "y_min": 1320.0
+            },
+            "conf": 0.9596974849700928,
+            "text": "sec"
+          }
+        ],
+        "screen_size": [
+          1356,
+          1400
+        ]
+      },
+      "ocr_content_sha256": "8012a09ff5c448729925ca7eaaec37baaa70814e391c8eeae6f80c2a35e0bd4d"
+    },
+    {
+      "manifest": {
+        "original_path": "datasets/r05/b_and_r.metering.three_stage/independent.jpg",
+        "original_sha256": "9344107611dd2456d406368dc51d8d331cf8036c95199d12d88a07af359c85c3",
+        "original_size": [
+          3024,
+          4032
+        ],
+        "profile_id": "b_and_r.metering.three_stage",
+        "purpose": "independent_acceptance",
+        "sample_id": "independent",
+        "screen_size": [
+          1449,
+          2000
+        ]
+      },
+      "ocr": {
+        "engine_identity": {
+          "class": "PaddleOCR",
+          "device": "unknown",
+          "library": "paddleocr",
+          "version": "2.7.3"
+        },
+        "lines": [
+          {
+            "bbox": {
+              "x_max": 288.0,
+              "x_min": 37.0,
+              "y_max": 54.0,
+              "y_min": 17.0
+            },
+            "conf": 0.9591746926307678,
+            "text": "2025-03-27 23:03:51"
+          },
+          {
+            "bbox": {
+              "x_max": 1313.0,
+              "x_min": 1225.0,
+              "y_max": 58.0,
+              "y_min": 21.0
+            },
+            "conf": 0.997165858745575,
+            "text": "操作员"
+          },
+          {
+            "bbox": {
+              "x_max": 1358.0,
+              "x_min": 1251.0,
+              "y_max": 115.0,
+              "y_min": 85.0
+            },
+            "conf": 0.9871649742126465,
+            "text": "EKS_140"
+          },
+          {
+            "bbox": {
+              "x_max": 173.0,
+              "x_min": 78.0,
+              "y_max": 135.0,
+              "y_min": 96.0
+            },
+            "conf": 0.9919338822364807,
+            "text": "BOLE"
+          },
+          {
+            "bbox": {
+              "x_max": 1377.0,
+              "x_min": 1208.0,
+              "y_max": 162.0,
+              "y_min": 135.0
+            },
+            "conf": 0.9883445501327515,
+            "text": "TX22045_ABS"
+          },
+          {
+            "bbox": {
+              "x_max": 1424.0,
+              "x_min": 1389.0,
+              "y_max": 162.0,
+              "y_min": 138.0
+            },
+            "conf": 0.9979378581047058,
+            "text": "2g"
+          },
+          {
+            "bbox": {
+              "x_max": 146.0,
+              "x_min": 51.0,
+              "y_max": 206.0,
+              "y_min": 177.0
+            },
+            "conf": 0.9918291568756104,
+            "text": "模板位置"
+          },
+          {
+            "bbox": {
+              "x_max": 323.0,
+              "x_min": 231.0,
+              "y_max": 208.0,
+              "y_min": 179.0
+            },
+            "conf": 0.992510199546814,
+            "text": "顶针位置"
+          },
+          {
+            "bbox": {
+              "x_max": 504.0,
+              "x_min": 405.0,
+              "y_max": 210.0,
+              "y_min": 181.0
+            },
+            "conf": 0.9970064759254456,
+            "text": "射胶位置"
+          },
+          {
+            "bbox": {
+              "x_max": 690.0,
+              "x_min": 545.0,
+              "y_max": 215.0,
+              "y_min": 179.0
+            },
+            "conf": 0.9935284852981567,
+            "text": "射台位置"
+          },
+          {
+            "bbox": {
+              "x_max": 871.0,
+              "x_min": 720.0,
+              "y_max": 217.0,
+              "y_min": 188.0
+            },
+            "conf": 0.987899661064148,
+            "text": "熔胶转速"
+          },
+          {
+            "bbox": {
+              "x_max": 1052.0,
+              "x_min": 955.0,
+              "y_max": 217.0,
+              "y_min": 188.0
+            },
+            "conf": 0.9837779402732849,
+            "text": "主泵流量"
+          },
+          {
+            "bbox": {
+              "x_max": 1241.0,
+              "x_min": 1140.0,
+              "y_max": 219.0,
+              "y_min": 190.0
+            },
+            "conf": 0.9741426706314087,
+            "text": "主泵压力"
+          },
+          {
+            "bbox": {
+              "x_max": 1435.0,
+              "x_min": 1330.0,
+              "y_max": 223.0,
+              "y_min": 190.0
+            },
+            "conf": 0.9961010217666626,
+            "text": "系统压力"
+          },
+          {
+            "bbox": {
+              "x_max": 161.0,
+              "x_min": 74.0,
+              "y_max": 267.0,
+              "y_min": 241.0
+            },
+            "conf": 0.9108616709709167,
+            "text": "0.0.mm"
+          },
+          {
+            "bbox": {
+              "x_max": 340.0,
+              "x_min": 245.0,
+              "y_max": 271.0,
+              "y_min": 242.0
+            },
+            "conf": 0.9592785835266113,
+            "text": "-0.2mm"
+          },
+          {
+            "bbox": {
+              "x_max": 700.0,
+              "x_min": 679.0,
+              "y_max": 252.0,
+              "y_min": 233.0
+            },
+            "conf": 0.5033296346664429,
+            "text": "C"
+          },
+          {
+            "bbox": {
+              "x_max": 517.0,
+              "x_min": 420.0,
+              "y_max": 273.0,
+              "y_min": 244.0
+            },
+            "conf": 0.991072952747345,
+            "text": "19.6mm"
+          },
+          {
+            "bbox": {
+              "x_max": 700.0,
+              "x_min": 613.0,
+              "y_max": 275.0,
+              "y_min": 252.0
+            },
+            "conf": 0.9949685335159302,
+            "text": "0.0mm"
+          },
+          {
+            "bbox": {
+              "x_max": 886.0,
+              "x_min": 788.0,
+              "y_max": 282.0,
+              "y_min": 247.0
+            },
+            "conf": 0.9808300137519836,
+            "text": "0.0rpm"
+          },
+          {
+            "bbox": {
+              "x_max": 1046.0,
+              "x_min": 974.0,
+              "y_max": 279.0,
+              "y_min": 256.0
+            },
+            "conf": 0.9960916042327881,
+            "text": "6.0%"
+          },
+          {
+            "bbox": {
+              "x_max": 1247.0,
+              "x_min": 1146.0,
+              "y_max": 285.0,
+              "y_min": 256.0
+            },
+            "conf": 0.9916825294494629,
+            "text": "78.0bar"
+          },
+          {
+            "bbox": {
+              "x_max": 1443.0,
+              "x_min": 1344.0,
+              "y_max": 285.0,
+              "y_min": 256.0
+            },
+            "conf": 0.9895482659339905,
+            "text": "54.9bar"
+          },
+          {
+            "bbox": {
+              "x_max": 245.0,
+              "x_min": 161.0,
+              "y_max": 325.0,
+              "y_min": 296.0
+            },
+            "conf": 0.9824171662330627,
+            "text": "熔胶斜率"
+          },
+          {
+            "bbox": {
+              "x_max": 416.0,
+              "x_min": 364.0,
+              "y_max": 329.0,
+              "y_min": 296.0
+            },
+            "conf": 0.9935861229896545,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 1365.0,
+              "x_min": 1319.0,
+              "y_max": 315.0,
+              "y_min": 292.0
+            },
+            "conf": 0.998059093952179,
+            "text": "420"
+          },
+          {
+            "bbox": {
+              "x_max": 1371.0,
+              "x_min": 1313.0,
+              "y_max": 348.0,
+              "y_min": 315.0
+            },
+            "conf": 0.9858958721160889,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 296.0,
+              "x_min": 204.0,
+              "y_max": 390.0,
+              "y_min": 360.0
+            },
+            "conf": 0.9979085326194763,
+            "text": "实际速度"
+          },
+          {
+            "bbox": {
+              "x_max": 613.0,
+              "x_min": 517.0,
+              "y_max": 396.0,
+              "y_min": 365.0
+            },
+            "conf": 0.995018482208252,
+            "text": "实际位置"
+          },
+          {
+            "bbox": {
+              "x_max": 936.0,
+              "x_min": 840.0,
+              "y_max": 402.0,
+              "y_min": 371.0
+            },
+            "conf": 0.9916471242904663,
+            "text": "熔胶背压"
+          },
+          {
+            "bbox": {
+              "x_max": 1258.0,
+              "x_min": 1159.0,
+              "y_max": 406.0,
+              "y_min": 375.0
+            },
+            "conf": 0.9967967867851257,
+            "text": "实际转速"
+          },
+          {
+            "bbox": {
+              "x_max": 284.0,
+              "x_min": 243.0,
+              "y_max": 427.0,
+              "y_min": 404.0
+            },
+            "conf": 0.9772197604179382,
+            "text": "-9.6"
+          },
+          {
+            "bbox": {
+              "x_max": 391.0,
+              "x_min": 338.0,
+              "y_max": 431.0,
+              "y_min": 406.0
+            },
+            "conf": 0.8372431397438049,
+            "text": "mmis"
+          },
+          {
+            "bbox": {
+              "x_max": 603.0,
+              "x_min": 554.0,
+              "y_max": 438.0,
+              "y_min": 406.0
+            },
+            "conf": 0.9933918714523315,
+            "text": "19.6"
+          },
+          {
+            "bbox": {
+              "x_max": 710.0,
+              "x_min": 669.0,
+              "y_max": 438.0,
+              "y_min": 415.0
+            },
+            "conf": 0.9916484355926514,
+            "text": "mm"
+          },
+          {
+            "bbox": {
+              "x_max": 918.0,
+              "x_min": 881.0,
+              "y_max": 440.0,
+              "y_min": 415.0
+            },
+            "conf": 0.9937658309936523,
+            "text": "0.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1029.0,
+              "x_min": 998.0,
+              "y_max": 440.0,
+              "y_min": 423.0
+            },
+            "conf": 0.9968094825744629,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 1239.0,
+              "x_min": 1200.0,
+              "y_max": 446.0,
+              "y_min": 421.0
+            },
+            "conf": 0.9949629902839661,
+            "text": "0.0"
+          },
+          {
+            "bbox": {
+              "x_max": 78.0,
+              "x_min": 29.0,
+              "y_max": 460.0,
+              "y_min": 435.0
+            },
+            "conf": 0.9853910803794861,
+            "text": "射胶"
+          },
+          {
+            "bbox": {
+              "x_max": 1358.0,
+              "x_min": 1313.0,
+              "y_max": 450.0,
+              "y_min": 427.0
+            },
+            "conf": 0.9934976696968079,
+            "text": "rpm"
+          },
+          {
+            "bbox": {
+              "x_max": 784.0,
+              "x_min": 731.0,
+              "y_max": 515.0,
+              "y_min": 481.0
+            },
+            "conf": 0.9886866211891174,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 768.0,
+              "x_min": 745.0,
+              "y_max": 558.0,
+              "y_min": 540.0
+            },
+            "conf": 0.9989581108093262,
+            "text": "3"
+          },
+          {
+            "bbox": {
+              "x_max": 1061.0,
+              "x_min": 1003.0,
+              "y_max": 572.0,
+              "y_min": 535.0
+            },
+            "conf": 0.990526556968689,
+            "text": "前抽"
+          },
+          {
+            "bbox": {
+              "x_max": 1260.0,
+              "x_min": 1210.0,
+              "y_max": 575.0,
+              "y_min": 542.0
+            },
+            "conf": 0.9986518621444702,
+            "text": "后抽"
+          },
+          {
+            "bbox": {
+              "x_max": 97.0,
+              "x_min": 14.0,
+              "y_max": 608.0,
+              "y_min": 579.0
+            },
+            "conf": 0.9906517267227173,
+            "text": "射胶功能"
+          },
+          {
+            "bbox": {
+              "x_max": 181.0,
+              "x_min": 132.0,
+              "y_max": 606.0,
+              "y_min": 575.0
+            },
+            "conf": 0.9986667633056641,
+            "text": "速度"
+          },
+          {
+            "bbox": {
+              "x_max": 391.0,
+              "x_min": 342.0,
+              "y_max": 610.0,
+              "y_min": 579.0
+            },
+            "conf": 0.9967185258865356,
+            "text": "25.0"
+          },
+          {
+            "bbox": {
+              "x_max": 582.0,
+              "x_min": 535.0,
+              "y_max": 612.0,
+              "y_min": 588.0
+            },
+            "conf": 0.9953270554542542,
+            "text": "25.0"
+          },
+          {
+            "bbox": {
+              "x_max": 780.0,
+              "x_min": 729.0,
+              "y_max": 619.0,
+              "y_min": 588.0
+            },
+            "conf": 0.9975365400314331,
+            "text": "25.0"
+          },
+          {
+            "bbox": {
+              "x_max": 883.0,
+              "x_min": 864.0,
+              "y_max": 615.0,
+              "y_min": 596.0
+            },
+            "conf": 0.9636397957801819,
+            "text": "%"
+          },
+          {
+            "bbox": {
+              "x_max": 1056.0,
+              "x_min": 1011.0,
+              "y_max": 621.0,
+              "y_min": 596.0
+            },
+            "conf": 0.9980167150497437,
+            "text": "50.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1258.0,
+              "x_min": 1212.0,
+              "y_max": 627.0,
+              "y_min": 602.0
+            },
+            "conf": 0.9974797964096069,
+            "text": "10.0"
+          },
+          {
+            "bbox": {
+              "x_max": 179.0,
+              "x_min": 134.0,
+              "y_max": 679.0,
+              "y_min": 654.0
+            },
+            "conf": 0.9984076023101807,
+            "text": "压力"
+          },
+          {
+            "bbox": {
+              "x_max": 389.0,
+              "x_min": 344.0,
+              "y_max": 683.0,
+              "y_min": 658.0
+            },
+            "conf": 0.9941562414169312,
+            "text": "65.0"
+          },
+          {
+            "bbox": {
+              "x_max": 582.0,
+              "x_min": 537.0,
+              "y_max": 688.0,
+              "y_min": 662.0
+            },
+            "conf": 0.9968228936195374,
+            "text": "65.0"
+          },
+          {
+            "bbox": {
+              "x_max": 778.0,
+              "x_min": 731.0,
+              "y_max": 692.0,
+              "y_min": 667.0
+            },
+            "conf": 0.9967812299728394,
+            "text": "65.0"
+          },
+          {
+            "bbox": {
+              "x_max": 899.0,
+              "x_min": 862.0,
+              "y_max": 696.0,
+              "y_min": 671.0
+            },
+            "conf": 0.9976267218589783,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 1057.0,
+              "x_min": 1006.0,
+              "y_max": 701.0,
+              "y_min": 670.0
+            },
+            "conf": 0.9954751133918762,
+            "text": "50.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1260.0,
+              "x_min": 1210.0,
+              "y_max": 706.0,
+              "y_min": 675.0
+            },
+            "conf": 0.9968115091323853,
+            "text": "20.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1369.0,
+              "x_min": 1342.0,
+              "y_max": 704.0,
+              "y_min": 688.0
+            },
+            "conf": 0.9610641002655029,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 78.0,
+              "x_min": 31.0,
+              "y_max": 750.0,
+              "y_min": 725.0
+            },
+            "conf": 0.9209604263305664,
+            "text": "熔胶"
+          },
+          {
+            "bbox": {
+              "x_max": 183.0,
+              "x_min": 132.0,
+              "y_max": 754.0,
+              "y_min": 721.0
+            },
+            "conf": 0.9959173798561096,
+            "text": "背压"
+          },
+          {
+            "bbox": {
+              "x_max": 389.0,
+              "x_min": 346.0,
+              "y_max": 756.0,
+              "y_min": 731.0
+            },
+            "conf": 0.9969161748886108,
+            "text": "15.0"
+          },
+          {
+            "bbox": {
+              "x_max": 585.0,
+              "x_min": 535.0,
+              "y_max": 762.0,
+              "y_min": 731.0
+            },
+            "conf": 0.9955462217330933,
+            "text": "15.0"
+          },
+          {
+            "bbox": {
+              "x_max": 780.0,
+              "x_min": 731.0,
+              "y_max": 767.0,
+              "y_min": 735.0
+            },
+            "conf": 0.845359206199646,
+            "text": "15.0"
+          },
+          {
+            "bbox": {
+              "x_max": 897.0,
+              "x_min": 862.0,
+              "y_max": 769.0,
+              "y_min": 744.0
+            },
+            "conf": 0.9971305727958679,
+            "text": "bar"
+          },
+          {
+            "bbox": {
+              "x_max": 181.0,
+              "x_min": 134.0,
+              "y_max": 825.0,
+              "y_min": 794.0
+            },
+            "conf": 0.9975490570068359,
+            "text": "位置"
+          },
+          {
+            "bbox": {
+              "x_max": 471.0,
+              "x_min": 426.0,
+              "y_max": 829.0,
+              "y_min": 804.0
+            },
+            "conf": 0.9962886571884155,
+            "text": "40.0"
+          },
+          {
+            "bbox": {
+              "x_max": 667.0,
+              "x_min": 617.0,
+              "y_max": 838.0,
+              "y_min": 806.0
+            },
+            "conf": 0.9958364963531494,
+            "text": "70.0"
+          },
+          {
+            "bbox": {
+              "x_max": 869.0,
+              "x_min": 807.0,
+              "y_max": 842.0,
+              "y_min": 812.0
+            },
+            "conf": 0.9918325543403625,
+            "text": "110.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1050.0,
+              "x_min": 1013.0,
+              "y_max": 846.0,
+              "y_min": 821.0
+            },
+            "conf": 0.9952154755592346,
+            "text": "0.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1258.0,
+              "x_min": 1214.0,
+              "y_max": 852.0,
+              "y_min": 827.0
+            },
+            "conf": 0.9963163137435913,
+            "text": "10.0"
+          },
+          {
+            "bbox": {
+              "x_max": 1375.0,
+              "x_min": 1338.0,
+              "y_max": 858.0,
+              "y_min": 835.0
+            },
+            "conf": 0.9946033954620361,
+            "text": "mm"
+          },
+          {
+            "bbox": {
+              "x_max": 78.0,
+              "x_min": 29.0,
+              "y_max": 894.0,
+              "y_min": 869.0
+            },
+            "conf": 0.9910837411880493,
+            "text": "射台"
+          },
+          {
+            "bbox": {
+              "x_max": 659.0,
+              "x_min": 603.0,
+              "y_max": 944.0,
+              "y_min": 912.0
+            },
+            "conf": 0.9970825910568237,
+            "text": "模式"
+          },
+          {
+            "bbox": {
+              "x_max": 896.0,
+              "x_min": 792.0,
+              "y_max": 955.0,
+              "y_min": 912.0
+            },
+            "conf": 0.9957156777381897,
+            "text": "顺序动作"
+          },
+          {
+            "bbox": {
+              "x_max": 657.0,
+              "x_min": 510.0,
+              "y_max": 1023.0,
+              "y_min": 981.0
+            },
+            "conf": 0.9902334213256836,
+            "text": "熔胶零背压阀"
+          },
+          {
+            "bbox": {
+              "x_max": 858.0,
+              "x_min": 829.0,
+              "y_max": 1025.0,
+              "y_min": 998.0
+            },
+            "conf": 0.9996359348297119,
+            "text": "关"
+          },
+          {
+            "bbox": {
+              "x_max": 78.0,
+              "x_min": 29.0,
+              "y_max": 1038.0,
+              "y_min": 1013.0
+            },
+            "conf": 0.9996888637542725,
+            "text": "功能"
+          },
+          {
+            "bbox": {
+              "x_max": 657.0,
+              "x_min": 508.0,
+              "y_max": 1096.0,
+              "y_min": 1056.0
+            },
+            "conf": 0.9946041107177734,
+            "text": "抽胶零背压阀"
+          },
+          {
+            "bbox": {
+              "x_max": 858.0,
+              "x_min": 829.0,
+              "y_max": 1098.0,
+              "y_min": 1071.0
+            },
+            "conf": 0.9996813535690308,
+            "text": "关"
+          },
+          {
+            "bbox": {
+              "x_max": 99.0,
+              "x_min": 12.0,
+              "y_max": 1190.0,
+              "y_min": 1158.0
+            },
+            "conf": 0.9822721481323242,
+            "text": "射胶辅助"
+          },
+          {
+            "bbox": {
+              "x_max": 797.0,
+              "x_min": 716.0,
+              "y_max": 1196.0,
+              "y_min": 1158.0
+            },
+            "conf": 0.9957953095436096,
+            "text": "计时器"
+          },
+          {
+            "bbox": {
+              "x_max": 655.0,
+              "x_min": 558.0,
+              "y_max": 1258.0,
+              "y_min": 1229.0
+            },
+            "conf": 0.9963594675064087,
+            "text": "熔胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 809.0,
+              "x_min": 764.0,
+              "y_max": 1265.0,
+              "y_min": 1240.0
+            },
+            "conf": 0.9983950853347778,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1190.0,
+              "x_min": 1151.0,
+              "y_max": 1283.0,
+              "y_min": 1258.0
+            },
+            "conf": 0.9894204139709473,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 655.0,
+              "x_min": 558.0,
+              "y_max": 1331.0,
+              "y_min": 1300.0
+            },
+            "conf": 0.9668132066726685,
+            "text": "熔胶超时"
+          },
+          {
+            "bbox": {
+              "x_max": 812.0,
+              "x_min": 756.0,
+              "y_max": 1343.0,
+              "y_min": 1305.0
+            },
+            "conf": 0.9968453049659729,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 70.0,
+              "x_min": 39.0,
+              "y_max": 1346.0,
+              "y_min": 1317.0
+            },
+            "conf": 0.9794037938117981,
+            "text": "心"
+          },
+          {
+            "bbox": {
+              "x_max": 1017.0,
+              "x_min": 971.0,
+              "y_max": 1348.0,
+              "y_min": 1323.0
+            },
+            "conf": 0.9970771074295044,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1190.0,
+              "x_min": 1151.0,
+              "y_max": 1358.0,
+              "y_min": 1333.0
+            },
+            "conf": 0.9788122177124023,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 84.0,
+              "x_min": 27.0,
+              "y_max": 1379.0,
+              "y_min": 1352.0
+            },
+            "conf": 0.9814682006835938,
+            "text": "29751"
+          },
+          {
+            "bbox": {
+              "x_max": 653.0,
+              "x_min": 532.0,
+              "y_max": 1413.0,
+              "y_min": 1370.0
+            },
+            "conf": 0.9902496337890625,
+            "text": "前抽胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 809.0,
+              "x_min": 762.0,
+              "y_max": 1419.0,
+              "y_min": 1388.0
+            },
+            "conf": 0.997463583946228,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 78.0,
+              "x_min": 33.0,
+              "y_max": 1440.0,
+              "y_min": 1404.0
+            },
+            "conf": 0.6847546696662903,
+            "text": "Co"
+          },
+          {
+            "bbox": {
+              "x_max": 1192.0,
+              "x_min": 1147.0,
+              "y_max": 1439.0,
+              "y_min": 1405.0
+            },
+            "conf": 0.9877250790596008,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 82.0,
+              "x_min": 29.0,
+              "y_max": 1471.0,
+              "y_min": 1440.0
+            },
+            "conf": 0.9490014910697937,
+            "text": "6.78"
+          },
+          {
+            "bbox": {
+              "x_max": 653.0,
+              "x_min": 535.0,
+              "y_max": 1482.0,
+              "y_min": 1445.0
+            },
+            "conf": 0.9931527376174927,
+            "text": "后抽胶延时"
+          },
+          {
+            "bbox": {
+              "x_max": 811.0,
+              "x_min": 759.0,
+              "y_max": 1492.0,
+              "y_min": 1460.0
+            },
+            "conf": 0.9950759410858154,
+            "text": "0.00"
+          },
+          {
+            "bbox": {
+              "x_max": 1190.0,
+              "x_min": 1153.0,
+              "y_max": 1508.0,
+              "y_min": 1485.0
+            },
+            "conf": 0.9907589554786682,
+            "text": "sec"
+          },
+          {
+            "bbox": {
+              "x_max": 80.0,
+              "x_min": 31.0,
+              "y_max": 1573.0,
+              "y_min": 1542.0
+            },
+            "conf": 0.9895356893539429,
+            "text": "1.48"
+          }
+        ],
+        "screen_size": [
+          1449,
+          2000
+        ]
+      },
+      "ocr_content_sha256": "b6988732aef7e97f049e600046ec31226f5eb10f6a2e1389f4d56bc16954aa82"
+    }
+  ],
+  "template": {
+    "business_profile_candidate": {},
+    "contract_version": "2.11.0",
+    "extractor": "registered_extractor",
+    "extractor_id": "b_and_r.metering",
+    "extractor_version": "1",
+    "layout_anchors": [
+      "前抽",
+      "后抽",
+      "模式",
+      "计时器",
+      "EKS[_ ]?\\d+"
+    ],
+    "layout_variant": "three_stage_metering",
+    "page": "storage_cooling",
+    "page_identity": {
+      "brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "evidence_sample_ids": [
+        "development",
+        "acceptance",
+        "independent"
+      ],
+      "interface_generation": null,
+      "layout_variant": "three_stage_metering",
+      "page_type": "storage_cooling"
+    },
+    "profile_id": "b_and_r.metering.three_stage",
+    "require_anchor_match": true,
+    "route_families": [
+      "B_AND_R",
+      "unknown"
+    ],
+    "sample_ids": [
+      "development",
+      "acceptance",
+      "independent"
+    ],
+    "ui_family": "B_AND_R",
+    "version": "1.0.0"
+  },
+  "version": "1.0.0"
+}

@@ -1,0 +1,366 @@
+{
+  "profile_id": "arburg.storage_cooling.selogica_two_stage",
+  "version": "1.0.1",
+  "package_sha256": "f0fc17a82237e43470586bbf0f234b4bd7438e2b37fdc093180fd4c93f49dcd6",
+  "previous_version": "1.0.0",
+  "previous_package_sha256": "fe755a802f7ef83f72dc2d0e366266d1765152e4e6be925cdb8e2b95fc0399e8",
+  "controller_family": "SELOGICA",
+  "layout_variant": "selogica_two_stage",
+  "coverage": {
+    "development": {
+      "image_sha256": "ae58e75cd7263a785e71693140081ba820ee094393ffb531d87ba51c5dffa32a",
+      "reading_counts": {
+        "missing": 4,
+        "known": 9,
+        "uncertain": 1,
+        "unsupported": 1
+      },
+      "fields": [
+        {
+          "screen_field_key": "metering.speed.actual",
+          "original_value": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-1",
+          "original_value": 100.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-2",
+          "original_value": 100.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.actual",
+          "original_value": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-1",
+          "original_value": 8.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "uncertain"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-2",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.actual",
+          "original_value": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-1",
+          "original_value": 20.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-2",
+          "original_value": 27.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.speed",
+          "original_value": 50.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.distance",
+          "original_value": 8.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.remaining_cooling",
+          "original_value": 8.0,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_left",
+          "original_value": 0.1,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_right",
+          "original_value": 0.0,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "control.enable_icons",
+          "original_value": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "unsupported"
+        }
+      ]
+    },
+    "retained": {
+      "image_sha256": "3f8a26b1109fd45f8699229a4b4339476a48a9bf59c02fa9532dfb7278c584d8",
+      "reading_counts": {
+        "known": 13,
+        "missing": 1,
+        "unsupported": 1
+      },
+      "fields": [
+        {
+          "screen_field_key": "metering.speed.actual",
+          "original_value": 0.0,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-1",
+          "original_value": 100.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-2",
+          "original_value": 100.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.actual",
+          "original_value": -35.0,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-1",
+          "original_value": 8.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-2",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.actual",
+          "original_value": 34.96,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-1",
+          "original_value": 20.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-2",
+          "original_value": 27.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.speed",
+          "original_value": 50.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.distance",
+          "original_value": 8.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.remaining_cooling",
+          "original_value": 8.0,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_left",
+          "original_value": 0.1,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_right",
+          "original_value": 0.0,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "control.enable_icons",
+          "original_value": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "unsupported"
+        }
+      ]
+    },
+    "decimal-diagnostic": {
+      "image_sha256": "08334385027f4ad9df058aa33ccc7b638a5a78743ec12e4d6fea8bb962fba175",
+      "reading_counts": {
+        "missing": 10,
+        "known": 4,
+        "unsupported": 1
+      },
+      "fields": [
+        {
+          "screen_field_key": "metering.speed.actual",
+          "original_value": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-1",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-2",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.actual",
+          "original_value": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-1",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-2",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.actual",
+          "original_value": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-1",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-2",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "decompression.speed",
+          "original_value": 50.0,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.distance",
+          "original_value": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "time.remaining_cooling",
+          "original_value": 8.0,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_left",
+          "original_value": 0.1,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_right",
+          "original_value": 0.0,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "control.enable_icons",
+          "original_value": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "unsupported"
+        }
+      ]
+    }
+  },
+  "diagnostic_provenance": "Former independent acceptance failure now used for development regression; original tester transcript and image receipts retained. No new blind-generalization claim.",
+  "limitations": [
+    "partial coverage; missing cells remain",
+    "enable icons unsupported; all enable states unknown",
+    "time roles unknown; no cooling-time interpretation",
+    "holding and temperature pages unsupported",
+    "Model acceptance, business save/reopen, browser and formal submission not verified",
+    "pinned 1.0.0 keeps historical behavior; new binding must explicitly choose corrective 1.0.1"
+  ]
+}

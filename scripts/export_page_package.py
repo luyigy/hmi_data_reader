@@ -9,6 +9,31 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dict:
+    if version == "0.6.0" and profile_id == "tact5.process_settings.injection_holding_metering":
+        try:
+            from raw_tact5 import tact5_package
+        except ModuleNotFoundError:
+            from scripts.raw_tact5 import tact5_package
+        return tact5_package(root, version)
+    if version == "0.6.0" and profile_id == "b_and_r.injection_holding.multi_stage_position_time":
+        try:
+            from raw_bole_injection import bole_injection_package
+        except ModuleNotFoundError:
+            from scripts.raw_bole_injection import bole_injection_package
+        return bole_injection_package(root)
+    if version in ("0.4.0", "0.4.1"):
+        try:
+            from raw_temperature_time import DEFINITIONS, temperature_time_package
+        except ModuleNotFoundError:
+            from scripts.raw_temperature_time import DEFINITIONS, temperature_time_package
+        if profile_id in DEFINITIONS:
+            return temperature_time_package(profile_id, version, root)
+    if version == "0.3.0" and profile_id == "demag.injection_metering.multi_stage_holding":
+        try:
+            from raw_page import raw_page_package
+        except ModuleNotFoundError:
+            from scripts.raw_page import raw_page_package
+        return raw_page_package(profile_id, version, root)
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError(f"Invalid page version: {version}")
     registry = json.loads((root / "contracts/profiles.json").read_text())
@@ -16,8 +41,19 @@ def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dic
                        if p["profile_id"] == profile_id), None)
     if not registered or not registered.get("template"):
         raise ValueError(f"Unregistered page template: {profile_id}")
+    if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+){2}", profile_id):
+        raise ValueError("Invalid profile ID")
     active = root / "templates" / registered["template"]
     current = json.loads(active.read_text())
+    archive = root / "templates/versions" / profile_id / f"{version}.json"
+    frozen = root / "templates/packages" / profile_id / f"{version}.json"
+    if frozen.is_file() and (current["version"] == version or archive.is_file()):
+        package = json.loads(frozen.read_text())
+        if (package.get("profile_id") != profile_id or package.get("version") != version
+                or package["template"].get("profile_id") != profile_id
+                or package["template"].get("version") != version):
+            raise ValueError("Frozen package identity mismatch")
+        return package
     if current["version"] == version:
         path = active
     else:

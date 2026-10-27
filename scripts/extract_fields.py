@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_ui import find_page, find_ui_family  # noqa: E402
 from contract import attach_contract  # noqa: E402
 from extract_generic import extract_generic  # noqa: E402
+from extractor_registry import capabilities, extract_registered, template_error  # noqa: E402
 from extract_families.common import _anchor_hits  # noqa: E402
 
 TEMPLATES_DIR = Path("templates")
@@ -129,7 +130,8 @@ def route_family(stem: str, lines: list[dict],
     return fam, "per_image_classify"
 
 
-from page_template_registry import resolve_page_template, route_page, load_template  # noqa: E402
+from page_template_registry import (BLOCKED_PAGE_SOURCES, resolve_page_template,
+                                    route_page, load_template)  # noqa: E402
 
 # ---------------------------------------------------------------- 提取
 
@@ -248,6 +250,11 @@ def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dic
     """Select one extractor for all Reader entry points; callers prepare their own OCR evidence."""
     page = template.get("page")
     ui = template.get("ui_family")
+    error = template_error(template)
+    if error:
+        return dict(fields=None, heater_columns=0, warnings=[error], detail={})
+    if template.get("extractor") == "registered_extractor":
+        return extract_registered(toks, template, ocr_lines=ocr_lines, meta=meta, image_path=image_path)
     if template.get("extractor") == "page_module":
         from importlib import import_module
         profile_id = template.get("profile_id", "")
@@ -341,7 +348,8 @@ def cell_rescue_better(old: dict, new: dict) -> bool:
 
 
 def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
-                machine_labels: dict | None, templates_dir: Path) -> dict:
+                machine_labels: dict | None, templates_dir: Path,
+                controller_hint: dict | None = None) -> dict:
     ocr_path = rectified_dir / f"{stem}.ocr.json"
     meta_path = rectified_dir / f"{stem}.rectify.json"
     result = {"image": stem, "status": "reject", "warnings": []}
@@ -356,6 +364,14 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         return result
 
     lines = ocr_data.get("lines", [])
+    if controller_hint is not None:
+        from controller_binding import parse_hint
+        try:
+            controller_hint = parse_hint(controller_hint)
+        except (ValueError, TypeError):
+            result.update(compatibility={"status": "incompatible", "code": "CONTROLLER_HINT_INVALID"})
+            result["warnings"].append("CONTROLLER_HINT_INVALID")
+            return result
     family, family_src = route_family(stem, lines, record_report, machine_labels)
     clahe_path = rectified_dir / f"{stem}.ocr_clahe.json"
     clahe_lines = None
@@ -381,13 +397,31 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             family, family_src = "INDUSTRIAL_CHILLER", "mold_temp_lcd_signature"
     page, page_src, template = resolve_page_template(
         stem, lines, family, templates_dir, extra_anchor_lines=mt_lines)
-    if family_src == "mold_temp_lcd_signature":
+    if controller_hint is not None:
+        from controller_binding import select_bound_page
+        evidence = lines + mt_lines
+        image_family, _ = route_family("", evidence, None, None)
+        detected = detect_family_from_templates(evidence, templates_dir)
+        page, page_src, template, receipt = select_bound_page(
+            controller_hint, evidence, image_family, templates_dir, detected_family=detected)
+        if template is None:
+            receipt.update(status={"PAGE_UNKNOWN": "unknown", "CONTROLLER_UNKNOWN": "unknown",
+                                   "PAGE_TEMPLATE_DISABLED": "disabled",
+                                   "PAGE_BINDING_MISMATCH": "conflict",
+                                   "PAGE_TEMPLATE_CONFLICT": "conflict"}.get(page_src, "incompatible"),
+                           code=page_src)
+            result.update(compatibility=receipt, page_type=page, controller_family=image_family)
+            result["warnings"].append(page_src)
+            return result
+        family, family_src = template["ui_family"], "controller_binding"
+        result["compatibility"] = receipt
+    if family_src == "mold_temp_lcd_signature" and controller_hint is None:
         page, page_src = "mold_temp", "mold_temp_lcd_signature"
         template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
     result["page_type"] = page
-    if page_src == "disabled_template":
-        result["warnings"].append("PAGE_TEMPLATE_DISABLED")
+    if page_src in BLOCKED_PAGE_SOURCES:
+        result["warnings"].append(BLOCKED_PAGE_SOURCES[page_src])
         return result
     if template is None and family_src in ("machine_labels", "record_report"):
         # 083 S07：机台先验/record 聚合与图像内容冲突（先验家族无此页模板，如
@@ -399,9 +433,11 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             det_lines, _ = merge_variant_lines(lines, clahe_lines)
         alt = detect_family_from_templates(det_lines + mt_lines, templates_dir)
         if alt and alt != family:
-            alt_page, alt_page_src = route_page(stem, lines, alt, templates_dir,
-                                                extra_anchor_lines=mt_lines)
-            alt_tpl = load_template(alt, alt_page, templates_dir)
+            alt_page, alt_page_src, alt_tpl = resolve_page_template(
+                stem, lines, alt, templates_dir, extra_anchor_lines=mt_lines)
+            if alt_page_src in BLOCKED_PAGE_SOURCES:
+                result["warnings"].append(BLOCKED_PAGE_SOURCES[alt_page_src])
+                return result
             if alt_tpl is not None:
                 result["warnings"].append(f"FAMILY_LABEL_OVERRIDE({family}->{alt})")
                 family, family_src = alt, "template_keywords"
@@ -410,8 +446,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                 result["page_type"] = page
                 template = alt_tpl
     if template is None:
-        # Unknown/variant screens are still useful as operator-reviewed drafts. Keep every
-        # known-template path untouched and replace only the former hard reject here.
+        # Unrecognized screens retain observations for operator review.
+        result["compatibility"] = {"status": "unknown", "code": "PAGE_UNKNOWN"}
         generic_lines = lines
         if clahe_lines is not None:
             generic_lines, _ = merge_variant_lines(lines, clahe_lines)
@@ -597,7 +633,23 @@ def main():
     ap.add_argument("--record-report", default=str(RECORD_REPORT))
     ap.add_argument("--labels", default=str(MACHINE_LABELS))
     ap.add_argument("--templates-dir", default=str(TEMPLATES_DIR))
+    ap.add_argument("--capabilities", action="store_true", help="输出受控提取能力目录 JSON")
+    ap.add_argument("--observations-version", choices=("v1", "v2"), default="v1")
+    ap.add_argument("--original-image", type=Path, help="v2 requires the actual source image")
+    ap.add_argument("--controller-hint", type=Path, help="JSON pinned controller binding")
     args = ap.parse_args()
+    controller_hint = None
+    if args.controller_hint:
+        from controller_binding import parse_hint
+        try:
+            controller_hint = parse_hint(args.controller_hint.read_text())
+        except (OSError, ValueError, TypeError):
+            ap.error("CONTROLLER_HINT_INVALID")
+    if args.observations_version == "v2" and (not args.original_image or len(args.stems) != 1 or args.all):
+        ap.error("v2 requires one stem and --original-image")
+    if args.capabilities:
+        print(json.dumps(capabilities(), ensure_ascii=False))
+        return
 
     rectified_dir = Path(args.rectified_dir)
     stems = list(args.stems)
@@ -616,7 +668,61 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     counts = {"ok": 0, "review": 0, "reject": 0}
     for stem in stems:
-        r = extract_one(stem, rectified_dir, record_report, machine_labels, Path(args.templates_dir))
+        r = extract_one(stem, rectified_dir, record_report, machine_labels, Path(args.templates_dir),
+                        controller_hint=controller_hint)
+        if args.observations_version == "v2":
+            import hashlib
+            import cv2
+            from raw_observations import (observe_temperature_time_page, select_raw_profile,
+                                          recover_temperature_time_cells, DEFINITIONS, RawPageRejected,
+                                          VERSIONED_RECOVERY)
+            try:
+                raw_profile = select_raw_profile(r.get("profile_id"), json.loads(
+                    (rectified_dir / f"{stem}.ocr.json").read_text())["lines"])
+            except ValueError:
+                ap.error(next((warning for warning in r.get("warnings", [])
+                               if warning in BLOCKED_PAGE_SOURCES.values()), "RAW_PAGE_UNSUPPORTED"))
+            original_bytes = args.original_image.read_bytes()
+            original = cv2.imread(str(args.original_image))
+            meta = json.loads((rectified_dir / f"{stem}.rectify.json").read_text())
+            if original is None or list(reversed(original.shape[:2])) != meta.get("original_size"):
+                ap.error("Original image dimensions disagree with rectification evidence")
+            if meta.get("original_sha256") != hashlib.sha256(original_bytes).hexdigest():
+                ap.error("Original image hash disagrees with rectification evidence")
+            ocr = json.loads((rectified_dir / f"{stem}.ocr.json").read_text())
+            rectified = cv2.imread(str(rectified_dir / f"{stem}.png"), cv2.IMREAD_GRAYSCALE)
+            engine = None
+            if r.get("profile_id") == "demag.injection_metering.multi_stage_holding" and rectified is not None:
+                from paddleocr import PaddleOCR
+                from raw_page_ocr import engine_identity, recover_raw_cells
+                engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+                ocr["lines"] = recover_raw_cells(engine, rectified, meta, ocr["lines"])
+            if raw_profile in DEFINITIONS and rectified is not None:
+                from paddleocr import PaddleOCR
+                from raw_page_ocr import engine_identity
+                engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+                ocr["lines"] = recover_temperature_time_cells(engine, rectified, meta, ocr["lines"], raw_profile)
+            recovery = VERSIONED_RECOVERY.get((raw_profile, r.get("template_version", "1.0.0")))
+            if recovery is not None and rectified is not None:
+                from paddleocr import PaddleOCR
+                from raw_page_ocr import engine_identity
+                if engine is None:
+                    engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+                ocr["lines"] = recovery(engine, rectified, meta, ocr["lines"])
+            try:
+                r["page_observations"] = observe_temperature_time_page(
+                    raw_profile, ocr["lines"], meta,
+                    hashlib.sha256(original_bytes).hexdigest(),
+                    rectified, package_root=Path(args.templates_dir).parent,
+                    package_version=r.get("template_version", "1.0.0"))
+            except RawPageRejected as exc:
+                r.update(status="reject", fields=None, page_observations=None, raw_rejection=exc.detail)
+                r.pop("extraction_detail", None)
+                r["warnings"].append(exc.detail["code"])
+            r["raw_ocr_evidence"] = ocr
+            if r["page_observations"] is not None:
+                r["page_observations"]["engine"] = (engine_identity(engine) if engine is not None
+                                                      else ocr.get("engine_identity", {"library": "provided_ocr_sidecar", "version": ocr.get("model")}))
         counts[r["status"]] += 1
         out_path = out_dir / f"{stem}.fields.json"
         out_path.write_text(json.dumps(r, ensure_ascii=False, indent=2))
