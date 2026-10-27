@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { prisma } from '../prisma';
+import { hasLegacyWriterRelease } from './legacy-writer-release';
 import { hasIndependentProcessOrigin, readProcessIdentity as processIdentity, readProcessAncestry, parseProcessAncestry, type ProcessAncestor } from './process-lineage';
 
 export type GraphWriter = {
@@ -101,6 +102,7 @@ export async function graphWriterEnvironment(taskRunId: string): Promise<Record<
 
 export async function observeTaskRunWriter(taskRunId: string, db: Prisma.TransactionClient = prisma): Promise<WriterObservation> {
   const run = await db.taskRun.findUnique({ where: { id: taskRunId }, include: { participants: true } });
+  if (run && hasLegacyWriterRelease(run)) return { kind: 'exited' };
   if (!run || !run.participants.length || run.participants.some(participant => participant.executionBackend !== 'platform_local' || !['codex', 'kimi-code'].includes(participant.harnessType || ''))) return { kind: 'unknown', reason: 'Writer backend has no local process proof' };
   try {
     const metadata: unknown = JSON.parse(run.controlMetadata || '{}');

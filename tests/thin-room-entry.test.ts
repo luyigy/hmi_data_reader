@@ -14,7 +14,9 @@ import { initialExecutionProgress } from '../src/lib/task-graph/execution-progre
 
 import { graphRoomTarget } from '../src/lib/task-graph/room-context';
 import { executeAcpxTaskRun } from '../src/lib/acpx/runner';
-import { createGraphWriter, releaseTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
+import { createGraphWriter, releaseTaskRunWriter, observeTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
+import { legacyWriterFingerprint, hasLegacyWriterRelease } from '../src/lib/task-graph/legacy-writer-release';
+import os from 'node:os';
 import { registerGraphReviewWorker, releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker';
 import { triggerLiveRoomMessageReplies } from '../src/lib/live-room-delivery';
 import { postFeishuMessageToBoundLiveRoom } from '../src/lib/feishu-live-room';
@@ -79,6 +81,23 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
       const members = await ensureGraphRoomParticipants(room.id, job.id);
       const target = members.find(m => m.role === 'implementer')!;
       const memberSession = await prisma.liveRoomMemberSession.create({ data: { roomId: room.id, memberId: target.id, status: 'active', backend: 'platform_local', sessionKey: room.id } });
+      const legacy = await prisma.taskRun.create({ data: { taskId: child.id, status: 'completed', completedAt: new Date(),
+        controlMetadata: '{}', participants: { create: { gatewayNameSnapshot: 'local', executionBackend: 'platform_local',
+          harnessType: 'codex', role: 'implementer', status: 'completed', completedAt: new Date() } } }, include: { participants: true } });
+      const legacyRequest = { taskId: child.id, taskName: child.name, workingDirectory: directory,
+        permissionConfig: permission, participants: [participant], orchestrationMode: 'single' as const };
+      await assert.rejects(executeAcpxTaskRun(legacyRequest), /writer .*unknown/, 'Completed legacy history alone is never exit proof');
+      const legacyRelease = { version: 1, kind: 'service_drain', hostname: os.hostname(), uid: process.getuid?.(),
+        taskRunId: legacy.id, identitySha256: legacyWriterFingerprint(legacy), releasedAt: new Date().toISOString(), evidenceSha256: 'a'.repeat(64) };
+      const releasedLegacy = await prisma.taskRun.update({ where: { id: legacy.id },
+        data: { controlMetadata: JSON.stringify({ legacyWriterRelease: legacyRelease }) }, include: { participants: true } });
+      assert.equal(hasLegacyWriterRelease(releasedLegacy), true);
+      assert.equal((await observeTaskRunWriter(legacy.id)).kind, 'exited');
+      assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, controlMetadata: '{invalid' }), false);
+      assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, status: 'running' }), false);
+      assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, controlMetadata: JSON.stringify({ legacyWriterRelease: { ...legacyRelease, hostname: 'other-host' } }) }), false);
+      assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, controlMetadata: JSON.stringify({ legacyWriterRelease: legacyRelease, graphWriter: {} }) }), false);
+      assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, participants: releasedLegacy.participants.map(p => ({ ...p, controlMetadata: '{"changed":true}' })) }), false);
       const projectStart = calls.length;
       for (const [phase, state, status] of [['implement', 'active', 'claimed'], ['acceptance', 'active', 'verifying'], ['acceptance', 'exhausted', 'attention'], ['acceptance', 'ready', 'passed']]) {
         await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status } });

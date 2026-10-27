@@ -3,6 +3,7 @@ import { realpath } from 'node:fs/promises';
 import type { Prisma } from '@prisma/client';
 import { executionProgress } from './execution-progress';
 import { observeGraphWriter, observeTaskRunWriter } from './writer-ownership';
+import { hasLegacyWriterRelease } from './legacy-writer-release';
 
 /** One short transaction lock for all startup paths. No lease or parallel state machine. */
 export async function lockWriterAdmission(tx: Prisma.TransactionClient) {
@@ -49,12 +50,13 @@ export async function assertWorkspaceWriterAvailable(tx: Prisma.TransactionClien
   const taskIds = new Set([...(args.taskId ? [args.taskId] : []), ...scope.flatMap(job => [job.childTaskId, `task-graph-review-${job.nodeId}`, `task-graph-architecture-${job.nodeId}`].filter((id): id is string => !!id))]);
   const runs = await tx.taskRun.findMany({ where: { OR: [
     { taskId: { in: Array.from(taskIds) } }, ...(directory ? [{ controlMetadata: { contains: 'workingDirectory' } }] : []),
-  ] } });
+  ] }, include: { participants: true } });
   for (const run of runs) {
     let metadata: Record<string, unknown> = {};
     try { metadata = JSON.parse(run.controlMetadata || '{}'); } catch { /* Missing proof is not an exit. */ }
     if (!taskIds.has(run.taskId) && !(directory && typeof metadata.workingDirectory === 'string' && overlaps(directory, await canonical(metadata.workingDirectory)))) continue;
     if (run.id !== args.resultTaskRunId && (['pending', 'running', 'waiting_for_input'].includes(run.status) || metadata.graphRoomResultPending === true)) throw new WorkspaceWriterBusy('alive', run.id);
+    if (hasLegacyWriterRelease(run)) continue;
     const observed = await observeTaskRunWriter(run.id, tx);
     if (observed.kind !== 'exited') throw new WorkspaceWriterBusy(observed.kind, run.id);
   }
