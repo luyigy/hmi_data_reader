@@ -22,7 +22,7 @@ export function legacyWriterFingerprint(run: LegacyRun): string {
 export function hasLegacyWriterRelease(run: LegacyRun): boolean {
   try {
     const metadata: unknown = JSON.parse(run.controlMetadata || '{}');
-    if (!metadata || typeof metadata !== 'object' || 'graphWriter' in metadata || !('legacyWriterRelease' in metadata)) return false;
+    if (!metadata || typeof metadata !== 'object' || !('legacyWriterRelease' in metadata)) return false;
     const release: unknown = metadata.legacyWriterRelease;
     if (!release || typeof release !== 'object') return false;
     const field = (name: string): unknown => Reflect.get(release, name);

@@ -17,6 +17,7 @@ import { executeAcpxTaskRun } from '../src/lib/acpx/runner';
 import { createGraphWriter, releaseTaskRunWriter, observeTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { legacyWriterFingerprint, hasLegacyWriterRelease } from '../src/lib/task-graph/legacy-writer-release';
 import os from 'node:os';
+import { exitedGraphWriter } from './fixtures/exited-graph-writer';
 import { registerGraphReviewWorker, releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker';
 import { triggerLiveRoomMessageReplies } from '../src/lib/live-room-delivery';
 import { postFeishuMessageToBoundLiveRoom } from '../src/lib/feishu-live-room';
@@ -98,6 +99,14 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
       assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, controlMetadata: JSON.stringify({ legacyWriterRelease: { ...legacyRelease, hostname: 'other-host' } }) }), false);
       assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, controlMetadata: JSON.stringify({ legacyWriterRelease: legacyRelease, graphWriter: {} }) }), false);
       assert.equal(hasLegacyWriterRelease({ ...releasedLegacy, participants: releasedLegacy.participants.map(p => ({ ...p, controlMetadata: '{"changed":true}' })) }), false);
+      const historicalWriter = await exitedGraphWriter();
+      const trackedHistory = { ...legacy, controlMetadata: JSON.stringify({ graphWriter: historicalWriter }) };
+      const trackedRelease = { ...legacyRelease, identitySha256: legacyWriterFingerprint(trackedHistory) };
+      const trackedMetadata = { graphWriter: historicalWriter, legacyWriterRelease: trackedRelease };
+      assert.equal(hasLegacyWriterRelease({ ...trackedHistory, controlMetadata: JSON.stringify(trackedMetadata) }), true);
+      assert.equal(hasLegacyWriterRelease({ ...trackedHistory, controlMetadata: JSON.stringify({ ...trackedMetadata,
+        graphWriter: { ...historicalWriter, nonce: 'changed' } }) }), false, 'A drain receipt cannot release a changed Writer');
+      await prisma.taskRun.update({ where: { id: legacy.id }, data: { controlMetadata: JSON.stringify(trackedMetadata) } });
       const projectStart = calls.length;
       for (const [phase, state, status] of [['implement', 'active', 'claimed'], ['acceptance', 'active', 'verifying'], ['acceptance', 'exhausted', 'attention'], ['acceptance', 'ready', 'passed']]) {
         await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status } });
