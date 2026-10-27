@@ -10,6 +10,7 @@ import { parseGraphResult } from './result-protocol';
 
 type CollectedReview =
   | { kind: 'classified'; decision: ClassifiedReview; verification?: AcceptanceReceipt; taskRunId: string }
+  | { kind: 'conversation'; note: string; taskRunId: string }
   | { kind: 'protocol_exhausted' | 'platform_failure'; note: string; taskRunId: string };
 
 /** One bounded result recollection; a missing/unknown result never becomes an approval. */
@@ -39,6 +40,7 @@ export async function collectGraphReview(args: {
     if (result.status !== 'completed') return { kind: 'platform_failure', note: response || '复核进程没有正常结束', taskRunId: result.taskRunId };
     const receipt = await recordTaskRunResult(result.taskRunId);
     const parsed = receipt?.result || parseGraphResult(response, args.marker, args.checks);
+    if (parsed.kind === 'conversation') return { kind: 'conversation', note: response, taskRunId: result.taskRunId };
     const decision = parsed.kind === 'review' ? parsed.decision : null;
     const verification = parsed.kind === 'review' ? parsed.verification : undefined;
     const verified = args.validateVerification?.(verification, decision?.approved === true);

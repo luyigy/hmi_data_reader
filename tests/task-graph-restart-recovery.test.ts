@@ -22,6 +22,7 @@ async function main() {
   git('init', '-b', 'main'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.test');
   await fs.writeFile(path.join(repository, 'base'), 'base'); git('add', '.'); git('commit', '-m', 'base');
   process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'runtime'); process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation'); process.env.TASK_GRAPH_UPSTREAM_ROOT = path.join(root, 'upstream');
+  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => ({ projects: [] });
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
   const parent = await prisma.task.create({ data: { name: 'restart' } });
   const definition: GraphDefinition = { specRef: 'fixture://restart', nodes: [{
@@ -38,6 +39,7 @@ const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('
 const {prisma}=require(${JSON.stringify(path.join(cwd, 'src/lib/prisma.ts'))});
 const {getHarnessAdapter}=require(${JSON.stringify(path.join(cwd, 'src/lib/harness/index.ts'))});
 const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-graph/coordinator.ts'))});
+require(${JSON.stringify(path.join(cwd, 'src/lib/scheduled-jobs/project-config.ts'))}).loadProjectsConfig=async()=>({projects:[]});
 globalThis.fetch=async()=>new Response(JSON.stringify({code:0,data:{message_id:'fixture'}}));
 getHarnessAdapter('codex').execute=async({task,context})=>{
  const job=await prisma.taskGraphExecution.findUniqueOrThrow({where:{childTaskId:task.id}});
@@ -119,6 +121,7 @@ checks.runSandboxedGraphCheck=async(...args)=>{
  return originalCheck(...args);
 };
 const {runTaskGraphCycle,startTaskGraphCoordinator}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-graph/coordinator.ts'))});
+require(${JSON.stringify(path.join(cwd, 'src/lib/scheduled-jobs/project-config.ts'))}).loadProjectsConfig=async()=>({projects:[]});
 globalThis.fetch=async()=>new Response(JSON.stringify({code:0,data:{message_id:'fixture'}}));
 (async()=>{
  for(let n=0;n<1000;n++){

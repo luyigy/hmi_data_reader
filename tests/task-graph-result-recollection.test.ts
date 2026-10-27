@@ -27,6 +27,7 @@ async function main() {
   const require = createRequire(__filename); const notices = require('../src/lib/task-graph/feishu');
   notices.ensureGraphChildTopic = async () => null; notices.postGraphParentProgress = async () => {}; notices.postGraphChildProgress = async () => {};
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
+  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => ({ projects: [] });
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
   const calls = new Map<string, number>();
   const adapter = getHarnessAdapter('codex'); assert.ok(adapter);

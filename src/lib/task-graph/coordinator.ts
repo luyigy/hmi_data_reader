@@ -1,3 +1,4 @@
+import { recoverRoomResults } from './room-result-publication';
 import { recordedImplementationResult } from './task-run-result';
 import { assertAcceptanceModels } from './acceptance-models';
 import { acceptanceReceiptInstructions, validAcceptanceReceipt, type AcceptanceReceipt } from './acceptance-evidence';
@@ -347,6 +348,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
         orchestrationMode: 'single', participants: [review.participant],
         extraReadOnlyPaths: [...runtime.readOnlyPaths, ...specInput.paths],
         workingDirectory: task.workingDirectory || undefined, permissionConfig: runtime.permissionConfig } });
+    if (reviewed.kind === 'conversation') return;
     if (reviewed.taskRunId === 'not-created') throw new Error(reviewed.kind === 'classified' ? 'Review did not launch' : reviewed.note);
     const decision = reviewed.kind === 'classified' ? reviewed.decision : null;
     const response = decision?.note || (reviewed.kind !== 'classified' ? reviewed.note : '无有效结论');
@@ -802,6 +804,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
 
 /** Prior writers retain ownership until their actual exit is proven. */
 export async function runTaskGraphCycle() {
+  await recoverRoomResults();
   await reconcileResourceApprovals();
   await stopPausedGraphTurns();
   await deliverConversationSteering();

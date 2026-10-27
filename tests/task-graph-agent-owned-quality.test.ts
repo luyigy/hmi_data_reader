@@ -1,3 +1,4 @@
+import { ensureJobWorktree, ensureIntegrationRef } from '../src/lib/task-graph/worktree';
 import { configureAcceptanceModels } from '../src/lib/task-graph/acceptance-models';
 import { admitNode } from '../src/lib/task-graph/preparation-recovery';
 import { recoverPendingReviewRepairs } from '../src/lib/task-graph/pending-review-repair';
@@ -128,6 +129,15 @@ async function scenario(mode: 'self-environment' | 'self-human' | 'environment-b
   if (mode === 'history') await prisma.taskGraphExecution.update({ where: { id: node.executions[0].id }, data: { dispatchMetadata: { progress: { ...initialExecutionProgress(), repairAttempts: 2 } } } });
   const adapter = getHarnessAdapter('codex')!, independent = getHarnessAdapter('kimi-code')!;
   const original = { execute: adapter.execute, resume: adapter.resume, tester: independent.execute, testerResume: independent.resume };
+  if (mode === 'conflict') {
+    // Pin both candidates before either writer runs, so the fixture creates a real divergent merge.
+    for (const job of node.executions) {
+      const integration = await ensureIntegrationRef({ repoPath: job.repository, runId: run.id, baseRef: job.gitRef, baseCommit: job.baseCommit });
+      const workspace = await ensureJobWorktree({ repoPath: job.repository, runId: run.id, jobId: job.id, baseRef: job.gitRef, baseCommit: job.baseCommit });
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { worktreePath: workspace.path, worktreeBranch: workspace.branch,
+        dispatchMetadata: { integrationRef: integration.ref, workspaceBase: job.baseCommit, progress: { ...initialExecutionProgress(), workspaceBase: job.baseCommit, candidateCommit: job.baseCommit } } } });
+    }
+  }
   let starts = 0, successorStarts = 0, reviews = 0, testerReviews = 0, commands = 0;
   const reviewedCommits: string[] = [];
   let architectureStarts = 0;
@@ -412,6 +422,7 @@ async function main() {
   require('../src/lib/real-agents/kimi-code-model-catalog').loadKimiCodeModelCatalog = async () => ({ 'fixture-kimi': {} });
   require('../src/lib/codex-model-catalog').loadCodexModelCatalog = async () => [{ id: 'fixture-codex', efforts: [], defaultEffort: null }];
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
+  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => ({ projects: [] });
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
   try { for (const mode of ['self-environment', 'self-human', 'environment-blocked', 'review-environment', 'review-human', 'architecture-environment', 'blocked', 'failed', 'needs-human', 'default', 'self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'tester-auth', 'architecture-auth', 'tester-missing', 'tester-sha', 'tester-dirty', 'tester-model-drift', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE.split(',').includes(mode)) await scenario(mode); }
   finally { await prisma.$disconnect(); rmSync(fixtureRoot, { recursive: true, force: true }); }

@@ -1,3 +1,4 @@
+import { assertRoomResultAuthority } from './room-result-authority';
 import { lockWriterAdmission, assertWorkspaceWriterAvailable, WorkspaceWriterBusy } from './writer-admission';
 import { validAcceptanceReceipt, type AcceptanceReceipt } from './acceptance-evidence';
 import { assertCandidateInputsIntegrated } from './candidate-integration';
@@ -252,7 +253,10 @@ export async function completeExecution(args: {
 
 /** No acceptance can begin while a repository execution is unfinished. */
 export async function markNodeIntegrationsReady(runId: string, nodeKey: string, db: Database = prisma) {
-  return db.$transaction(async (tx) => {
+  return db.$transaction(tx => markNodeIntegrationsReadyTx(tx, runId, nodeKey));
+}
+
+export async function markNodeIntegrationsReadyTx(tx: Prisma.TransactionClient, runId: string, nodeKey: string) {
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${runId} AND key = ${nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({
       where: { runId_key: { runId, key: nodeKey } }, include: { executions: true },
@@ -266,7 +270,6 @@ export async function markNodeIntegrationsReady(runId: string, nodeKey: string, 
       data: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:verifying:${createHash('sha256').update(JSON.stringify(node.executions.map(job => [job.id, job.commit, executionProgress(job.dispatchMetadata)?.revision]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))))).digest('hex').slice(0, 24)}`, kind: 'node_verifying', payload: {} },
     });
     return tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
-  });
 }
 
 export type VerificationEvidence = {
@@ -303,10 +306,13 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
 /** Agent review requires the configured reviewer; human review creates a pause. */
 export async function submitNodeVerification(args: {
   runId: string; nodeKey: string; actorId: string; evidence: VerificationEvidence; attempt?: string;
-  review?: ReviewPublication;
+  review?: ReviewPublication; roomTaskRunId?: string;
 }, db: Database = prisma) {
   const writerExit = args.review?.outcome === 'platform_failure' ? await observeTaskRunExit(args.review.taskRunId) : undefined;
-  return db.$transaction(async (tx) => {
+  return db.$transaction(tx => submitNodeVerificationTx(tx, args, writerExit));
+}
+
+export async function submitNodeVerificationTx(tx: Prisma.TransactionClient, args: Parameters<typeof submitNodeVerification>[0], writerExit?: Awaited<ReturnType<typeof observeTaskRunExit>>) {
     // Match admission/reservation lock order; outcome handling retains the pause policy.
     await graphRunCanStartTx(tx, args.runId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${args.runId} AND key = ${args.nodeKey} FOR UPDATE`;
@@ -316,6 +322,14 @@ export async function submitNodeVerification(args: {
     const definition = snapshot.snapshot as unknown as GraphDefinition;
     const planned = definition.nodes.find(item => item.key === args.nodeKey);
     if (!planned) throw new Error('Acceptance policy missing from snapshot');
+    if (args.roomTaskRunId) {
+      const authority = await assertRoomResultAuthority(tx, args.roomTaskRunId, node.id);
+      if (authority.binding.marker !== 'TASK_GRAPH_REVIEW' || args.review?.taskRunId !== args.roomTaskRunId || !isDeepStrictEqual(args.evidence.inputs, authority.binding.inputs)) throw new Error('Room review publication identity mismatch');
+      if (node.status === 'attention') {
+        await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'verifying' } });
+        node.status = 'verifying';
+      }
+    }
     const agentOwned = definition.deliveryContract === 'agent_owned_v1';
     const reviewComplete = !args.review || args.review.outcome === 'classified' && !args.review.decision;
     if (node.acceptance === 'agent' && node.reviewerId !== args.actorId) throw new Error('Wrong review agent');
@@ -343,7 +357,7 @@ export async function submitNodeVerification(args: {
     if (['passed', 'awaiting_human', 'attention'].includes(node.status) &&
         JSON.stringify(node.evidence) === JSON.stringify(args.evidence)) return node;
     if (node.status !== 'verifying') throw new Error('Node is not ready for verification');
-    if (args.review) await assertGraphReviewOwnershipTx(tx, node.id, args.review.phase, args.review.claimKey, args.review.taskRunId);
+    if (args.review && !args.roomTaskRunId) await assertGraphReviewOwnershipTx(tx, node.id, args.review.phase, args.review.claimKey, args.review.taskRunId);
     if (args.review?.outcome === 'platform_failure') {
       const failed = await tx.taskRun.findUniqueOrThrow({ where: { id: args.review.taskRunId }, select: { status: true } });
       if (!['failed', 'cancelled', 'interrupted'].includes(failed.status) || !await taskRunExitMatches(tx, args.review.taskRunId, writerExit)) throw new Error('Review platform retry requires a finished writer');
@@ -389,7 +403,6 @@ export async function submitNodeVerification(args: {
         payload: { actorId: args.actorId, evidence: args.evidence as unknown as Prisma.InputJsonValue, ...(args.review ? { review: { phase: args.review.phase, claimKey: args.review.claimKey, taskRunId: args.review.taskRunId } } : {}) } },
     });
     return updated;
-  });
 }
 
 export async function approveHumanNode(args: {

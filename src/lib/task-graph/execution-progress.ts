@@ -1,3 +1,4 @@
+import { assertRoomResultAuthority } from './room-result-authority';
 import { inheritConversationReply } from './conversation-handoff-reply';
 import { bindPhaseReplyIdentity } from './conversation-reply-identity';
 import { observeTaskRunExit, taskRunExitMatches, type TaskRunExitProof } from './task-run-exit-proof';
@@ -178,7 +179,7 @@ export function initialExecutionProgress(): ExecutionProgress {
 
 /** Only this transaction advances versioned execution phases or spends retry budgets. */
 export type ExecutionOutcomeRequest = {
-  executionId: string; claimToken: string; expectedRevision: number; outcomeId: string; outcome: ExecutionOutcome;
+  executionId: string; claimToken: string; expectedRevision: number; outcomeId: string; outcome: ExecutionOutcome; roomTaskRunId?: string;
 };
 export async function applyExecutionOutcome(args: ExecutionOutcomeRequest, db: Pick<typeof prisma, '$transaction'> = prisma): Promise<ExecutionProgress> {
   const before = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
@@ -209,9 +210,12 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const reviewRepair = current.status === 'integrated' && ['business_stopped', 'repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     const conflictRecovery = current.status === 'attention' && before.state === 'waiting_decision' && before.lastFailure?.code === 'integration_conflict' &&
       (args.outcome.kind === 'repair_required' && !!args.outcome.conflictRepair || args.outcome.kind === 'decision_required' && args.outcome.failure.code === 'integration_conflict');
-    if ((!admission && !conflictRecovery && !reviewRepair && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
+    const roomDelivery = args.roomTaskRunId && args.outcome.kind === 'integrated'
+      ? await assertRoomResultAuthority(tx, args.roomTaskRunId, current.nodeId) : null;
+    if (roomDelivery && (roomDelivery.binding.marker !== 'TASK_GRAPH_IMPLEMENTATION' || !roomDelivery.binding.executionIds.includes(current.id))) throw new Error('Room result is not an implementation for this execution');
+    if ((!roomDelivery && !admission && !conflictRecovery && !reviewRepair && !reclassification && current.status !== 'claimed') || !roomDelivery && current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
     if (args.outcome.kind === 'delivery_reclassified' && (!reclassification || !args.outcome.authorization.trim())) throw new Error('Operator outcome is not authorized for the current state');
-    if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
+    if (!roomDelivery && (args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
         args.outcome.kind === 'repair_required' && !['check', 'integrate', 'architecture', 'acceptance'].includes(before.phase) ||
         args.outcome.kind === 'result_incomplete' && !['implement', 'collect_result', 'check'].includes(before.phase)) throw new Error('Execution outcome does not belong to current phase');
     const progress: ExecutionProgress = { ...before, revision: before.revision + 1, state: 'active' };
@@ -345,6 +349,11 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
           if (outcome.kind === 'platform_retry') progress.nextRetryAt = new Date(Date.now() + 1000 * progress[budget]).toISOString();
         }
       }
+    }
+    if (roomDelivery) {
+      progress.taskRunId = args.roomTaskRunId;
+      delete progress.waitingKind; delete progress.waitingMessage;
+      await tx.taskGraphNode.update({ where: { id: current.nodeId }, data: { status: 'claimed' } });
     }
     if (status === 'ready' || outcome.kind === 'admitted' || outcome.kind === 'integrated' || outcome.kind === 'review_retry') { delete progress.worker; delete progress.workerReleasedAt; }
     if (status === 'ready' && current.taskRunId && await tx.taskRun.count({ where: { id: current.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Cannot requeue a live TaskRun');

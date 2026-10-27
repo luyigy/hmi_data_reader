@@ -22,7 +22,7 @@ const overlaps = (left: string, right: string) => left === right || left.startsW
 
 /** Caller holds lockWriterAdmission until the claim or TaskRun is durably created. */
 export async function assertWorkspaceWriterAvailable(tx: Prisma.TransactionClient, args: {
-  taskId?: string; nodeId?: string; directory?: string | null;
+  taskId?: string; nodeId?: string; directory?: string | null; resultTaskRunId?: string;
   executionClaim?: { executionId: string; claimToken: string };
   reviewClaim?: { nodeId: string; claimKey: string };
 }) {
@@ -54,6 +54,7 @@ export async function assertWorkspaceWriterAvailable(tx: Prisma.TransactionClien
     let metadata: Record<string, unknown> = {};
     try { metadata = JSON.parse(run.controlMetadata || '{}'); } catch { /* Missing proof is not an exit. */ }
     if (!taskIds.has(run.taskId) && !(directory && typeof metadata.workingDirectory === 'string' && overlaps(directory, await canonical(metadata.workingDirectory)))) continue;
+    if (run.id !== args.resultTaskRunId && (['pending', 'running', 'waiting_for_input'].includes(run.status) || metadata.graphRoomResultPending === true)) throw new WorkspaceWriterBusy('alive', run.id);
     const observed = await observeTaskRunWriter(run.id, tx);
     if (observed.kind !== 'exited') throw new WorkspaceWriterBusy(observed.kind, run.id);
   }

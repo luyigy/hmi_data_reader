@@ -1,3 +1,5 @@
+import { publishRoomResult } from '../task-graph/room-result-publication';
+import { captureRoomResultSource } from '../task-graph/result-source';
 import { resolveCompletionOwner, taskRunCompletionOwner } from './completion-owner';
 import { bindTaskRunResult, recordTaskRunResult } from '../task-graph/task-run-result';
 import { lockWriterAdmission, assertWorkspaceWriterAvailable, WorkspaceWriterBusy } from '../task-graph/writer-admission';
@@ -247,7 +249,8 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     throw new AcpxRunStartupError(taskRun.id, detail, error);
   } finally {
     // executeParticipant settles its metadata writes and service cleanup before this boundary.
-    if (graphWriter) await releaseTaskRunWriter(taskRun.id, graphWriter.nonce);
+    try { await captureRoomResultSource(taskRun.id); }
+    finally { if (graphWriter) await releaseTaskRunWriter(taskRun.id, graphWriter.nonce); }
   }
 
   const failedParticipants = participantResults.filter((result) => result.status === 'failed');
@@ -326,6 +329,9 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
 
   if (runStatus === 'completed') {
     const receipt = await recordTaskRunResult(taskRun.id);
+    const publication = await publishRoomResult(taskRun.id);
+    if (publication && !publication.published) await publishTaskRunEvent({ taskId: request.taskId, taskRunId: taskRun.id,
+      eventType: 'control_message', content: publication.note || '正式结果未发布', metadata: { kind: 'graph_result_rejected' } });
     if (receipt?.result.kind === 'invalid') await publishTaskRunEvent({ taskId: request.taskId, taskRunId: taskRun.id,
       eventType: 'control_message', content: receipt.result.note, metadata: { kind: 'graph_result_invalid', resultEventId: receipt.eventId } });
   }

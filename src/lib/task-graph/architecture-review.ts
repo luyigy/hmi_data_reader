@@ -1,5 +1,4 @@
 import { isDeepStrictEqual } from 'node:util';
-import { executionProgress } from './execution-progress';
 import { verificationInputs } from './domain';
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
@@ -25,7 +24,7 @@ export async function runArchitectureReview(args: {
   if (!review) return 'passed'; // Runs created before architecture review was introduced.
   // Acceptance recovery must reuse the successful architecture generation, including a retry claim.
   const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: args.nodeId } });
-  if (jobs.length && jobs.every(job => executionProgress(job.dispatchMetadata)?.phase === 'acceptance')) {
+  if (jobs.length) {
     const latest = await prisma.taskGraphEvent.findFirst({ where: { nodeId: args.nodeId,
       kind: { in: ['architecture_passed', 'architecture_failed'] } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     const payload = latest?.payload;
@@ -64,6 +63,7 @@ export async function runArchitectureReview(args: {
       orchestrationMode: 'single', participants: [participant],
       extraReadOnlyPaths: args.workspaces.map(workspace => workspace.path),
       workingDirectory: task.workingDirectory || undefined, permissionConfig: taskGraphAgentReviewPermissionConfig } });
+  if (result.kind === 'conversation') return 'running';
   if (result.taskRunId === 'not-created') throw new Error(result.kind === 'classified' ? 'Review did not launch' : result.note);
   let workspaceInvalid = false;
   let approved = result.kind === 'classified' && result.decision.approved;
