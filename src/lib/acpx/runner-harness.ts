@@ -149,12 +149,6 @@ export const executeViaLocalHarness = async (
   if (request.taskId.startsWith('task-graph-') && request.workingDirectory && !existsSync(request.workingDirectory)) {
     throw new Error('任务工作区已清理或不可用。历史回复和提交仍保留；继续实施请创建后续任务工作区。');
   }
-  if (request.taskId.startsWith('task-graph-') && permissionConfig.sandboxMode !== 'read-only') {
-    const execution = await prisma.taskGraphExecution.findFirst({ where: { childTaskId: request.taskId }, select: { node: { select: { status: true } } } });
-    if (execution && !['ready', 'claimed', 'attention'].includes(execution.node.status)) {
-      throw new Error('任务处于验证或完成阶段，代码已冻结；修改代码请创建后续任务工作区。');
-    }
-  }
   if (permissionConfig.sandboxMode === 'read-only' && adapter.getPermissionSupport('platform_local').sandboxMode !== 'applied') {
     throw new Error(`${adapter.displayName} 尚不支持强制只读工作区，不能执行此验收角色。`);
   }
@@ -192,7 +186,7 @@ export const executeViaLocalHarness = async (
       ? [workspaceRoot, ...(request.extraReadOnlyPaths || [])].flatMap(linkedWorktreeGitDirectories)
       : []),
   ]));
-  const declaredRuntime = !request.graphConversation && output && workspaceRoot ? await prepareTaskDeclaredRuntime({ taskId: request.taskId, taskRunId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
+  const declaredRuntime = !request.graphConversation && output && workspaceRoot ? await prepareTaskDeclaredRuntime({ conversationAssociation: !request.graphExecution && !request.graphReview ? request.graphAssociation : undefined, taskId: request.taskId, taskRunId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
   if (declaredRuntime) { task.description += declaredRuntime.instructions; extraReadOnlyPaths.push(...declaredRuntime.readOnlyPaths); }
   if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
   const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'

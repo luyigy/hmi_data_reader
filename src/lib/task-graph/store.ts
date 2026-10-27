@@ -1,3 +1,4 @@
+import { lockWriterAdmission, assertWorkspaceWriterAvailable, WorkspaceWriterBusy } from './writer-admission';
 import { validAcceptanceReceipt, type AcceptanceReceipt } from './acceptance-evidence';
 import { assertCandidateInputsIntegrated } from './candidate-integration';
 import { implementationQuality } from './implementation-quality';
@@ -145,15 +146,19 @@ export async function claimExecution(
 ) {
   required(claimToken, 'claimToken');
   return db.$transaction(async (tx) => {
+    await lockWriterAdmission(tx);
     if (!await graphRunCanStartTx(tx, runId)) return null;
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${runId} AND "key" = ${nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId, key: nodeKey } }, include: { run: true } });
     if (!node || node.status !== 'claimed') return null;
     const execution = await tx.taskGraphExecution.findUnique({ where: { nodeId_key: { nodeId: node.id, key: executionKey } } });
     if (!execution) throw new Error('Unknown graph execution');
+    if (execution.status === 'claimed' && execution.claimToken === claimToken) return execution;
+    try { await assertWorkspaceWriterAvailable(tx, { taskId: execution.childTaskId || undefined, nodeId: node.id, directory: execution.worktreePath,
+      ...(execution.claimToken === claimToken ? { executionClaim: { executionId: execution.id, claimToken } } : {}) }); }
+    catch (error) { if (error instanceof WorkspaceWriterBusy) return null; throw error; }
     const progress = executionProgress(execution.dispatchMetadata);
     if (progress?.state === 'exhausted' || (progress?.nextRetryAt && Date.parse(progress.nextRetryAt) > Date.now())) return null;
-    if (execution.status === 'claimed' && execution.claimToken === claimToken) return execution;
     if (progress?.worker && (await observeGraphWriter(progress.worker, Boolean(progress.workerReleasedAt))).kind !== 'exited') return null;
     const approved = node.run.snapshot as unknown as GraphDefinition;
     const sharedWriter = approved.nodes.find(planned => planned.key === node.key)?.extraRepositories?.some(extra => extra.access === 'write');

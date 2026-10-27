@@ -10,7 +10,6 @@ import { scheduleVerificationRecovery } from './review-recovery';
 import { recoverPendingReviewRepairs } from './pending-review-repair';
 import { conversationInputs, conversationPrompt, sealConversationTurn, deliverConversationSteering, reconcileConversationDeliveries } from './conversation-inbox';
 import { implementationConversation } from './conversation-session';
-import { startConversationFollowups } from './conversation-followup';
 import { redactSensitiveText } from '../redact-sensitive';
 import { recoverPreparedImplementations, reconcileExecutionConditions } from './preparation-recovery';
 import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
@@ -163,6 +162,7 @@ function verifyNode(runId: string, nodeKey: string): Promise<void> {
   if (active) return active;
   const pending = (async () => {
     const ownership = await registerGraphReviewWorker(runId, nodeKey);
+    if (!ownership) return;
     try { await verifyNodeOnce(runId, nodeKey, ownership?.worker.nonce); }
     finally { if (ownership) await releaseGraphReviewWorker(ownership.nodeId, ownership.worker.nonce); }
   })().finally(() => nodeVerifications.delete(key));
@@ -851,10 +851,7 @@ export async function runTaskGraphCycle() {
       inflight.add(task);
     }
   }
-  for (const work of await startConversationFollowups(Math.max(0, maxConcurrentJobs - activeJobs.size - activeConversations.size))) {
-    activeConversations.add(work.executionId);
-    const pending = work.promise.finally(() => { activeConversations.delete(work.executionId); inflight.delete(pending); }); inflight.add(pending);
-  }
+
   // Normal ready work has priority. The shared admission boundary checks lightweight
   // wake facts and due times before resource probes; failed probes never launch a model.
   const waiting = await prisma.taskGraphExecution.findMany({ where: { status: 'attention',

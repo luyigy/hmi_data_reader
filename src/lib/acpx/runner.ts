@@ -1,3 +1,5 @@
+import { lockWriterAdmission, assertWorkspaceWriterAvailable, WorkspaceWriterBusy } from '../task-graph/writer-admission';
+import { graphAssociationForTask, associationReviewCandidates, assertRoomRunTarget } from '../task-graph/graph-association';
 import { assertGraphResetComplete } from '../task-graph/conversation-reset';
 import { attachScheduledResourceContinuation, reserveResourceContinuation, resourceContinuationExit } from '../task-resources/runtime';
 import type { Prisma } from '@prisma/client';
@@ -5,7 +7,6 @@ import { createGraphWriter, releaseTaskRunWriter } from '../task-graph/writer-ow
 import { bindGraphReviewTaskRun } from '../task-graph/review-ownership';
 import { bindExecutionTaskRun } from '../task-graph/execution-progress';
 import { bindConversationInputs, completeConversationTurn, registerConversationSteering } from '../task-graph/conversation-inbox';
-import { bindReadOnlyConversation } from '../task-graph/conversation-followup';
 import { prisma } from '@/lib/prisma';
 import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import { getHarnessCapabilities } from './capabilities';
@@ -24,17 +25,14 @@ export class AcpxRunStartupError extends Error {
 
 export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   request = await attachScheduledResourceContinuation(request);
-  const graphChild = await prisma.taskGraphExecution.findUnique({ where: { childTaskId: request.taskId }, select: { id: true } });
-  if ([request.graphExecution, request.graphReview, request.graphConversation].filter(Boolean).length > 1) throw new Error('TaskRun has multiple graph authorities');
-  if (request.graphConversation && request.permissionConfig?.sandboxMode !== 'read-only') throw new Error('Conversation followup must protect fixed source and delivery evidence');
-  if (graphChild && request.graphExecution?.executionId !== graphChild.id && request.graphConversation?.executionId !== graphChild.id) {
-    throw new Error('Graph task turns must be scheduled through their execution conversation inbox');
-  }
-  const reviewTask = /^task-graph-(review|architecture)-(.+)$/.exec(request.taskId);
-  if (reviewTask && await prisma.taskGraphNode.count({ where: { id: reviewTask[2] } }) &&
-    !request.graphConversation && (request.graphReview?.nodeId !== reviewTask[2] || request.graphReview.phase !== (reviewTask[1] === 'review' ? 'acceptance' : 'architecture'))) {
-    throw new Error('Graph review turns require the current graphReview stage authority');
-  }
+  if (request.graphConversation) throw new Error('Legacy graph conversation startup has been retired');
+  if (request.graphExecution && request.graphReview) throw new Error('TaskRun has multiple graph authorities');
+  const association = await graphAssociationForTask(request.taskId, request.participants[0]?.role || '');
+  if (request.graphAssociation && (!association || association.nodeId !== request.graphAssociation.nodeId ||
+      association.runId !== request.graphAssociation.runId || JSON.stringify(association.executionIds) !== JSON.stringify(request.graphAssociation.executionIds) ||
+      request.participants.some(participant => participant.role !== request.graphAssociation!.role))) throw new Error('Graph association does not match registered task identity');
+  request = { ...request, graphAssociation: association ? { ...association, ...(request.graphAssociation?.roomMessageId ? { roomMessageId: request.graphAssociation.roomMessageId } : {}), ...(request.graphAssociation?.sourceTaskRunId ? { sourceTaskRunId: request.graphAssociation.sourceTaskRunId } : {}) } : undefined };
+  const reviewCandidates = await associationReviewCandidates(request.taskId, request.graphAssociation);
   const taskSession =
     request.taskSessionId
       ? await prisma.taskSession.findUnique({ where: { id: request.taskSessionId } })
@@ -63,8 +61,10 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       watchdogConfig: stringifyJson(request.watchdogConfig ?? null),
       controlMetadata: stringifyJson({
         ...(graphWriter ? { graphWriter } : {}),
+        ...(reviewCandidates ? { reviewCandidates } : {}),
         workingDirectory: request.workingDirectory || process.cwd(),
         ...(request.graphReview ? { graphReview: request.graphReview } : {}),
+        ...(request.graphAssociation ? { graphAssociation: request.graphAssociation } : {}),
         ...(request.graphConversation ? { graphConversation: request.graphConversation } : {}),
         permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
         permissionSupport: request.participants.map((participant) => ({
@@ -125,9 +125,14 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   request = { ...request, taskSessionId: taskSession.id };
   const graphExecution = request.graphExecution;
   const conversationExecutions = graphExecution ? [graphExecution.executionId] : request.graphConversation ? [request.graphConversation.executionId]
-    : request.graphReview ? (await prisma.taskGraphExecution.findMany({ where: { nodeId: request.graphReview.nodeId }, select: { id: true } })).map(job => job.id) : [];
+    : request.graphReview ? (await prisma.taskGraphExecution.findMany({ where: { nodeId: request.graphReview.nodeId }, select: { id: true } })).map(job => job.id) : request.graphAssociation?.executionIds || [];
   const resourceExit = await resourceContinuationExit(request);
-  const taskRun = await prisma.$transaction(async tx => {
+  const startRun = () => prisma.$transaction(async tx => {
+    await lockWriterAdmission(tx);
+    if (supportedWriter && request.workingDirectory || request.graphAssociation || request.graphExecution || request.graphReview) await assertWorkspaceWriterAvailable(tx, {
+      taskId: request.taskId, nodeId: request.graphAssociation?.nodeId || request.graphReview?.nodeId, directory: request.workingDirectory,
+      executionClaim: request.graphExecution, reviewClaim: request.graphReview,
+    });
     const resetTasks = conversationExecutions.length ? await tx.taskGraphExecution.findMany({ where: { id: { in: conversationExecutions } }, select: { childTaskId: true } }) : [];
     for (const id of Array.from(new Set(resetTasks.map(job => job.childTaskId).filter((id): id is string => !!id))).sort()) {
       await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${id} FOR UPDATE`;
@@ -144,11 +149,21 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       await bindExecutionTaskRun(tx, graphExecution, created.id);
       await bindConversationInputs(tx, graphExecution.executionId, graphExecution.inputIds || [], created.id);
     }
-    if (request.graphConversation) await bindReadOnlyConversation(tx, request.graphConversation, created.id);
+    if (request.graphAssociation?.roomMessageId) await assertRoomRunTarget(tx, request.graphAssociation, created.id);
     if (request.graphReview) await bindGraphReviewTaskRun(tx, request.graphReview, created.id);
     await reserveResourceContinuation(tx, request, created.id, resourceExit);
     return created;
   });
+
+  const waitForWriter = async () => {
+    for (;;) {
+      try { return await startRun(); } catch (error) {
+        if (!(error instanceof WorkspaceWriterBusy) || error.observation !== 'alive' || request.graphExecution || request.graphReview) throw error;
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+    }
+  };
+  const taskRun = await waitForWriter();
 
   if (conversationExecutions.length) {
     const external = request.streamCallbacks?.onSteeringReady;
@@ -303,7 +318,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     },
   });
 
-  if (runStatus === 'completed' && !request.graphExecution && !request.graphReview && !request.graphConversation
+  if (runStatus === 'completed' && !request.graphExecution && !request.graphReview && !request.graphConversation && !request.graphAssociation
     && request.participants.some(participant => participant.executionBackend === 'platform_local')) {
     void wakeWorkflowWatcherForTaskRun(prisma, request.taskId, taskRun.id)
       .catch(error => console.error('[ACPX] workflow watcher wakeup failed:', error));

@@ -1,6 +1,5 @@
-import { taskGraphAgentReviewPermissionConfig } from './task-graph/review-permissions';
+import { graphRoomContext } from './task-graph/room-context';
 import { prepareGraphConversationTask } from './task-graph/conversation-task';
-import { receiveGraphRoomMessage } from './task-graph/conversation-inbox';
 import { collectLiveRoomFootnotes } from '@/lib/live-room-footnotes';
 import { prisma } from '@/lib/prisma';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
@@ -246,8 +245,9 @@ const runLiveRoomAcpxAttempt = async ({
   latestSession,
   useFreshSession,
   forceEphemeral = false, workflowCompletionGate,
-  streamCallbacks,
+  streamCallbacks, graphContext,
 }: {
+  graphContext?: Awaited<ReturnType<typeof graphRoomContext>>;
   sourceTask: NonNullable<Awaited<ReturnType<typeof syncLiveRoomSourceTask>>>;
   room: DeliveryRoom & {
     sourceTask?: {
@@ -307,8 +307,10 @@ const runLiveRoomAcpxAttempt = async ({
   ].join('\n').trim();
 
   return executeAcpxTaskRun({
+    graphAssociation: graphContext?.association,
+    extraReadOnlyPaths: graphContext?.session.extraReadOnlyPaths,
     taskId: sourceTask.id,
-    taskSessionId: sourceTask.currentTaskSession?.id || undefined,
+    taskSessionId: graphContext?.session.taskSessionId || sourceTask.currentTaskSession?.id || undefined,
     taskName: sourceTask.name,
     taskDescription: directedVisibleProtocol || undefined,
     workflowCompletionGate, orchestrationMode: 'single',
@@ -372,8 +374,8 @@ export const executeLiveRoomReplyViaAcpx = async ({
   const startedAt = Date.now();
   const executionGeneration = getLiveRoomExecutionGeneration(targetMember.id);
   const originalSourceTask = await syncLiveRoomSourceTask(room.id);
-  if (await receiveGraphRoomMessage(room.id, sourceMessage.id)) return;
-  const sourceTask = originalSourceTask ? await prepareGraphConversationTask(originalSourceTask) : null;
+  const graphContext = await graphRoomContext(room.id, sourceMessage.id, targetMember.id);
+  const sourceTask = graphContext ? { ...graphContext.task, workingDirectory: graphContext.session.workingDirectory } : originalSourceTask ? await prepareGraphConversationTask(originalSourceTask) : null;
   if (!sourceTask) {
     throw new Error('Live room source ACPX task is unavailable');
   }
@@ -384,7 +386,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     feishuChatId: sourceMetadata?.feishuChatId,
   };
 
-  const participant = buildLiveRoomAcpxParticipant({
+  const participant = graphContext?.session.participant || buildLiveRoomAcpxParticipant({
     id: targetMember.id,
     displayName: targetMember.displayName,
     backend: targetMember.backend,
@@ -394,6 +396,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       : targetMember.gatewayId,
     gatewayName: targetMember.gateway?.name || null,
     runtimeAgentId: targetMember.runtimeAgentId || targetMember.agentRecord?.runtimeAgentId || null,
+    role: targetMember.role || undefined,
     codexModel: targetMember.codexModel,
     codexReasoningEffort: targetMember.codexReasoningEffort,
   });
@@ -416,16 +419,20 @@ export const executeLiveRoomReplyViaAcpx = async ({
     sourceMetadata?.workflowPermissionSnapshot,
     sourceTask.workingDirectory || process.cwd(),
   );
-  const permissionConfig = sourceTask.id !== originalSourceTask?.id ? taskGraphAgentReviewPermissionConfig : applyWorkflowPermissionSnapshot(
+  const permissionConfig = applyWorkflowPermissionSnapshot(
     resolveLiveRoomMemberPermission(targetMember.acpxPermissionConfig, sourceTask.acpxPermissionConfig),
     workflowPermissionSnapshot,
   );
 
-  const latestSession = await findLatestParticipantSession(sourceTask.id, participant, {
-    taskSessionId: sourceTask.currentTaskSession?.id || null,
+  let latestSession = await findLatestParticipantSession(sourceTask.id, participant, {
+    taskSessionId: graphContext?.session.taskSessionId || sourceTask.currentTaskSession?.id || null,
     permissionConfig,
-    allowRoleFallback: true,
+    allowRoleFallback: !graphContext,
   });
+  if (graphContext) latestSession = graphContext.session.participant.resumeSessionId ? {
+    ...latestSession, continuationSessionId: graphContext.session.participant.resumeSessionId,
+    continuationSessionKind: graphContext.session.participant.continuationSessionKind || null,
+  } as NonNullable<typeof latestSession> : null;
   const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
   const shouldInjectLatestInstruction = sourceMessage.senderMember?.memberType !== 'user';
 
@@ -440,7 +447,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
   });
   const desiredDirectedTarget = directedRelayTargets[0] || null;
 
-  if ((shouldInjectLatestInstruction || sourceTask.id !== originalSourceTask?.id) && contentForAgent) {
+  if ((graphContext || shouldInjectLatestInstruction || sourceTask.id !== originalSourceTask?.id) && contentForAgent) {
     await postTaskRoomMessage({
       roomId: taskRoom.id,
       content: contentForAgent,
@@ -488,7 +495,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     desiredDirectedTarget,
     permissionConfig,
     latestSession,
-    useFreshSession: false, workflowCompletionGate,
+    useFreshSession: false, workflowCompletionGate, graphContext,
     streamCallbacks,
   });
 
@@ -521,6 +528,10 @@ export const executeLiveRoomReplyViaAcpx = async ({
       participantId: latestSession.participant.id,
       reason: staleReason,
     });
+    if (graphContext?.association.sourceTaskRunId) {
+      const original = await prisma.taskRunParticipant.findFirstOrThrow({ where: { taskRunId: graphContext.association.sourceTaskRunId, role: participant.role } });
+      if (original.id !== latestSession.participant.id) await markParticipantContinuationStale({ participantId: original.id, reason: staleReason });
+    }
     await markLiveRoomSessionExpired({
       sessionId: session.id,
       reason: `Continuation expired: ${staleReason}`,
@@ -535,7 +546,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       desiredDirectedTarget,
       permissionConfig,
       latestSession,
-      useFreshSession: true, workflowCompletionGate,
+      useFreshSession: true, workflowCompletionGate, graphContext,
       streamCallbacks,
     });
     participantResult = acpxResult.participants[0];
@@ -575,7 +586,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       permissionConfig,
       latestSession,
       useFreshSession: true,
-      forceEphemeral: true, workflowCompletionGate,
+      forceEphemeral: true, workflowCompletionGate, graphContext,
       streamCallbacks,
     });
     participantResult = acpxResult.participants[0];

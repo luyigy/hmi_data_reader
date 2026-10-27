@@ -1,3 +1,4 @@
+import { graphRoomTarget } from './task-graph/room-context';
 import { prepareRoomTurnCard } from './feishu-turn-card';
 import { prisma } from '@/lib/prisma';
 import {
@@ -271,17 +272,19 @@ export const triggerLiveRoomAgentReply = async ({
           handoffLimit: room.handoffLimit,
         })
       : null;
-    const delivery = await prisma.liveRoomDelivery.create({
-      data: {
-        roomMessageId,
-        targetMemberId: targetMember.id,
-        sessionId: session.id,
-        handoffRootMessageId: handoffRoot?.id || null,
-        deliveryStatus: 'pending',
-      },
+    const delivery = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "LiveRoomMessage" WHERE id = ${roomMessageId} FOR UPDATE`;
+      if (await tx.liveRoomDelivery.findFirst({ where: { roomMessageId, targetMemberId: targetMember.id } })) return null;
+      return tx.liveRoomDelivery.create({ data: {
+        roomMessageId, targetMemberId: targetMember.id, sessionId: session.id,
+        handoffRootMessageId: handoffRoot?.id || null, deliveryStatus: 'pending',
+      } });
     });
+    if (!delivery) return;
 
-    const canSteer = localSteering && sourceMessage.messageType === 'user'
+
+    const graphTarget = await graphRoomTarget(roomId, roomMessageId, targetMember.id);
+    const canSteer = !graphTarget && localSteering && sourceMessage.messageType === 'user'
       && sourceMessage.senderMember?.memberType === 'user' && chainDepth === 0
       && !forceTargetMember && !sourceMetadata?.mentionedAll
       && (!sourceMetadata?.source || sourceMetadata.source === 'feishu')
@@ -357,6 +360,9 @@ export const triggerLiveRoomMessageReplies = async ({
   if (!sourceMessage) {
     return;
   }
+
+  const graphTarget = await graphRoomTarget(roomId, roomMessageId, requestedTargetMemberId);
+  if (graphTarget) requestedTargetMemberId = graphTarget.memberId;
 
   if (!requestedTargetMemberId && await runLiveRoomPlan({
     roomId, sourceMessageId: roomMessageId, content: sourceMessage.content,

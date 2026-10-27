@@ -314,7 +314,7 @@ export const postLiveRoomMessage = async ({
     },
   });
 
-  const created = await prisma.liveRoomMessage.create({
+  const createArgs = {
     data: {
       roomId,
       senderMemberId: senderMemberId || null,
@@ -332,7 +332,15 @@ export const postLiveRoomMessage = async ({
         },
       },
     },
-  });
+  } as const;
+  const feishuId = safeMetadata?.source === 'feishu' && typeof safeMetadata.feishuMessageId === 'string' ? safeMetadata.feishuMessageId : null;
+  const persisted = feishuId ? await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${'room-message:' + roomId + ':' + feishuId}, 0))`;
+    const existing = await tx.liveRoomMessage.findFirst({ where: { roomId, metadata: { contains: `"feishuMessageId":${JSON.stringify(feishuId)}` } }, include: createArgs.include });
+    return existing ? { message: existing, duplicate: true } : { message: await tx.liveRoomMessage.create(createArgs), duplicate: false };
+  }) : { message: await prisma.liveRoomMessage.create(createArgs), duplicate: false };
+  const created = persisted.message;
+  if (persisted.duplicate) return serializeLiveRoomMessage(created);
 
   const parsedMetadata = parseLiveRoomMessageMetadata(created.metadata);
   if (room?.sourceTask) {

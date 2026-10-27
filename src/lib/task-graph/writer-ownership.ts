@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -98,8 +99,8 @@ export async function graphWriterEnvironment(taskRunId: string): Promise<Record<
   return writer ? { AP_GRAPH_WRITER_NONCE: writer.nonce } : {};
 }
 
-export async function observeTaskRunWriter(taskRunId: string): Promise<WriterObservation> {
-  const run = await prisma.taskRun.findUnique({ where: { id: taskRunId }, include: { participants: true } });
+export async function observeTaskRunWriter(taskRunId: string, db: Prisma.TransactionClient = prisma): Promise<WriterObservation> {
+  const run = await db.taskRun.findUnique({ where: { id: taskRunId }, include: { participants: true } });
   if (!run || !run.participants.length || run.participants.some(participant => participant.executionBackend !== 'platform_local' || !['codex', 'kimi-code'].includes(participant.harnessType || ''))) return { kind: 'unknown', reason: 'Writer backend has no local process proof' };
   try {
     const metadata: unknown = JSON.parse(run.controlMetadata || '{}');

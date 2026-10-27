@@ -1,6 +1,5 @@
 import { prisma } from '../prisma';
 import type { AcpxParticipantRequest } from '../acpx/types';
-import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -50,7 +49,7 @@ export async function ensureGraphRoomParticipants(roomId: string, executionId: s
         agentNameSnapshot: approved.agentName || approved.harnessType, role: approved.role,
         roleLabel: '任务图获批参与者', canReply: true, joinStatus: 'joined', presenceStatus: 'idle', sortOrder: members.length + 1,
         codexModel: approved.model || null, codexReasoningEffort: approved.reasoningEffort || null,
-        acpxPermissionConfig: JSON.stringify(taskGraphAgentReviewPermissionConfig),
+        acpxPermissionConfig: null,
       } });
       members.push(member);
     }

@@ -77,6 +77,8 @@ async function main() {
     },
   });
   Object.assign(prismaModule.prisma as object, {
+    $transaction: async (action: (tx: unknown) => Promise<unknown>) => action(prismaModule.prisma),
+    $queryRaw: async () => [],
     liveRoom:{findUnique:async()=>({id:'room'})},
     liveRoomMessage:{findUnique:async()=>message, findUniqueOrThrow:async()=>({...message, roomId:'room', room:{sourceTaskId:null}})},
     feishuConversationBinding:{findMany:async()=>[]},

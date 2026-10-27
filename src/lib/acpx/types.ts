@@ -103,6 +103,7 @@ export interface AcpxParticipantRequest {
 }
 
 export interface AcpxRunRequest {
+  graphAssociation?: import('../task-graph/graph-association').GraphAssociation;
   resourceContinuation?: { approvalId: string; revision: number };
   graphReview?: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string };
   graphExecution?: { executionId: string; claimToken: string; revision: number; inputIds?: string[] };

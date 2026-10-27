@@ -92,10 +92,10 @@ export const isImplementationInput = (input: { target?: ConversationTarget }) =>
 export const conversationTargetKey = (target?: ConversationTarget) => target?.kind === 'session'
   ? JSON.stringify([target.taskId, target.role, target.taskSessionId, target.nativeSessionId, target.candidateCommit]) : JSON.stringify(target || null);
 
-export async function assertConversationTargetRun(tx: Prisma.TransactionClient, target: ConversationTarget | undefined, taskRunId: string) {
+export async function assertConversationTargetRun(tx: Prisma.TransactionClient, target: ConversationTarget | undefined, taskRunId: string, executionId?: string) {
   if (!target) return;
   if (target.kind === 'unresolved') throw new Error(target.reason);
-  const job = await tx.taskGraphExecution.findFirst({ where: { OR: [{ childTaskId: target.taskId }, ...(target.kind === 'session' && target.role !== 'implementer' ? [{ nodeId: target.taskId.replace(/^task-graph-(review|architecture)-/, '') }] : [])] } });
+  const job = executionId ? await tx.taskGraphExecution.findUnique({ where: { id: executionId } }) : await tx.taskGraphExecution.findFirst({ where: { OR: [{ childTaskId: target.taskId }, ...(target.kind === 'session' && target.role !== 'implementer' ? [{ nodeId: target.taskId.replace(/^task-graph-(review|architecture)-/, '') }] : [])] } });
   if (job && await conversationTargetWasReset(tx, job, target)) throw new Error('Conversation reset superseded this queued input');
   const run = await tx.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } });
   if (run.taskId !== target.taskId || !run.participants.some(p => p.role === target.role) ||

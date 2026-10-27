@@ -17,7 +17,7 @@ import { graphGit } from './git-command';
 import { parseRuntimeDeclaration, runtimeDeclaration, type RuntimeDeclarationSource } from './runtime-contract';
 import { prepareDeclaredRuntime, RuntimePreparationError, type PreparedRuntime } from './runtime-preflight';
 
-type Arguments = Parameters<typeof prepareDeclaredRuntime>[0] & { taskId?: string; permissionConfig?: AcpxPermissionConfig; platformRepository?: string; taskRunId?: string; projectPolicyFile?: string };
+type Arguments = Parameters<typeof prepareDeclaredRuntime>[0] & { conversationAssociation?: import('./graph-association').GraphAssociation; taskId?: string; permissionConfig?: AcpxPermissionConfig; platformRepository?: string; taskRunId?: string; projectPolicyFile?: string };
 type Pin = { version: 1; executionId: string; claimToken: string; sourceRepository: string; source: RuntimeDeclarationSource | null; projectManifestHash: string | null; hostReadOnlyRoots: string[]; grantHash: string; identity: string; receipt: PreparedRuntime['receipt']; authority?: 'project' | 'workflow' | 'legacy'; projectPolicyHash?: string | null; legacyGrantFile?: string; pythonIdentity?: string | null };
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 function parsePin(value: unknown): Pin {
@@ -50,6 +50,14 @@ async function repositoryIdentity(directory: string) {
 
 /** The server ledger and current claim identify runtime inputs even when the stage cwd is not Git. */
 export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<PreparedRuntime> {
+  if (args.conversationAssociation) {
+    const run = args.taskRunId ? await prisma.taskRun.findUnique({ where: { id: args.taskRunId } }) : null;
+    const association = record(run?.controlMetadata ? JSON.parse(run.controlMetadata) : {}).graphAssociation;
+    if (!run || run.taskId !== args.taskId || !isDeepStrictEqual(association, args.conversationAssociation)) throw new Error('Conversation runtime task identity changed');
+    // A human turn has no scheduling claim to pin. Use the ordinary runtime
+    // contract with its already authorized roots; never borrow an old claim.
+    return prepareDeclaredRuntime({ ...args, strictReadOnlyRoots: true });
+  }
   return prepareRuntime(args, false);
 }
 /** Observe saved execution readiness without issuing a claim or replacing its immutable pin. */

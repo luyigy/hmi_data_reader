@@ -86,6 +86,22 @@ function runSession(suites, debugSuite = false) {
     ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register', 'scripts/sandbox-postgres-launch.ts', configPath],
     { cwd: root, encoding: 'utf8', env: { ...process.env, TS_NODE_BASEURL: '.', TS_NODE_COMPILER_OPTIONS: JSON.stringify({ module: 'commonjs', moduleResolution: 'node' }) } });
   const { command, args } = JSON.parse(rendered);
+  // Some platform containers expose a numeric uid without an NSS entry. initdb
+  // requires a name; provide it only inside this disposable test sandbox.
+  const uid = process.getuid(), gid = process.getgid();
+  const passwd = existsSync('/etc/passwd') ? readFileSync('/etc/passwd', 'utf8') : '';
+  if (!passwd.split('\n').some(line => line.split(':')[2] === String(uid))) {
+    const passwdFile = path.join(evidenceDir, 'passwd');
+    writeFileSync(passwdFile, passwd.trimEnd() + `\nap-test:x:${uid}:${gid}:Regression:/tmp:/bin/sh\n`);
+    const commandIndex = args.lastIndexOf(process.execPath);
+    if (commandIndex < 0) throw new Error('Sandbox command boundary is missing');
+    args.splice(commandIndex, 0, '--ro-bind', passwdFile, '/etc/passwd');
+  }
+  if (!existsSync('/etc/machine-id')) {
+    const machineId = path.join(evidenceDir, 'machine-id');
+    writeFileSync(machineId, createHash('sha256').update(evidenceDir).digest('hex').slice(0, 32) + '\n');
+    args.splice(args.lastIndexOf(process.execPath), 0, '--ro-bind', machineId, '/etc/machine-id');
+  }
   writeFileSync(path.join(evidenceDir, 'bwrap-command.json'), JSON.stringify({ command, args }, null, 2));
   console.log(`[run] 沙箱会话启动: 套件 ${suites.join(',')}，证据目录 ${path.relative(root, evidenceDir)}`);
   const startedAt = new Date().toISOString();

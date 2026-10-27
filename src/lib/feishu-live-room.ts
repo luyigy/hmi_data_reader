@@ -1,4 +1,3 @@
-import { receiveGraphRoomMessage } from './task-graph/conversation-inbox';
 import { ensureGraphConversationMembers } from './task-graph/conversation-members';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
@@ -600,7 +599,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
       select: { id: true },
     });
     if (existingMessage) {
-      await receiveGraphRoomMessage(binding.liveRoomId, existingMessage.id);
+      await triggerLiveRoomMessageReplies({ roomId: binding.liveRoomId, roomMessageId: existingMessage.id, waitForCompletion: false });
       return {
         liveRoomId: binding.liveRoomId,
         targetedMembers: [],
@@ -685,8 +684,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     }),
   });
 
-  const taskMessage = await receiveGraphRoomMessage(binding.liveRoomId, message.id);
-  if (!taskMessage) void triggerLiveRoomMessageReplies({
+  void triggerLiveRoomMessageReplies({
     roomId: binding.liveRoomId,
     roomMessageId: message.id,
     requestedTargetMemberId: effectiveTargetMemberId || null,

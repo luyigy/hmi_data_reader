@@ -1,3 +1,4 @@
+import { lockWriterAdmission, assertWorkspaceWriterAvailable, WorkspaceWriterBusy } from './writer-admission';
 import { graphRunCanStartTx } from './run-control';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -8,11 +9,14 @@ import { executionProgress, initialExecutionProgress, metadataWithProgress, type
 export async function registerGraphReviewWorker(runId: string, nodeKey: string): Promise<{ nodeId: string; worker: GraphWriter } | null> {
   const worker = await createGraphWriter();
   return prisma.$transaction(async tx => {
+    await lockWriterAdmission(tx);
     if (!await graphRunCanStartTx(tx, runId)) return null;
     const original = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.id} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: original.id }, include: { executions: true } });
     if (!['claimed', 'verifying'].includes(node.status) || !node.executions.length || node.executions.some(job => job.status !== 'integrated')) return null;
+    try { for (const job of node.executions) await assertWorkspaceWriterAvailable(tx, { nodeId: node.id, directory: job.worktreePath }); }
+    catch (error) { if (error instanceof WorkspaceWriterBusy) return null; throw error; }
     for (const job of node.executions) {
       const progress: ExecutionProgress = executionProgress(job.dispatchMetadata) || { ...initialExecutionProgress(), phase: 'architecture', workspaceBase: job.baseCommit, candidateCommit: job.commit || undefined };
       if (progress.conversation && (await observeExecutionWriter(job)).kind !== 'exited') throw new Error('Original implementation conversation still owns this task');
