@@ -33,7 +33,7 @@ function closure(graph: GraphDefinition, key: string) {
 async function hydrate(manifest: TaskInputManifest, runId: string, graph: GraphDefinition): Promise<PreparedInputs> {
   // Archive visibility belongs to the approved run, not to a candidate's delivery evidence.
   const roots = new Set(graph.nodes.flatMap(node => node.executions.map(job => path.join(
-    path.dirname(job.repository), '.agent-platform-task-graph-results', createHash('sha256').update(runId).digest('hex').slice(0, 16),
+    process.env.TASK_GRAPH_RESULTS_ROOT || path.join(path.dirname(job.repository), '.agent-platform-task-graph-results'), createHash('sha256').update(runId).digest('hex').slice(0, 16),
   ))));
   const archives: string[] = [];
   for (const root of Array.from(roots)) {

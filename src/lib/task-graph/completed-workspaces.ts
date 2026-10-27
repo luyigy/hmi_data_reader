@@ -26,7 +26,7 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
     const childTaskId = execution.childTaskId;
     const receipt = `execution:${execution.id}:workspace_cleaned${attempt}`;
     if (await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: receipt } } })) continue;
-    const resultsDirectory = path.join(path.dirname(execution.repository), '.agent-platform-task-graph-results', hash(runId), hash(execution.id), execution.commit, ...(attempt ? [hash(attempt)] : []));
+    const resultsDirectory = path.join(process.env.TASK_GRAPH_RESULTS_ROOT || path.join(path.dirname(execution.repository), '.agent-platform-task-graph-results'), hash(runId), hash(execution.id), execution.commit, ...(attempt ? [hash(attempt)] : []));
     try {
       await withRepositoryLock(execution.repository, async () => {
         if (await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: receipt } } })) return;
@@ -72,7 +72,7 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
         const key = `node:${nodeKey}:validation_workspace_cleaned:v1${attempt}`;
         if (await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } })) return;
         if (await hasActiveRuns()) return;
-        const directory = path.join(path.dirname(node.executions[0].repository), '.agent-platform-task-graph-results', hash(runId), 'validation', hash(node.id), ...(attempt ? [hash(attempt)] : []));
+        const directory = path.join(process.env.TASK_GRAPH_RESULTS_ROOT || path.join(path.dirname(node.executions[0].repository), '.agent-platform-task-graph-results'), hash(runId), 'validation', hash(node.id), ...(attempt ? [hash(attempt)] : []));
         const archive = await archiveValidationResults(node.id, directory, async () => !await hasActiveRuns());
         await prisma.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key,
           kind: 'validation_workspace_cleaned', payload: { ...archive, deliveryCommits: node.executions.map(job => ({ executionId: job.id, commit: job.commit })) } } });

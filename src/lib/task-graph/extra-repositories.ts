@@ -26,7 +26,7 @@ export async function prepareExtraRepositories(repositories: ExtraRepository[] =
   const details = [];
   for (const item of repositories) {
     const root = await realpath(item.repository);
-    const managedRoots = [configuredWorkspaceRoot(),process.env.TASK_GRAPH_UPSTREAM_ROOT || path.join(homedir(), '.agent-platform/task-upstream-sources'),
+    const managedRoots = [configuredWorkspaceRoot(), ...(process.env.TASK_GRAPH_RESULTS_ROOT ? [process.env.TASK_GRAPH_RESULTS_ROOT] : []),process.env.TASK_GRAPH_UPSTREAM_ROOT || path.join(homedir(), '.agent-platform/task-upstream-sources'),
       process.env.TASK_GRAPH_VALIDATION_ROOT || path.join(homedir(), '.agent-platform/task-validation'),
       process.env.TASK_GRAPH_RUNTIME_ROOT || path.join(homedir(), '.agent-platform/task-runtime')];
     const managed = await Promise.all(managedRoots.map(directory => realpath(directory).catch(() => path.resolve(directory))));

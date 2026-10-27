@@ -93,8 +93,8 @@ async function main() {
     assert.deepEqual(input.quality, ['candidate_unverified']); assert.deepEqual(input.resultsDirectories, []); assert.deepEqual(input.executions, []);
     assert.deepEqual(input.replacement, { eventId: registered[0].eventId, previousCommit: reader.commit });
     assert.equal(readFileSync(path.join(input.sourcePath, 'value.js'), 'utf8'), 'module.exports = 2;\n');
-    const runResults = path.join(root, '.agent-platform-task-graph-results', createHash('sha256').update(run.id).digest('hex').slice(0, 16));
-    const foreignResults = path.join(root, '.agent-platform-task-graph-results', 'another-run');
+    const runResults = path.join(process.env.TASK_GRAPH_RESULTS_ROOT || path.join(root, '.agent-platform-task-graph-results'), createHash('sha256').update(run.id).digest('hex').slice(0, 16));
+    const foreignResults = path.join(process.env.TASK_GRAPH_RESULTS_ROOT || path.join(root, '.agent-platform-task-graph-results'), 'another-run');
     const archive = path.join(runResults, 'validation', 'producer', 'cpu-model');
     mkdirSync(archive, { recursive: true }); mkdirSync(foreignResults, { recursive: true });
     writeFileSync(path.join(archive, 'weights'), 'fixed model'); writeFileSync(path.join(foreignResults, 'private'), 'other run');

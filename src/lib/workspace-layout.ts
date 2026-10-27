@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { homedir } from 'node:os';
 import { graphGit } from './task-graph/git-command';
 
 export const workspaceIdentity = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
-export const configuredWorkspaceRoot = () => process.env.AP_WORKSPACE_ROOT || '/data1/code/.agent-workspaces';
+export const configuredWorkspaceRoot = () => process.env.AP_WORKSPACE_ROOT || path.join(homedir(), '.agent-platform', 'workspaces');
 
 export function workspaceSegment(value: string): string {
   if (!value || value === '.' || value === '..' || /[/\\\x00-\x1f\x7f]/.test(value)) throw new Error('Invalid workspace identity');
