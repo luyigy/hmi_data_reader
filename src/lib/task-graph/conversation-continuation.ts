@@ -32,7 +32,7 @@ export async function conversationContinuation(executionId: string, target?: Con
   }
   const freshReset = !!target.resetSourceSessionId && !target.nativeSessionId;
   if (freshReset) native = { sessionId: null, sessionKind: null };
-  if (!freshReset && (!native.sessionId || target.nativeSessionId && native.sessionId !== target.nativeSessionId)) throw new Error('原生会话身份不可用；消息已保留，不能改送新会话。');
+  if (!freshReset && target.nativeSessionId && native.sessionId !== target.nativeSessionId) throw new Error('原生会话身份不可用；消息已保留，不能改送新会话。');
   const snapshot = job.node.run.snapshot;
   const nodes = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot.nodes : null;
   const node = Array.isArray(nodes) ? nodes.find(n => n && typeof n === 'object' && !Array.isArray(n) && n.key === job.node.key) : null;

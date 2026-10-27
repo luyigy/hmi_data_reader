@@ -53,14 +53,15 @@ function missing(error: unknown) {
   return error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ESRCH');
 }
 
-/** A lease timeout is not evidence that a process stopped. Inspect the local owner and its children. */
+/** Cleanup receipts end ownership. Only unreleased owners need process observation. */
 export async function observeGraphWriter(value: unknown, supervisorReleased = false): Promise<WriterObservation> {
   const writer = parseGraphWriter(value);
   if (!writer) return { kind: 'unknown', reason: 'No durable writer identity' };
+  if (supervisorReleased) return { kind: 'exited' };
   if (writer.hostname !== os.hostname() || writer.uid !== process.getuid?.()) return { kind: 'unknown', reason: 'Writer belongs to another host or user' };
   try {
     const bootId = (await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
-    if (!supervisorReleased && bootId === writer.supervisor.bootId) {
+    if (bootId === writer.supervisor.bootId) {
       try {
         const owner = await processIdentity(writer.supervisor.pid);
         if (owner.startTime === writer.supervisor.startTime && !['Z', 'X'].includes(owner.state)) return { kind: 'alive', pids: [writer.supervisor.pid] };
@@ -103,13 +104,15 @@ export async function graphWriterEnvironment(taskRunId: string): Promise<Record<
 export async function observeTaskRunWriter(taskRunId: string, db: Prisma.TransactionClient = prisma): Promise<WriterObservation> {
   const run = await db.taskRun.findUnique({ where: { id: taskRunId }, include: { participants: true } });
   if (run && hasLegacyWriterRelease(run)) return { kind: 'exited' };
-  if (!run || !run.participants.length || run.participants.some(participant => participant.executionBackend !== 'platform_local' || !['codex', 'kimi-code'].includes(participant.harnessType || ''))) return { kind: 'unknown', reason: 'Writer backend has no local process proof' };
+  if (!run) return { kind: 'unknown', reason: 'TaskRun missing' };
   try {
     const metadata: unknown = JSON.parse(run.controlMetadata || '{}');
     const writer = metadata && typeof metadata === 'object' ? parseGraphWriter(Reflect.get(metadata, 'graphWriter')) : null;
     const release: unknown = metadata && typeof metadata === 'object' ? Reflect.get(metadata, 'graphWriterReleased') : undefined;
     const released = Boolean(writer && release && typeof release === 'object' && Reflect.get(release, 'nonce') === writer.nonce && typeof Reflect.get(release, 'at') === 'string' && Number.isFinite(Date.parse(Reflect.get(release, 'at'))));
-    return observeGraphWriter(writer, released);
+    if (released) return { kind: 'exited' };
+    if (!run.participants.length || run.participants.some(participant => participant.executionBackend !== 'platform_local' || !['codex', 'kimi-code'].includes(participant.harnessType || ''))) return { kind: 'unknown', reason: 'Writer backend has no local process proof' };
+    return observeGraphWriter(writer);
   } catch (error) { return { kind: 'unknown', reason: error instanceof Error ? error.message : String(error) }; }
 }
 

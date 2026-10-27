@@ -10,7 +10,7 @@ import { ensureGraphRoomParticipants } from '../src/lib/task-graph/conversation-
 import { executeLiveRoomReplyViaAcpx } from '../src/lib/live-room-delivery-execution';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { buildAcpxPermissionConfigForProfile } from '../src/lib/acpx/permissions';
-import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
+import { initialExecutionProgress, executionProgress } from '../src/lib/task-graph/execution-progress';
 
 import { graphRoomTarget } from '../src/lib/task-graph/room-context';
 import { executeAcpxTaskRun } from '../src/lib/acpx/runner';
@@ -93,7 +93,7 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
           harnessType: 'codex', role: 'implementer', status: 'completed', completedAt: new Date() } } }, include: { participants: true } });
       const legacyRequest = { taskId: child.id, taskName: child.name, workingDirectory: directory,
         permissionConfig: permission, participants: [participant], orchestrationMode: 'single' as const };
-      await assert.rejects(executeAcpxTaskRun(legacyRequest), /writer .*unknown/, 'Completed legacy history alone is never exit proof');
+      await executeAcpxTaskRun(legacyRequest); // Unrelated terminal history is not a current owner.
       const legacyRelease = { version: 1, kind: 'service_drain', hostname: os.hostname(), uid: process.getuid?.(),
         taskRunId: legacy.id, identitySha256: legacyWriterFingerprint(legacy), releasedAt: new Date().toISOString(), evidenceSha256: 'a'.repeat(64) };
       const releasedLegacy = await prisma.taskRun.update({ where: { id: legacy.id },
@@ -160,6 +160,12 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
       const reply = await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: '继续原验收会话', metadata: JSON.stringify({ feishuParentMessageId: 'old-card', feishuBindingId: binding.id }) } });
       const destination = await graphRoomTarget(room.id, reply.id, target.id);
       assert.equal(destination?.memberId, reviewer.id, 'Card binding takes priority over selected implementer');
+      await prisma.liveRoom.update({ where: { id: room.id }, data: { currentSpeakerMemberId: target.id } });
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: { progress: { ...initialExecutionProgress(), phase: 'acceptance', state: 'exhausted', platformAttempts: 15 } } } });
+      const implicit = await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: '继续验收', metadata: JSON.stringify({ feishuParentMessageId: 'root', feishuBindingId: binding.id, mentionedMemberIds: [], targetLocked: false }) } });
+      const implicitTarget = await graphRoomTarget(room.id, implicit.id);
+      assert.equal(implicitTarget?.memberId, reviewer.id, 'Acceptance defaults to tester even when current speaker is implementer');
+      assert.equal(implicitTarget?.target.kind === 'session' && implicitTarget.target.taskSessionId, reviewSession.id);
       const loaded = await prisma.liveRoom.findUniqueOrThrow({ where: { id: room.id }, include: { members: { include: { gateway: true, agentRecord: true } } } });
       const call = (message: typeof reply, memberId = reviewer.id) => executeLiveRoomReplyViaAcpx({ room: loaded, sourceMessage: message, targetMember: loaded.members.find(m => m.id === memberId)!, session: memberSession });
       await call(reply);
@@ -169,6 +175,23 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
       assert.equal(resumedReview.taskSessionId, reviewSession.id);
       assert.deepEqual(JSON.parse(resumedReview.controlMetadata!).reviewCandidates, candidates);
       assert.deepEqual(JSON.parse(resumedReview.controlMetadata!).graphResultBinding.inputs, candidates.map(item => ({ executionId: item.id, commit: item.commit })).sort((a, b) => a.executionId.localeCompare(b.executionId)), 'Result intake preserves every historical review candidate instead of relabeling it with current execution commits');
+
+      // A failed first launch has a platform Session and workspace, but no native thread yet.
+      const noNative = await prisma.taskRun.create({ data: { taskId: review.id, taskSessionId: reviewSession.id, mode: 'acpx', status: 'failed',
+        controlMetadata: reviewRun.controlMetadata, participants: { create: { ...participant, role: 'tester', runner: 'codex', gatewayNameSnapshot: 'local', controlMetadata: '{}' } } } });
+      await releaseTaskRunWriter(noNative.id, writer.nonce);
+      await prisma.taskRunEvent.create({ data: { taskRunId: noNative.id, sequence: 1, eventType: 'runner_started', content: 'failed before native creation', metadata: JSON.stringify({ workingDirectory: reviewDirectory, extraReadOnlyPaths: [directory, auxiliary] }) } });
+      const noNativeMessage = await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: '重试尚未启动的验收会话' } });
+      const noNativeTarget = await graphRoomTarget(room.id, noNativeMessage.id);
+      assert.equal(noNativeTarget?.target.kind === 'session' && noNativeTarget.target.taskRunId, noNative.id);
+      await call(noNativeMessage);
+      const freshNative = await prisma.taskRun.findFirstOrThrow({ where: { taskId: review.id }, orderBy: { createdAt: 'desc' } });
+      assert.equal(freshNative.status, 'completed');
+      assert.equal(freshNative.taskSessionId, reviewSession.id, 'Native creation preserves the original platform Session');
+      assert.equal(calls.at(-1)?.session, undefined);
+      assert.equal(calls.at(-1)?.directory, reviewDirectory);
+      assert.deepEqual(JSON.parse(freshNative.controlMetadata!).reviewCandidates, candidates);
+      assert.equal(executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).dispatchMetadata)?.platformAttempts, 15);
 
       // Explicit new-session rotation remains per role, including replies to old cards.
       await prisma.taskSession.create({ data: { taskId: child.id, metadata: JSON.stringify({ source: 'feishu_new_session', rotationCheckpoint: 'completed', targetMemberIds: [reviewer.id] }) } });
@@ -195,7 +218,7 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
       const beforeMetadata = JSON.parse(latest.controlMetadata!);
       await prisma.taskRun.update({ where: { id: latest.id }, data: { controlMetadata: JSON.stringify({ ...beforeMetadata, graphWriter: liveWriter, graphWriterReleased: undefined }) } });
       await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed', claimToken: 'race-node' } });
-      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'ready', claimToken: null, dispatchMetadata: { progress: initialExecutionProgress() } } });
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'ready', claimToken: null, taskRunId: latest.id, dispatchMetadata: { progress: initialExecutionProgress() } } });
       assert.equal(await claimExecution(graph.id, 'T', 'repo', 'blocked-auto', prisma, await createGraphWriter()), null);
       await releaseTaskRunWriter(latest.id, liveWriter.nonce);
       const request = { taskId: child.id, taskName: child.name, workingDirectory: directory, permissionConfig: permission, participants: [participant], orchestrationMode: 'single' as const };
@@ -231,7 +254,11 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
       const savedMetadata = unknown.controlMetadata!;
       const unknownMetadata = JSON.parse(savedMetadata);
       unknownMetadata.graphWriter.hostname = 'unobservable-host';
+      delete unknownMetadata.graphWriterReleased;
       await prisma.taskRun.update({ where: { id: unknown.id }, data: { controlMetadata: JSON.stringify(unknownMetadata) } });
+      const currentTracked = await prisma.taskRun.findFirstOrThrow({ where: { taskId: child.id, controlMetadata: { contains: '"graphWriter"' } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+      assert.equal(currentTracked.id, unknown.id, 'Unknown fixture must refer to the latest tracked owner');
+      assert.equal((await observeTaskRunWriter(unknown.id)).kind, 'unknown');
       await assert.rejects(executeAcpxTaskRun({ ...request, taskSessionId: sessions[1].id }), /writer .*unknown/);
       await prisma.taskRun.update({ where: { id: unknown.id }, data: { controlMetadata: savedMetadata } });
 

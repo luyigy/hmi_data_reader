@@ -15,6 +15,7 @@ import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { ensureGraphRoomParticipants } from '../src/lib/task-graph/conversation-members';
 import { receiveGraphTaskMessage, conversationInputs, bindConversationInputs, registerConversationSteering, deliverConversationSteering } from '../src/lib/task-graph/conversation-inbox';
 
+import { resolveConversationTarget } from '../src/lib/task-graph/conversation-target';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 import { conversationContinuation } from '../src/lib/task-graph/conversation-continuation';
 
@@ -80,6 +81,12 @@ async function main() {
     assert.equal(continuation.participant.role, 'tester');
     assert.equal(continuation.workingDirectory, directory);
     assert.deepEqual(continuation.extraReadOnlyPaths, [inputsDirectory]);
+    const architecture = await prisma.task.create({ data: { id: `task-graph-architecture-${job.nodeId}`, name: 'architecture' } });
+    const architect = await makeRun(architecture.id, 'reviewer', 'native-architecture');
+    const architectureJob = await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: { progress: { ...initialExecutionProgress(), phase: 'architecture' } } } });
+    const architectureTarget = await resolveConversationTarget(prisma, architectureJob);
+    assert.equal(architectureTarget.kind === 'session' && architectureTarget.taskRunId, architect.id);
+    await prisma.task.delete({ where: { id: architecture.id } });
     const setReviewer = async (id: string) => prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated',
       dispatchMetadata: { progress: { ...initialExecutionProgress(), phase: 'acceptance', review: { kind: 'running', phase: 'acceptance', taskRunId: id, candidateCommit: commit, claimKey: 'test-review' } } } } });
     await setReviewer(otherTester.id);
@@ -114,6 +121,13 @@ async function main() {
     await releaseTaskRunWriter(tester.id, writer.nonce);
     await prisma.taskRun.update({ where: { id: otherTester.id }, data: { status: 'completed', controlMetadata: JSON.stringify({ graphWriter: writer }) } });
     await releaseTaskRunWriter(otherTester.id, writer.nonce);
+    await prisma.taskRun.create({ data: { taskId: child.id, status: 'interrupted', createdAt: new Date('2000-01-01'), controlMetadata: JSON.stringify({ graphWriter: { ...writer, hostname: 'historical-unobservable-host' } }) } });
+    await prisma.taskRun.createMany({ data: Array.from({ length: 84 }, () => ({ taskId: child.id, status: 'completed', controlMetadata: JSON.stringify({ graphWriter: writer, graphWriterReleased: { nonce: writer.nonce, at: new Date().toISOString() } }) })) });
+    await prisma.$transaction(async tx => { await lockWriterAdmission(tx); await assertWorkspaceWriterAvailable(tx, { nodeId: job.nodeId, directory }); }, { timeout: 1000 });
+    const pending = await prisma.taskRun.create({ data: { taskId: child.id, status: 'completed', controlMetadata: JSON.stringify({ graphWriter: writer, graphWriterReleased: { nonce: writer.nonce, at: new Date().toISOString() }, graphRoomResultPending: true }) } });
+    await assert.rejects(prisma.$transaction(tx => assertWorkspaceWriterAvailable(tx, { nodeId: job.nodeId })), /alive/, 'A released process with a pending result still owns publication');
+    await prisma.taskRun.delete({ where: { id: pending.id } });
+
     await prisma.task.update({ where: { id: review.id }, data: { workingDirectory: directory, acpxPermissionConfig: JSON.stringify(buildAcpxPermissionConfigForProfile('dev_local', [directory])) } });
     const adapter = getHarnessAdapter('codex')!;
     const saved = { execute: adapter.execute, resume: adapter.resume };

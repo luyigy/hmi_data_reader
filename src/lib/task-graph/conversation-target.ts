@@ -75,14 +75,13 @@ export async function resolveConversationTarget(tx: Prisma.TransactionClient, jo
     return member.role === 'implementer' && job.childTaskId ? resetConversationTarget(tx, job, { kind: 'implementation', role: 'implementer', taskId: job.childTaskId })
       : { kind: 'unresolved', reason: '这个角色还没有可接续的会话，不能改送其他角色。' };
   }
-  // Keep the last explicit conversation destination even when another role starts working.
-  const previous = await tx.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId, kind: 'conversation_input',
-    payload: { path: ['executionId'], equals: job.id } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
-  const previousTarget = previous?.payload && typeof previous.payload === 'object' && !Array.isArray(previous.payload)
-    ? parseConversationTarget(previous.payload.target) : undefined;
-  if (previousTarget?.kind === 'session') return resetConversationTarget(tx, job, previousTarget);
-  if (previousTarget?.kind === 'unresolved') return previousTarget;
   const progress = executionProgress(job.dispatchMetadata);
+  const role = progress?.phase === 'acceptance' ? 'tester' : progress?.phase === 'architecture' ? 'reviewer' : 'implementer';
+  if (role !== 'implementer') {
+    const taskId = role === 'tester' ? `task-graph-review-${job.nodeId}` : `task-graph-architecture-${job.nodeId}`;
+    const run = await tx.taskRun.findFirst({ where: { taskId, participants: { some: { role } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    return run ? fromRun(run.id, role) : { kind: 'unresolved', reason: '当前阶段的复核会话尚未建立，不能改送实施者。' };
+  }
   const owner = progress?.conversationOwnerRunId || progress?.taskRunId || job.taskRunId;
   if (owner) return fromRun(owner, 'implementer');
   return resetConversationTarget(tx, job, { kind: 'implementation', role: 'implementer', taskId: job.childTaskId! });
@@ -104,8 +103,8 @@ export async function assertConversationTargetRun(tx: Prisma.TransactionClient, 
     let expected = target.nativeSessionId;
     if (!expected && !target.resetSourceSessionId && run.id !== target.taskRunId) {
       const original = await tx.taskRunParticipant.findFirst({ where: { taskRunId: target.taskRunId, role: target.role } });
-      expected = original ? getContinuationSession(original).sessionId : null;
-      if (!expected) throw new Error('Original native session unavailable; input cannot be rerouted');
+      if (!original) throw new Error('Original conversation participant unavailable');
+      expected = getContinuationSession(original).sessionId || (typeof metadata(original.controlMetadata).resumeSessionId === 'string' ? String(metadata(original.controlMetadata).resumeSessionId) : null);
     }
     const participant = run.participants.find(p => p.role === target.role)!;
     const saved = getContinuationSession(participant).sessionId || metadata(participant.controlMetadata).resumeSessionId;

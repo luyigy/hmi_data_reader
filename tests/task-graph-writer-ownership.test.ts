@@ -8,7 +8,10 @@ import { createGraphWriter, observeGraphWriter } from '../src/lib/task-graph/wri
 async function main() {
   const writer = await createGraphWriter();
   assert.equal((await observeGraphWriter(writer)).kind, 'alive');
-  assert.equal((await observeGraphWriter(writer, true)).kind, 'exited', 'Cleanup receipt may release the daemon supervisor, but never bypass child scanning');
+  assert.equal((await observeGraphWriter(writer, true)).kind, 'exited', 'A cleanup receipt is authoritative after the runner drains children');
+  const scan = mock.method(fs, 'readdir', async () => { throw new Error('Historical process scan'); });
+  try { assert.equal((await observeGraphWriter(writer, true)).kind, 'exited', 'Released history must not touch /proc'); }
+  finally { scan.mock.restore(); }
   const inconsistent = { ...writer, supervisor: { ...writer.supervisor, pid: 2147483647 } };
   assert.equal((await observeGraphWriter(inconsistent)).kind, 'unknown', 'A changed supervisor cannot retain a different owner ancestry');
   const departed = { ...inconsistent, ancestry: undefined };
@@ -18,7 +21,7 @@ async function main() {
   });
   try {
     await once(child.stdout, 'data');
-    assert.equal((await observeGraphWriter(writer, true)).kind, 'alive', 'Released supervisor still cannot hide a live nonce child');
+    assert.equal((await observeGraphWriter(writer)).kind, 'alive', 'An unreleased owner prevents concurrent startup');
     const observation = await observeGraphWriter(departed);
     assert.equal(observation.kind, 'alive', 'A child survives its supervisor and must prevent takeover');
     if (observation.kind === 'alive') assert(child.pid && observation.pids.includes(child.pid));
@@ -28,7 +31,7 @@ async function main() {
       return Reflect.apply(originalRead, fs, args);
     });
     try {
-      assert.equal((await observeGraphWriter(writer, true)).kind, 'unknown', 'An unreadable real child cannot be excluded as an independent server branch');
+      assert.equal((await observeGraphWriter(departed)).kind, 'unknown', 'An unreadable real child cannot be excluded as an independent server branch');
     } finally { protectedRead.mock.restore(); }
   } finally {
     const stopped = once(child, 'exit'); child.kill('SIGTERM'); await stopped;

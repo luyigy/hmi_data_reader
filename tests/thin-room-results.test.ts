@@ -246,7 +246,8 @@ async function main() {
     assert.equal(await prisma.taskRun.count({ where: { taskId: reviewTaskId } }), 1, 'An ordinary reviewer reply must not start a result recollection');
     const reviewRoom = await prisma.liveRoom.create({ data: { title: 'review room', sourceTaskId: reviewJob.childTaskId } });
     fixtureRooms.push(reviewRoom.id);
-    await ensureGraphRoomParticipants(reviewRoom.id, reviewJob.id);
+    const reviewMembers = await ensureGraphRoomParticipants(reviewRoom.id, reviewJob.id);
+    await prisma.liveRoom.update({ where: { id: reviewRoom.id }, data: { currentSpeakerMemberId: reviewMembers.find(member => member.role === 'implementer')!.id } });
     const reviewBinding = await prisma.feishuConversationBinding.create({ data: { liveRoomId: reviewRoom.id, appId: 'fixture', chatId: 'review-results', scopeKey: reviewRoom.id, chatType: 'group', threadId: 'review-thread', rootMessageId: 'review-root' } });
     await prisma.taskRunFeishuRelay.create({ data: { taskRunId: reviewTurn.id, bindingId: reviewBinding.id, messageId: 'review-card' } });
     let reviewIndex = 0;
@@ -254,7 +255,7 @@ async function main() {
       reviewOutput = response;
       const before = calls;
       const messageId = `review-response-${++reviewIndex}`;
-      await postFeishuMessageToBoundLiveRoom({ context: { appId: 'fixture', chatId: 'review-results', chatType: 'group', threadId: 'review-thread', senderOpenId: 'fixture-user', messageId, parentMessageId: 'review-card' }, content: '继续验收并报告真实结论' });
+      await postFeishuMessageToBoundLiveRoom({ context: { appId: 'fixture', chatId: 'review-results', chatType: 'group', threadId: 'review-thread', senderOpenId: 'fixture-user', messageId, parentMessageId: reviewIndex === 1 ? 'review-card' : 'review-root' }, content: '继续验收并报告真实结论' });
       await until(async () => calls === before + 1 && await prisma.liveRoomDelivery.count({ where: { roomMessage: { roomId: reviewRoom.id, metadata: { contains: messageId } }, deliveryStatus: 'delivered' } }) > 0);
       return prisma.taskRun.findFirstOrThrow({ where: { taskId: reviewTaskId }, orderBy: { createdAt: 'desc' } });
     };

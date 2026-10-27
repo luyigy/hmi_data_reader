@@ -17,7 +17,7 @@ export async function graphRoomTarget(roomId: string, messageId: string, selecte
     const key = `room-target:${message.id}`;
     const saved = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: key } } });
     const source = JSON.parse(message.metadata || '{}');
-    const memberId = selectedMemberId || source.primaryTargetMemberId || room.currentSpeakerMemberId;
+    const memberId = selectedMemberId || (source.targetLocked === true ? source.primaryTargetMemberId : null);
     const target = saved ? parseConversationTarget(saved.payload) : await resolveConversationTarget(tx, job,
       JSON.stringify({ ...source, ...(memberId ? { targetLocked: true, mentionedMemberIds: [memberId], primaryTargetMemberId: memberId } : {}) }));
     if (!target || target.kind === 'unresolved') throw new Error(target?.reason || 'Graph message target is unavailable');

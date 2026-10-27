@@ -4,7 +4,6 @@ import type { Prisma } from '@prisma/client';
 import { executionProgress } from './execution-progress';
 import { observeGraphWriter, observeTaskRunWriter } from './writer-ownership';
 import { hasLegacyWriterRelease } from './legacy-writer-release';
-import { graphAssociationForTask } from './graph-association';
 
 /** One short transaction lock for task graph startup paths. */
 export async function lockWriterAdmission(tx: Prisma.TransactionClient) {
@@ -49,18 +48,27 @@ export async function assertWorkspaceWriterAvailable(tx: Prisma.TransactionClien
     } else if (job.status === 'claimed') throw new WorkspaceWriterBusy('unknown', job.id);
   }
   const taskIds = new Set([...(args.taskId ? [args.taskId] : []), ...scope.flatMap(job => [job.childTaskId, `task-graph-review-${job.nodeId}`, `task-graph-architecture-${job.nodeId}`].filter((id): id is string => !!id))]);
-  const runs = await tx.taskRun.findMany({ where: { OR: [
-    { taskId: { in: Array.from(taskIds) } }, ...(directory ? [{ controlMetadata: { contains: 'workingDirectory' } }] : []),
+  const currentRunIds = scope.flatMap(job => {
+    const progress = executionProgress(job.dispatchMetadata);
+    return [job.taskRunId, progress?.taskRunId, progress?.conversationOwnerRunId,
+      progress?.conversation?.kind === 'running' ? progress.conversation.taskRunId : null,
+      progress?.review?.kind === 'running' ? progress.review.taskRunId : null].filter((id): id is string => !!id);
+  });
+  // The latest tracked runner covers the failure-to-finally cleanup window, even
+  // before a room turn is bound into execution progress. Superseded history does not.
+  for (const taskId of Array.from(taskIds)) {
+    const latest = await tx.taskRun.findFirst({ where: { taskId, controlMetadata: { contains: '"graphWriter"' } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true } });
+    if (latest) currentRunIds.push(latest.id);
+  }
+  const runs = await tx.taskRun.findMany({ where: { taskId: { in: Array.from(taskIds) }, OR: [
+    { status: { in: ['pending', 'running', 'waiting_for_input'] } },
+    { id: { in: currentRunIds } },
+    { controlMetadata: { contains: '"graphRoomResultPending":true' } },
   ] }, include: { participants: true } });
-  const graphTasks = new Map<string, boolean>();
   for (const run of runs) {
     let metadata: Record<string, unknown> = {};
     try { metadata = JSON.parse(run.controlMetadata || '{}'); } catch { /* Missing proof is not an exit. */ }
-    if (!taskIds.has(run.taskId)) {
-      if (!(directory && typeof metadata.workingDirectory === 'string' && overlaps(directory, await canonical(metadata.workingDirectory)))) continue;
-      if (!graphTasks.has(run.taskId)) graphTasks.set(run.taskId, Boolean(await graphAssociationForTask(run.taskId, '', tx)));
-      if (!graphTasks.get(run.taskId)) continue;
-    }
     if (run.id !== args.resultTaskRunId && (['pending', 'running', 'waiting_for_input'].includes(run.status) || metadata.graphRoomResultPending === true)) throw new WorkspaceWriterBusy('alive', run.id);
     if (hasLegacyWriterRelease(run)) continue;
     const observed = await observeTaskRunWriter(run.id, tx);
