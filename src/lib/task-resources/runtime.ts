@@ -6,7 +6,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { getContinuationSession } from '../acpx/session-tracking';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from '../acpx/permissions';
-import { observeTaskRunExit, taskRunExitMatches, type TaskRunExitProof } from '../task-graph/task-run-exit-proof';
+import { observeResourceRunExit, resourceRunExitMatches, type ResourceRunExitProof } from './run-exit';
 import type { AcpxRunRequest } from '../acpx/types';
 import { getResourceApproval, lockResourceApproval, resolveResourceAccess, updateResourceApplication } from './access';
 import { directoryContains, resourcePrincipal, verifyResourceDirectories, type ResourceApproval } from './model';
@@ -55,10 +55,10 @@ export async function attachScheduledResourceContinuation(request: AcpxRunReques
 export async function resourceContinuationExit(request: AcpxRunRequest) {
   if (!request.resourceContinuation) return;
   const approval = await getResourceApproval(request.resourceContinuation.approvalId);
-  return approval.payload.source ? observeTaskRunExit(approval.payload.source.taskRunId) : undefined;
+  return approval.payload.source ? observeResourceRunExit(approval.payload.source.taskRunId) : undefined;
 }
 
-export async function reserveResourceContinuation(tx: Prisma.TransactionClient, request: AcpxRunRequest, runId: string, proof?: TaskRunExitProof) {
+export async function reserveResourceContinuation(tx: Prisma.TransactionClient, request: AcpxRunRequest, runId: string, proof?: ResourceRunExitProof) {
   if (!request.resourceContinuation) return;
   const approval = await lockResourceApproval(tx, request.resourceContinuation.approvalId);
   if (approval.status !== 'approved' || approval.payload.revision !== request.resourceContinuation.revision ||
@@ -67,7 +67,7 @@ export async function reserveResourceContinuation(tx: Prisma.TransactionClient, 
   const session = await tx.taskSession.findUniqueOrThrow({ where: { id: request.taskSessionId! } });
   if (session.status === 'paused') throw new Error('原 Session 已暂停');
   if (approval.payload.source && ['stop_requested', 'interrupt_requested'].includes((await tx.taskRun.findUniqueOrThrow({ where: { id: approval.payload.source.taskRunId } })).controlState)) throw new Error('原执行已被用户停止');
-  if (approval.payload.source && !await taskRunExitMatches(tx, approval.payload.source.taskRunId, proof)) throw new Error('原执行的退出证明已改变');
+  if (approval.payload.source && !await resourceRunExitMatches(tx, approval.payload.source.taskRunId, proof)) throw new Error('原执行的退出证明已改变');
   const active = await tx.taskRun.count({ where: { taskId: request.taskId, taskSessionId: request.taskSessionId,
     id: { not: runId }, status: { in: ['pending', 'running', 'waiting_for_input'] } } });
   if (active) throw new Error('原 Session 仍有运行中的任务');
@@ -91,9 +91,10 @@ export async function resourcesForRun(request: AcpxRunRequest, taskRunId: string
   for (const root of read) if (existingWrite.some(w => directoryContains(root, w))) throw new Error('只读资源会覆盖当前可写工作区，需调整目录范围');
   for (const root of write) if (read.some(r => directoryContains(root, r) || directoryContains(r, root)) || existingRead.some(r => directoryContains(r, root) && r !== root)) throw new Error('补充目录读写范围重叠，需明确独立目录');
   {
-    const proofs = existingWrite.length || write.length ? await observeResourceWriters(taskRunId, existingWrite, write) : [];
+    const checkWriters = Boolean(request.graphAssociation || request.graphExecution || request.graphReview) && Boolean(existingWrite.length || write.length);
+    const proofs = checkWriters ? await observeResourceWriters(taskRunId, existingWrite, write) : [];
     await prisma.$transaction(async tx => {
-      if (existingWrite.length || write.length) await reserveResourceWriters(tx, taskRunId, participantId, existingWrite, write, proofs);
+      if (checkWriters) await reserveResourceWriters(tx, taskRunId, participantId, existingWrite, write, proofs);
       const authorizations = [];
       for (const id of resolved.approvalIds.slice().sort()) {
         const approval = await lockResourceApproval(tx, id);

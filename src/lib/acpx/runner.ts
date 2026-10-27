@@ -52,7 +52,8 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   }
 
   const supportedWriter = request.participants.length > 0 && request.participants.every(participant => participant.executionBackend === 'platform_local' && ['codex', 'kimi-code'].includes(participant.harnessType));
-  const graphWriter = supportedWriter ? await createGraphWriter() : undefined;
+  const usesGraphWriter = Boolean(request.graphAssociation || request.graphExecution || request.graphReview);
+  const graphWriter = usesGraphWriter && supportedWriter ? await createGraphWriter() : undefined;
   if (request.graphExecution && request.graphReview) throw new Error('A TaskRun cannot bind implementation and review simultaneously');
   const createRun = (tx: Pick<Prisma.TransactionClient, 'taskRun'>) => tx.taskRun.create({
     data: {
@@ -131,11 +132,13 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     : request.graphReview ? (await prisma.taskGraphExecution.findMany({ where: { nodeId: request.graphReview.nodeId }, select: { id: true } })).map(job => job.id) : request.graphAssociation?.executionIds || [];
   const resourceExit = await resourceContinuationExit(request);
   const startRun = () => prisma.$transaction(async tx => {
-    await lockWriterAdmission(tx);
-    if (supportedWriter && request.workingDirectory || request.graphAssociation || request.graphExecution || request.graphReview) await assertWorkspaceWriterAvailable(tx, {
-      taskId: request.taskId, nodeId: request.graphAssociation?.nodeId || request.graphReview?.nodeId, directory: request.workingDirectory,
-      executionClaim: request.graphExecution, reviewClaim: request.graphReview,
-    });
+    if (usesGraphWriter) {
+      await lockWriterAdmission(tx);
+      await assertWorkspaceWriterAvailable(tx, {
+        taskId: request.taskId, nodeId: request.graphAssociation?.nodeId || request.graphReview?.nodeId, directory: request.workingDirectory,
+        executionClaim: request.graphExecution, reviewClaim: request.graphReview,
+      });
+    }
     const resetTasks = conversationExecutions.length ? await tx.taskGraphExecution.findMany({ where: { id: { in: conversationExecutions } }, select: { childTaskId: true } }) : [];
     for (const id of Array.from(new Set(resetTasks.map(job => job.childTaskId).filter((id): id is string => !!id))).sort()) {
       await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${id} FOR UPDATE`;

@@ -67,6 +67,12 @@ export async function normalRoomEntryRegression(options: { slowWriter?: boolean 
       execFileSync('git', ['clone', directory, auxiliary], { stdio: 'pipe' });
       const parent = await prisma.task.create({ data: { name: project } });
       fixtureTasks.push(parent.id);
+      // A route's parent conversation is not a graph execution, even with an overlapping directory.
+      // Both pre-scope Writer metadata and current ordinary runs must stay outside graph admission.
+      await prisma.taskRun.createMany({ data: [
+        { taskId: parent.id, status: 'completed', controlMetadata: JSON.stringify({ workingDirectory: directory, graphWriter: {} }) },
+        { taskId: parent.id, status: 'running', controlMetadata: JSON.stringify({ workingDirectory: directory }) },
+      ] });
       const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', agentId: 'codex', role: 'implementer' };
       const graph = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
         specRef: 'test://thin-room', nodes: [{ key: 'T', goal: project, dependsOn: [], acceptance: { mode: 'agent', checks: ['fixture'], reviewerId: 'local:codex', reviewLaunchConfig: { participant: { ...participant, role: 'tester' } } },

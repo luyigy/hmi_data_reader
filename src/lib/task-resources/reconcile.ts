@@ -1,6 +1,6 @@
 import { prisma } from '../prisma';
 import { requestRunControl } from '../acpx/process-registry';
-import { observeTaskRunWriter } from '../task-graph/writer-ownership';
+import { observeResourceRunExit } from './run-exit';
 import { admitNode } from '../task-graph/preparation-recovery';
 import { executeAcpxTaskRun } from '../acpx/runner';
 import { getResourceApproval, resolveResourceAccess, updateResourceApplication } from './access';
@@ -21,7 +21,7 @@ async function revoke(approval: ResourceApproval) {
   for (const run of runs) {
     const ids: unknown = JSON.parse(run.controlMetadata || '{}').resources?.approvalIds;
     if (!Array.isArray(ids) || !ids.includes(approval.id)) continue;
-    if ((await observeTaskRunWriter(run.id)).kind === 'exited') continue;
+    if ((await observeResourceRunExit(run.id)).observation.kind === 'exited') continue;
     stopped = false;
     await prisma.taskRun.update({ where: { id: run.id }, data: { controlState: 'stop_requested', activityState: 'terminating' } });
     const participants = await prisma.taskRunParticipant.findMany({ where: { taskRunId: run.id } });
@@ -62,7 +62,7 @@ async function reconcileOne(id: string) {
     await resolveResourceAccess(payload.launch);
     if (payload.source) {
       const source = await prisma.taskRun.findUniqueOrThrow({ where: { id: payload.source.taskRunId } });
-      if (['pending', 'running', 'waiting_for_input'].includes(source.status) || (await observeTaskRunWriter(source.id)).kind !== 'exited') return;
+      if (['pending', 'running', 'waiting_for_input'].includes(source.status) || (await observeResourceRunExit(source.id)).observation.kind !== 'exited') return;
     }
     const launch = await resourceContinuationLaunch(approval);
     if (launch.graphExecution || launch.graphReview) {

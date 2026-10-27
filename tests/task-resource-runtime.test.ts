@@ -13,7 +13,7 @@ import { executeAcpxTaskRun } from '../src/lib/acpx/runner';
 import type { AcpxRunRequest } from '../src/lib/acpx/types';
 import { decideResourceAccess, getResourceApproval, resolveResourceAccess } from '../src/lib/task-resources/access';
 import { reconcileResourceApprovals, drainResourceApprovals } from '../src/lib/task-resources/reconcile';
-import { observeTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
+import { observeResourceRunExit, resourceRunExitMatches } from '../src/lib/task-resources/run-exit';
 import { prepareSandboxEnvironment } from '../src/lib/sandbox-manager/environment';
 import { renderBubblewrap } from '../src/lib/sandbox-manager/bubblewrap';
 
@@ -93,7 +93,15 @@ async function main() {
     let approval = await getResourceApproval(id);
     assert.equal(approval.status, 'pending'); assert.equal(approval.payload.resources.length, 2);
     assert.deepEqual(await resolveResourceAccess(launch), { approvalIds: [], resources: [] });
-    assert.equal((await observeTaskRunWriter(approval.payload.source!.taskRunId)).kind, 'exited', 'Real spawned process has durable exit proof');
+    const sourceRunId = approval.payload.source!.taskRunId;
+    const finished = await observeResourceRunExit(sourceRunId);
+    assert.equal(finished.observation.kind, 'exited', 'Ordinary continuation uses the completed runner lifecycle');
+    assert.equal(JSON.parse(finished.identity!.controlMetadata!).graphWriter, undefined);
+    await prisma.$transaction(async tx => {
+      await tx.taskRun.update({ where: { id: sourceRunId }, data: { status: 'running' } });
+      assert.equal(await resourceRunExitMatches(tx, sourceRunId, finished), false, 'A restarted ordinary source invalidates the saved terminal state');
+      await tx.taskRun.update({ where: { id: sourceRunId }, data: { status: 'completed' } });
+    });
     await reconcileResourceApprovals(id); await drainResourceApprovals(); assert.equal(turns, 1, 'Pending approval cannot continue');
     const approve = () => decideResourceAccess({ id, revision: 1, actorOpenId: 'runtime-resource-admin', action: 'approve' });
     await Promise.all([approve(), approve()]);
@@ -114,7 +122,7 @@ async function main() {
     assert.ok(stdout.some(event => event.content.includes('已检查目录')), 'Protocol selection preserves process commentary');
     await resourceWorkspaceRegression();
     await finalOutputRegression(cwd, source);
-    console.log('task-resource-runtime passed: real read/write sandbox, native-session continuity, writer exit proof and approval replay dedupe');
+    console.log('task-resource-runtime passed: real read/write sandbox, native-session continuity without graph Writer, terminal-state recheck and approval replay dedupe');
   } finally {
     await drainResourceApprovals();
     await prisma.feishuAdminApproval.deleteMany({ where: { kind: 'task_resources', payloadJson: { contains: root } } });
