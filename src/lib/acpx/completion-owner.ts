@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { graphAssociationForTask } from '../task-graph/graph-association';
+import { findJob, loadProjectsConfig } from '../scheduled-jobs/project-config';
 
 export type CompletionOwner = { kind: 'graph'; runId: string; nodeId: string }
   | { kind: 'handover'; projectId: string; jobId: string }
@@ -14,7 +15,10 @@ export async function resolveCompletionOwner(taskId: string, tx: Prisma.Transact
   const dispatches = await tx.workflowDispatch.findMany({ where: { roomId: { in: rooms.map(room => room.id) },
     messageId: { not: null }, state: { in: ['prompt_posted', 'reply_queued', 'completed', 'failed'] } }, select: { projectId: true, jobId: true, roomId: true, messageId: true } });
   const workflows = new Map<string, { projectId: string; jobId: string }>();
+  const projects = dispatches.length ? await loadProjectsConfig() : { projects: [] };
   for (const dispatch of dispatches) {
+    // The table also journals one-off room actions. Only registered watcher jobs own a workflow.
+    if (findJob(projects, dispatch.projectId, dispatch.jobId)?.type !== 'workflow_watcher') continue;
     const message = await tx.liveRoomMessage.findUnique({ where: { id: dispatch.messageId! }, select: { roomId: true } });
     if (message?.roomId !== dispatch.roomId) throw new Error('Workflow dispatch message does not belong to its registered room');
     workflows.set(JSON.stringify([dispatch.projectId, dispatch.jobId]), { projectId: dispatch.projectId, jobId: dispatch.jobId });

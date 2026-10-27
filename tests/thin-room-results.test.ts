@@ -16,6 +16,7 @@ import { postFeishuMessageToBoundLiveRoom } from '../src/lib/feishu-live-room';
 import { recordTaskRunResult } from '../src/lib/task-graph/task-run-result';
 import { resolveCompletionOwner } from '../src/lib/acpx/completion-owner';
 import { executeAcpxTaskRun } from '../src/lib/acpx/runner';
+import type { ProjectsConfig } from '../src/lib/scheduled-jobs/project-config';
 
 async function until(predicate: () => Promise<boolean>) {
   for (let i = 0; i < 300; i++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 30)); }
@@ -33,7 +34,15 @@ async function main() {
   const notices = require('../src/lib/task-graph/feishu');
   notices.ensureGraphChildTopic = async () => null; notices.postGraphParentProgress = async () => {}; notices.postGraphChildProgress = async () => {};
   require('../src/lib/live-room-progress').attachLiveRoomProgress = async () => ({ streamCallbacks: {}, dispose: async () => {} });
-  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => ({ projects: [] });
+  const config: ProjectsConfig = { projects: [{ id: 'fixture', name: 'watcher fixture',
+    path: path.join(root, 'watcher-project'), ref: 'refs/heads/main',
+    feishu: { chat_id: 'fixture', approver_open_ids: [] }, jobs: [
+      { id: 'watcher', type: 'workflow_watcher', enabled: false, mode: 'shadow', schedule: '* * * * *', config: {} },
+      { id: 'other-watcher', type: 'workflow_watcher', enabled: false, mode: 'shadow', schedule: '* * * * *', config: {} },
+      { id: 'counter', type: 'long_file_detector', enabled: false, mode: 'shadow', schedule: '* * * * *', config: {} },
+    ] }] };
+  mkdirSync(config.projects[0].path);
+  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => config;
   require('../src/lib/feishu-live-room-relay').relayLiveRoomMessageToFeishu = async () => {};
   require('../src/lib/feishu-turn-card').prepareRoomTurnCard = async () => null;
   const wakeups: string[] = [];
@@ -166,11 +175,40 @@ async function main() {
     fixtureRooms.push(handoverRoom.id);
     const source = await prisma.liveRoomMessage.create({ data: { roomId: handoverRoom.id, messageType: 'user', content: 'fixture' } });
     await prisma.workflowDispatch.create({ data: { projectId: 'fixture', jobId: 'watcher', eventKey: source.id, roomId: handoverRoom.id, messageId: source.id, state: 'reply_queued' } });
+    const planReceipt = await prisma.liveRoomMessage.create({ data: { roomId: handoverRoom.id, messageType: 'system',
+      content: 'Handoff PLAN committed', metadata: JSON.stringify({ systemEvent: 'handoff_plan_committed' }) } });
+    await prisma.workflowDispatch.create({ data: { projectId: handover.id, jobId: 'live_room_handoff_plan', eventKey: planReceipt.id,
+      roomId: handoverRoom.id, messageId: planReceipt.id, state: 'reply_queued' } });
     assert.deepEqual(await resolveCompletionOwner(handover.id), { kind: 'handover', projectId: 'fixture', jobId: 'watcher' });
     output = '普通完成';
-    const handoverTurn = await executeAcpxTaskRun({ taskId: handover.id, taskName: handover.name, workingDirectory: repository, participants: [participant], orchestrationMode: 'single' });
-    assert.equal(await recordTaskRunResult(handoverTurn.taskRunId), null); assert.deepEqual(wakeups, [handover.id]);
+    await prisma.liveRoomMember.createMany({ data: [
+      { roomId: handoverRoom.id, memberType: 'user', displayName: 'user' },
+      { roomId: handoverRoom.id, memberType: 'local_agent', displayName: 'codex', harnessType: 'codex', backend: 'platform_local',
+        runtimeAgentId: 'codex', role: 'implementer', canReply: true },
+    ] });
+    await prisma.feishuConversationBinding.create({ data: { liveRoomId: handoverRoom.id, appId: 'fixture', chatId: 'handover-fixture',
+      scopeKey: 'feishu:p2p:handover-fixture', chatType: 'p2p' } });
+    const handoverCalls = calls;
+    const handoverInput = { context: { appId: 'fixture', chatId: 'handover-fixture', chatType: 'p2p', senderOpenId: 'fixture-user',
+      messageId: 'handover-with-plan-history' }, content: '查看当前状态' };
+    await Promise.all([postFeishuMessageToBoundLiveRoom(handoverInput), postFeishuMessageToBoundLiveRoom(handoverInput)]);
+    await until(async () => await prisma.liveRoomDelivery.count({ where: { roomMessage: { roomId: handoverRoom.id }, deliveryStatus: 'delivered' } }) === 1);
+    const handoverTurn = await prisma.taskRun.findFirstOrThrow({ where: { taskId: handover.id }, orderBy: { createdAt: 'desc' } });
+    assert.equal(handoverTurn.status, 'completed'); assert.equal(calls, handoverCalls + 1);
+    assert.equal(await recordTaskRunResult(handoverTurn.id), null); assert.deepEqual(wakeups, [handover.id]);
+    assert.equal(await prisma.liveRoomMessage.count({ where: { roomId: handoverRoom.id, messageType: 'assistant', content: output } }), 1);
+    const conflictingWatcher = await prisma.workflowDispatch.create({ data: { projectId: 'fixture', jobId: 'other-watcher', eventKey: source.id,
+      roomId: handoverRoom.id, messageId: source.id, state: 'completed' } });
+    await assert.rejects(resolveCompletionOwner(handover.id), /conflicting registered workflow owners/);
+    await prisma.workflowDispatch.delete({ where: { id: conflictingWatcher.id } });
     const ordinary = await prisma.task.create({ data: { name: 'task-graph-fake', workingDirectory: repository } });
+    const ordinaryRoom = await prisma.liveRoom.create({ data: { title: 'ordinary with control history', sourceTaskId: ordinary.id } });
+    fixtureRooms.push(ordinaryRoom.id);
+    const ordinaryReceipt = await prisma.liveRoomMessage.create({ data: { roomId: ordinaryRoom.id, messageType: 'system', content: 'control receipt' } });
+    await prisma.workflowDispatch.createMany({ data: [
+      { projectId: ordinary.id, jobId: 'live_room_handoff_plan', eventKey: ordinaryReceipt.id, roomId: ordinaryRoom.id, messageId: ordinaryReceipt.id, state: 'reply_queued' },
+      { projectId: 'fixture', jobId: 'counter', eventKey: ordinaryReceipt.id, roomId: ordinaryRoom.id, messageId: ordinaryReceipt.id, state: 'completed' },
+    ] });
     assert.deepEqual(await resolveCompletionOwner(ordinary.id), { kind: 'conversation' });
     await executeAcpxTaskRun({ taskId: ordinary.id, taskName: ordinary.name, workingDirectory: repository, participants: [participant], orchestrationMode: 'single' });
     assert.deepEqual(wakeups, [handover.id]);
