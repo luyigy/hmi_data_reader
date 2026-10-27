@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, renameSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { prisma } from '../src/lib/prisma';
-import { createTaskGraphRun, submitNodeVerification, approveHumanNode, completeUnverifiedNode } from '../src/lib/task-graph/store';
+import { createTaskGraphRun, submitNodeVerification, approveHumanNode, completeUnverifiedNode, releaseReadyNodes } from '../src/lib/task-graph/store';
 import { initialExecutionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import { prepareUpstreamInputs, graphInputsForTask } from '../src/lib/task-graph/upstream-inputs';
 import { registerInputCandidate, type InputCandidateReceipt } from '../src/lib/task-graph/input-candidates';
@@ -41,6 +41,8 @@ async function main() {
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: { specRef: 'fixture://candidate', nodes: [
     { ...common, key: 'R', goal: 'producer', dependsOn: [], executions: jobSpec(reader) },
     { ...common, executionMode: 'implement', key: 'M', goal: 'consumer', dependsOn: ['R'], executions: jobSpec(mold), extraRepositories: [{ repository: reader.directory, access: 'read' }] },
+    { ...common, key: 'NEXT', goal: 'next consumer', dependsOn: ['M'], executions: jobSpec(mold) },
+    { ...common, key: 'LAST', goal: 'transitive consumer', dependsOn: ['NEXT'], executions: jobSpec(mold) },
     { ...common, key: 'OTHER', goal: 'other consumer', dependsOn: ['R'], executions: jobSpec(mold) },
   ] } });
   const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, include: { executions: true } });
@@ -132,16 +134,39 @@ async function main() {
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', commit: mold.commit } });
     await prisma.taskGraphNode.update({ where: { id: consumer.id }, data: { status: 'verifying' } });
     const evidence = { checks: [{ name: 'behavior', passed: true, evidence: 'fixed candidate checked' }], summary: 'candidate verified' };
-    await assert.rejects(submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', evidence }), /尚未汇合/);
-    await assert.rejects(completeUnverifiedNode(run.id, 'M'), /尚未汇合/);
+    const next = nodes.find(n => n.key === 'NEXT')!, last = nodes.find(n => n.key === 'LAST')!;
+    await assert.rejects(prepareUpstreamInputs(next.executions[0].id), /未达到批准完成条件/);
+    const registeredEvent = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: registered[0].eventId } });
+    const registeredPayload = registeredEvent.payload as { receipt: InputCandidateReceipt };
+    await prisma.taskGraphEvent.update({ where: { id: registeredEvent.id }, data: { payload: { ...registeredPayload, receipt: { ...registeredPayload.receipt, candidateCommit: reader.commit } } } });
+    await assert.rejects(submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', evidence }), /授权来源无效/);
+    // Legacy registrations can carry a branch that was never an integration target.
+    await prisma.taskGraphEvent.update({ where: { id: registeredEvent.id }, data: { payload: { ...registeredEvent.payload as object, integrationRefs: ['refs/heads/obsolete-baseline'] } } });
+    assert.equal((await completeUnverifiedNode(run.id, 'M')).status, 'delivered_unverified');
     await prisma.taskGraphNode.update({ where: { id: consumer.id }, data: { status: 'awaiting_human', acceptance: 'human', reviewerId: 'reviewer' } });
-    await assert.rejects(approveHumanNode({ runId: run.id, nodeKey: 'M', reviewerId: 'reviewer', approved: true, note: 'checked' }), /尚未汇合/);
+    await assert.rejects(approveHumanNode({ runId: run.id, nodeKey: 'M', reviewerId: 'wrong', approved: true, note: 'checked' }), /reviewer|review|actor/i);
+    assert.equal((await approveHumanNode({ runId: run.id, nodeKey: 'M', reviewerId: 'reviewer', approved: true, note: 'checked' })).status, 'passed');
     await prisma.taskGraphNode.update({ where: { id: consumer.id }, data: { status: 'verifying', acceptance: 'automatic', reviewerId: null } });
     const failed = await submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', attempt: 'failed', evidence: { ...evidence, checks: [{ ...evidence.checks[0], passed: false }] } });
-    assert.equal(failed.status, 'attention', 'Candidate defects can still be published before integration');
+    assert.equal(failed.status, 'attention', 'Candidate defects remain failures');
     await prisma.taskGraphNode.update({ where: { id: consumer.id }, data: { status: 'verifying' } });
-    git(reader.directory, 'update-ref', 'refs/heads/main', fixed, reader.commit);
-    assert.equal((await submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', attempt: 'integrated', evidence })).status, 'passed');
+    assert.equal((await submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', attempt: 'unmerged', evidence })).status, 'passed');
+    await releaseReadyNodes(run.id); await releaseReadyNodes(run.id);
+    assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: next.id } })).status, 'ready');
+    const passedCount = await prisma.taskGraphEvent.count({ where: { nodeId: consumer.id, kind: 'node_passed' } });
+    await submitNodeVerification({ runId: run.id, nodeKey: 'M', actorId: 'system', attempt: 'unmerged', evidence });
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: consumer.id, kind: 'node_passed' } }), passedCount, 'Publication replay must not duplicate completion');
+    const nextInput = (await prepareUpstreamInputs(next.executions[0].id)).manifest.inputs[0];
+    assert.equal(nextInput.commit, fixed, 'A same-repository successor must inherit the reviewed cross-repository input');
+    assert.equal(nextInput.replacement?.eventId, registered[0].eventId);
+    assert.deepEqual(nextInput.quality, ['passed']);
+    assert.equal(readFileSync(path.join(nextInput.sourcePath, 'value.js'), 'utf8'), 'module.exports = 2;\n');
+    await prisma.taskGraphExecution.update({ where: { id: next.executions[0].id }, data: { status: 'integrated', commit: mold.commit } });
+    await prisma.taskGraphNode.update({ where: { id: next.id }, data: { status: 'verifying' } });
+    assert.equal((await submitNodeVerification({ runId: run.id, nodeKey: 'NEXT', actorId: 'system', evidence })).status, 'passed');
+    assert.equal((await prepareUpstreamInputs(last.executions[0].id)).manifest.inputs[0].commit, fixed, 'Delivered input survives another dependency hop');
+    assert.equal((await prepareUpstreamInputs(other.executions[0].id)).manifest.inputs[0].commit, reader.commit, 'Unrelated consumers remain unchanged');
+    assert.equal(git(reader.directory, 'rev-parse', 'refs/heads/main'), reader.commit, 'Publication must not move the source branch');
     assert.equal(readFileSync(path.join(reader.directory, 'value.js'), 'utf8'), 'preserve unrelated shared edit');
     writeFileSync(path.join(input.sourcePath, 'value.js'), 'corrupted');
     await assert.rejects(prepareUpstreamInputs(job.id), /内容与 Git 不一致/);

@@ -1,7 +1,6 @@
 import type { Prisma, TaskGraphExecution } from '@prisma/client';
 import { realpath } from 'node:fs/promises';
 import { prisma } from '../prisma';
-import type { GraphDefinition } from './domain';
 import { executionProgress } from './execution-progress';
 import { graphGit } from './git-command';
 import { parseInputManifest, type TaskInput } from './input-manifest';
@@ -36,8 +35,7 @@ function parseReceipt(value: unknown): InputCandidateReceipt {
 
 function parseCandidate(payload: unknown) {
   if (!isRecord(payload) || typeof payload.sourcePath !== 'string') throw new Error('已登记候选无效');
-  if (!Array.isArray(payload.integrationRefs) || !payload.integrationRefs.length || !payload.integrationRefs.every(ref => typeof ref === 'string' && ref.trim())) throw new Error('候选缺少批准的汇合分支');
-  return { receipt: parseReceipt(payload.receipt), sourcePath: payload.sourcePath, integrationRefs: payload.integrationRefs as string[] };
+  return { receipt: parseReceipt(payload.receipt), sourcePath: payload.sourcePath };
 }
 
 /** Trusted local operator entry, like registerPlatformPreparation. No dispatch or approval is inferred from a directory grant. */
@@ -62,11 +60,6 @@ export async function registerInputCandidate(value: unknown) {
   const input = manifest.inputs.find(item => item.repository === receipt.repository);
   if (manifest.executionId !== job.id || manifest.hash !== receipt.inputHash || !input || input.commit !== receipt.previousCommit ||
       await realpath(receipt.repository) !== receipt.repository) throw new Error('候选登记与原固定输入不一致');
-  const definition = observedNode.run.snapshot as unknown as GraphDefinition;
-  const integrationRefs = input.replacement
-    ? parseCandidate((await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: input.replacement.eventId } })).payload).integrationRefs
-    : Array.from(new Set(definition.nodes.flatMap(node => node.executions.filter(item => input.executions.includes(`${node.key}/${item.key}`)).map(item => item.gitRef))));
-  if (!integrationRefs.length) throw new Error('候选没有已批准的汇合分支');
   await validatePreparationArtifacts(receipt.artifacts);
   const proof = await observeWriterSnapshot({ jobs: [job], scope: 'execution', observeExecution: observeExecutionWriter });
   if (!proof.exited) throw new Error('原写作者仍存活或无法确认退出');
@@ -85,7 +78,7 @@ export async function registerInputCandidate(value: unknown) {
       { payload: { path: ['receipt', 'executionId'], equals: job.id } }, { payload: { path: ['receipt', 'claimToken'], equals: receipt.claimToken } },
       { payload: { path: ['receipt', 'repository'], equals: receipt.repository } } ] } })) throw new Error('该输入已有待应用候选，不能覆盖');
     const event = await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId: node.id, kind: 'task_input_candidate_registered',
-      idempotencyKey: key, payload: { receipt, sourcePath, integrationRefs } } });
+      idempotencyKey: key, payload: { receipt, sourcePath } } });
     return { eventId: event.id, kind: 'registered' as const };
   });
 }

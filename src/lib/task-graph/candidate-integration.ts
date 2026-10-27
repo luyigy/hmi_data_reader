@@ -1,13 +1,23 @@
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
 import type { Prisma } from '@prisma/client';
-import { graphGit } from './git-command';
+import type { GraphDefinition } from './domain';
 import { parseInputManifest } from './input-manifest';
 import { isRecord } from './implementation-result';
 
-/** A candidate is usable for verification before integration, but cannot release successors. */
-export async function assertCandidateInputsIntegrated(tx: Prisma.TransactionClient, nodeId: string) {
+/** Publication binds supplemental inputs to their authorized receipt, without moving any branch. */
+export async function assertCandidateInputBindings(tx: Prisma.TransactionClient, nodeId: string) {
   const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId }, include: { node: true } });
+  if (!jobs.length) return;
+  const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: jobs[0].node.runId }, select: { snapshot: true } });
+  const definition = run.snapshot as unknown as GraphDefinition;
+  const allowed = new Set<string>();
+  const visit = (key: string) => {
+    if (allowed.has(key)) return;
+    allowed.add(key);
+    for (const parent of definition.nodes.find(node => node.key === key)?.dependsOn || []) visit(parent);
+  };
+  visit(jobs[0].node.key);
   for (const job of jobs) {
     const pin = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: {
       runId: job.node.runId, idempotencyKey: `execution:${job.id}:inputs:${job.claimToken || 'legacy'}` } } });
@@ -18,14 +28,12 @@ export async function assertCandidateInputsIntegrated(tx: Prisma.TransactionClie
     for (const input of parseInputManifest(pin.payload).inputs.filter(item => item.replacement)) {
       const event = await tx.taskGraphEvent.findUniqueOrThrow({ where: { id: input.replacement!.eventId } });
       const payload = event.payload;
-      if (event.nodeId !== nodeId || event.kind !== 'task_input_candidate_registered' || !isRecord(payload) ||
-          !isRecord(payload.receipt) || payload.receipt.executionId !== job.id || payload.receipt.repository !== input.repository ||
-          payload.receipt.candidateCommit !== input.commit || !Array.isArray(payload.integrationRefs) || !payload.integrationRefs.length ||
-          !payload.integrationRefs.every(ref => typeof ref === 'string' && ref.trim())) throw new Error('补充候选的汇合来源无效');
-      for (const ref of payload.integrationRefs) {
-        const integrated = await graphGit(input.repository, 'merge-base', '--is-ancestor', input.commit, String(ref)).then(() => true, () => false);
-        if (!integrated) throw new Error(`补充候选尚未汇合：${input.repository}@${input.commit} → ${ref}；保留验收结果，汇合后重试发布，不能释放后继`);
-      }
+      if (event.runId !== job.node.runId || event.kind !== 'task_input_candidate_registered' || !isRecord(payload) ||
+          !isRecord(payload.receipt) || typeof payload.receipt.executionId !== 'string' || payload.receipt.repository !== input.repository ||
+          payload.receipt.candidateCommit !== input.commit || payload.receipt.previousCommit !== input.replacement!.previousCommit) throw new Error('补充候选的授权来源无效');
+      const origin = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: payload.receipt.executionId }, include: { node: true } });
+      if (origin.nodeId !== event.nodeId || !allowed.has(origin.node.key) ||
+          (event.nodeId === nodeId && origin.id !== job.id)) throw new Error('补充候选不属于本次交付或其前置');
     }
   }
 }

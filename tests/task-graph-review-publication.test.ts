@@ -51,10 +51,10 @@ async function scenario(phase: 'acceptance' | 'architecture') {
   try {
     await once(child.stdout, 'data');
     await reset();
-    // Even a released supervisor and terminal TaskRun cannot hide a live child.
-    await releaseTaskRunWriter(turn.id, writer.nonce);
+    // The runner releases its writer only after child cleanup, including failed runs.
     await unchanged(() => publish(), /requires a finished writer/);
     const exit = once(child, 'exit'); child.kill('SIGTERM'); await exit; exited = true;
+    await releaseTaskRunWriter(turn.id, writer.nonce);
     const released = await prisma.taskRun.findUniqueOrThrow({ where: { id: turn.id } });
     await unchanged(() => publish(async () => {
       await prisma.taskRun.update({ where: { id: turn.id }, data: { controlMetadata: '{}' } });

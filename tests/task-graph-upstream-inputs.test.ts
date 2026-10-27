@@ -116,7 +116,7 @@ async function main() {
     await prisma.taskGraphExecution.update({ where: { id: job('C').id }, data: { commit: baseConsumer, status: 'integrated' } });
     writeFileSync(path.join(consumer, 'capability.py'), 'unapproved consumer edit');
     const task = await prisma.task.findUniqueOrThrow({ where: { id: child.id }, include: { currentTaskSession: true } });
-    await assert.rejects(prepareGraphConversationTask(task), /execution inbox/, 'Graph conversations use their original execution instead of creating a separate readonly QA session');
+    assert.deepEqual(await prepareGraphConversationTask(task), task, 'Graph conversations retain the original task and session without an extra QA task');
     writeFileSync(path.join(consumer, 'capability.py'), 'value = "base"\n');
     writeFileSync(path.join(producer, 'capability.py'), 'value = "fixed-second"\n');
     writeFileSync(path.join(producer, 'lfs.dat'), 'version https://git-lfs.github.com/spec/v1\noid sha256:0000\nsize 1\n'); git(producer, 'add', 'lfs.dat'); git(producer, 'commit', '-m', 'LFS pointer');

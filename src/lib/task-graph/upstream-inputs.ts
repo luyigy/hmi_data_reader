@@ -14,6 +14,7 @@ import { materializeUpstream } from './upstream-source';
 import { selfCheckExecution, verificationInputs, isCompletedNodeStatus, type GraphDefinition } from './domain';
 import { isRecord } from './implementation-result';
 import { replacementInputs, recordCandidateInputs } from './input-candidates';
+import { inheritDeliveredInputs } from './delivered-inputs';
 
 import { parseInputManifest, type TaskInput, type TaskInputManifest } from './input-manifest';
 export type { TaskInputManifest } from './input-manifest';
@@ -119,7 +120,8 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
       projectEnvPath: project?.directory || null, pythonExecutable: project ? path.join(project.directory, 'bin', 'python') : null,
       dependencyPaths: graphDependencyPaths(repository), quality: jobs.map(job => job.quality) });
   }
-  const replacements = await replacementInputs(execution, inputs);
+  const delivered = await inheritDeliveredInputs(node.runId, selected, primaryRepository, inputs);
+  const replacements = await replacementInputs(execution, delivered);
   const content = { version: 1 as const, executionId, primaryRepository, inputs: replacements.inputs, ...(ticketInputs ? { ticketInputs } : {}) };
   const manifest: TaskInputManifest = { ...content, hash: createHash('sha256').update(JSON.stringify(content)).digest('hex') };
   const event = await prisma.$transaction(async tx => {
