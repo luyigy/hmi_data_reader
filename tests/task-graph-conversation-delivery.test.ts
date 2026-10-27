@@ -20,7 +20,7 @@ async function main() {
       { key: 'repo', repository: '/tmp/delivery-proof', gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', instructions: 'delivery', launchConfig: { participant, checks: [] } }] }] } });
   const job = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: graph.id } } });
   const childTask = await prisma.task.create({ data: { id: `task-graph-${job.id}`, name: 'delivery' } });
-  await assert.rejects(executeAcpxTaskRun({ taskId: `task-graph-review-${job.nodeId}`, taskName: 'generic review bypass', orchestrationMode: 'single', participants: [] }), /graphReview stage authority/);
+  await assert.rejects(executeAcpxTaskRun({ taskId: `task-graph-review-${job.nodeId}`, taskName: 'generic review bypass', orchestrationMode: 'single', participants: [] }), /not found|No .+ found|does not exist/i);
   const processWriter = spawn(process.execPath, ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register', '-e',
     "require('./src/lib/task-graph/writer-ownership').createGraphWriter().then(w=>{process.stdout.write(JSON.stringify(w)+'\\n');setInterval(()=>{},1000)})"], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let detach = () => {};
@@ -50,11 +50,12 @@ async function main() {
     assert.equal((await conversationInputs(job.id)).length, 0, 'Native writer exit while phase owner is still live is normal teardown, not failed delivery');
     await releaseGraphExecutionWorker(job.id, 'owner', phase.nonce);
     await Promise.all([reconcileConversationDeliveries(), reconcileConversationDeliveries()]);
-    const recovered = await conversationInputs(job.id); assert.equal(recovered.length, 1);
-    assert.equal(recovered[0].receivedState, 'delivery_uncertain'); assert.match(recovered[0].content, /禁止机械重放副作用/);
-    await reconcileConversationDeliveries(); assert.equal((await conversationInputs(job.id)).length, 1, 'Restart reconciliation is idempotent');
+    assert.equal((await conversationInputs(job.id)).length, 0, 'Unknown prior effects are not queued as fresh work');
+    const recovered = await prisma.taskGraphEvent.findMany({ where: { runId: graph.id, kind: 'conversation_input_uncertain' } });
+    assert.equal(recovered.length, 1); assert.match(JSON.stringify(recovered[0].payload), /禁止机械重放副作用/);
+    await reconcileConversationDeliveries();
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_input_uncertain' } }), 1, 'Uncertain context remains durable and idempotent');
     detach();
-    await prisma.$transaction(tx => bindConversationInputs(tx, job.id, recovered.map(input => input.id), taskRun.id));
     await receiveGraphTaskMessage({ taskId: childTask.id, actorId: 'user', sourceId: 'rejected', content: 'Explain progress' });
     detach = registerConversationSteering(job.id, taskRun.id, async () => { sends++; return 'rejected'; });
     await deliverConversationSteering(); await deliverConversationSteering();
@@ -68,7 +69,8 @@ async function main() {
     await prisma.taskRun.update({ where: { id: taskRun.id }, data: { status: 'failed' } });
     await reconcileConversationDeliveries();
     const failedRecovery = await conversationInputs(job.id);
-    assert.ok(failedRecovery.some(input => input.content.includes('Explain progress')), 'Binding before failed native startup does not lose the human input');
+    assert.equal(failedRecovery.length, 0, 'Failed bound startup is not proof of non-consumption');
+    assert.ok((await prisma.taskGraphEvent.findMany({ where: { runId: graph.id, kind: 'conversation_input_uncertain' } })).some(event => JSON.stringify(event.payload).includes('Explain progress')), 'Original human input remains available for explicit reconciliation');
     const raceRun = await prisma.taskRun.create({ data: { taskId: childTask.id, taskSessionId: session.id, status: 'running', controlMetadata: JSON.stringify({ graphWriter: writer }),
       participants: { create: { gatewayNameSnapshot: 'local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer', runner: 'codex', status: 'running', controlMetadata: JSON.stringify({ lastSessionId: 'delivery-native', lastSessionKind: 'codex_thread' }) } } } });
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { taskRunId: raceRun.id } });

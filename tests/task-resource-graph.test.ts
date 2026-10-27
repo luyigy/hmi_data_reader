@@ -64,7 +64,7 @@ async function main() {
     await args.context.onSessionStarted?.({ sessionId: session, sessionKind: 'codex_thread', threadId: session });
     if (review) {
       reviewCalls.push({ kind: resume ? 'resume' : 'execute', cwd: args.context.workingDirectory, session: resume ? args.sessionId : undefined });
-      const candidate = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { key: 'A' } } });
+      const candidate = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { key: 'A', runId: graph.id } } });
       if (!resume) {
         reviewCandidate = candidate.commit!;
         firstReviewCwd = args.context.workingDirectory;

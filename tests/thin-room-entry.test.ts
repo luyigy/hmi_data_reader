@@ -22,8 +22,15 @@ async function until(predicate: () => boolean | Promise<boolean>) {
   for (let i = 0; i < 1000; i++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 20)); }
   throw new Error('Timed out awaiting fixture boundary');
 }
-async function main() {
+export async function normalRoomEntryRegression(options: { slowWriter?: boolean } = {}) {
   assert.match(new URL(process.env.DATABASE_URL!).searchParams.get('schema')!, /^task_graph_test_/);
+  const writerModule = require('../src/lib/task-graph/writer-ownership');
+  const savedObserve = writerModule.observeTaskRunWriter;
+  let delayOnce = options.slowWriter;
+  writerModule.observeTaskRunWriter = async (...args: unknown[]) => {
+    if (delayOnce) { delayOnce = false; await new Promise(resolve => setTimeout(resolve, 5200)); }
+    return savedObserve(...args);
+  };
   const root = mkdtempSync(path.join(tmpdir(), 'thin-room-'));
   process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'runtime');
   process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
@@ -35,15 +42,18 @@ async function main() {
   const saved = { execute: adapter.execute, resume: adapter.resume };
   const calls: Array<{ task: string; session?: string; directory?: string; mode?: string }> = [];
   let expireNative = false;
+  let failNative = false;
   let hold: (() => Promise<void>) | undefined;
   adapter.execute = async args => {
     calls.push({ task: args.task.id, directory: args.context.workingDirectory, mode: args.context.permissionConfig?.sandboxMode });
     const child = spawn(process.execPath, ['-e', 'process.exit(0)'], { env: { ...process.env, ...args.context.taskEnvironment }, stdio: 'ignore' });
     args.context.onSpawn?.(child); await once(child, 'exit');
     if (hold) await hold();
+    if (failNative) throw new Error('permanent-native-failure');
     return { success: true, output: '普通聊天回复，没有正式交付。', sessionId: `native-${args.task.id}`, sessionKind: 'codex_thread', executionTime: 1 };
   };
   adapter.resume = async args => { if (expireNative) { expireNative = false; return { success: false, output: '', error: 'thread not found', executionTime: 1 }; } const result = await adapter.execute(args); calls[calls.length - 1].session = args.sessionId; return result; };
+  const fixtureTasks: string[] = [], fixtureRooms: string[] = [], fixtureGraphs: string[] = [];
   try {
     for (const project of ['alpha', 'beta']) {
       const directory = path.join(root, project);
@@ -53,15 +63,19 @@ async function main() {
       const auxiliary = path.join(root, project + '-aux');
       execFileSync('git', ['clone', directory, auxiliary], { stdio: 'pipe' });
       const parent = await prisma.task.create({ data: { name: project } });
+      fixtureTasks.push(parent.id);
       const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', agentId: 'codex', role: 'implementer' };
       const graph = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
         specRef: 'test://thin-room', nodes: [{ key: 'T', goal: project, dependsOn: [], acceptance: { mode: 'agent', checks: ['fixture'], reviewerId: 'local:codex', reviewLaunchConfig: { participant: { ...participant, role: 'tester' } } },
           executions: [{ key: 'repo', repository: directory, gitRef: 'refs/heads/main', baseCommit: git('rev-parse', 'HEAD'), agentSelector: 'local:codex', instructions: 'fixture', launchConfig: { participant } }, { key: 'aux', repository: auxiliary, gitRef: 'refs/heads/main', baseCommit: git('rev-parse', 'HEAD'), agentSelector: 'local:codex', instructions: 'auxiliary', launchConfig: { participant } }] }] } });
+      fixtureGraphs.push(graph.id);
       const job = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: graph.id }, key: 'repo' } });
       const permission = buildAcpxPermissionConfigForProfile('dev_local', [directory]);
       const child = await prisma.task.create({ data: { id: `task-graph-${job.id}`, name: project, workingDirectory: directory, acpxPermissionConfig: JSON.stringify(permission) } });
+      fixtureTasks.push(child.id);
       await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { childTaskId: child.id, worktreePath: directory, dispatchMetadata: { progress: initialExecutionProgress() } } });
       const room = await prisma.liveRoom.create({ data: { title: project, sourceTaskId: child.id } });
+      fixtureRooms.push(room.id);
       const members = await ensureGraphRoomParticipants(room.id, job.id);
       const target = members.find(m => m.role === 'implementer')!;
       const memberSession = await prisma.liveRoomMemberSession.create({ data: { roomId: room.id, memberId: target.id, status: 'active', backend: 'platform_local', sessionKey: room.id } });
@@ -81,11 +95,24 @@ async function main() {
         if (before > projectStart) assert.equal(calls.at(-1)?.session, `native-${child.id}`);
       }
       assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_reserved' } }), 0);
+      // A failed ordinary turn never revives graph retry budgets or mutates the saved candidate.
+      const graphBeforeFailure = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+      const failedMessage = await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: '继续核对' } });
+      const failureRoom = await prisma.liveRoom.findUniqueOrThrow({ where: { id: room.id }, include: { members: { include: { gateway: true, agentRecord: true } } } });
+      failNative = true;
+      const beforeFailure = calls.length;
+      try {
+        await assert.rejects(executeLiveRoomReplyViaAcpx({ room: failureRoom, sourceMessage: failedMessage, targetMember: failureRoom.members.find(m => m.id === target.id)!, session: memberSession }), /permanent-native-failure/);
+      } finally { failNative = false; }
+      assert.equal(calls.length, beforeFailure + 1, 'Permanent failure does not open an autonomous retry loop');
+      assert.deepEqual(await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } }), graphBeforeFailure, 'Ordinary failure retains candidate, claim, revision, evidence and budgets');
+
       // Replying to an older review card preserves that participant and its directory.
       const reviewer = members.find(m => m.role === 'tester')!;
       const reviewDirectory = path.join(root, project + '-review'); mkdirSync(reviewDirectory);
       const review = await prisma.task.create({ data: { id: `task-graph-review-${job.nodeId}`, name: 'review', workingDirectory: reviewDirectory,
         acpxPermissionConfig: JSON.stringify(buildAcpxPermissionConfigForProfile('dev_local', [reviewDirectory])) } });
+      fixtureTasks.push(review.id);
       const reviewSession = await prisma.taskSession.create({ data: { taskId: review.id } });
       const writer = await createGraphWriter();
       const candidates = (await prisma.taskGraphExecution.findMany({ where: { nodeId: job.nodeId } })).map(item => ({ id: item.id, commit: git('rev-parse', 'HEAD') }));
@@ -187,6 +214,6 @@ async function main() {
       console.log(`${project}: card/native identity, new session, completed-but-live writer, cross-session mutex, automatic claim defer passed`);
       console.log(`${project}: implement/acceptance/exhausted/completed use normal writable runtime`);
     }
-  } finally { adapter.execute = saved.execute; adapter.resume = saved.resume; await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
+  } finally { writerModule.observeTaskRunWriter = savedObserve; adapter.execute = saved.execute; adapter.resume = saved.resume; await prisma.liveRoom.deleteMany({ where: { id: { in: fixtureRooms } } }); await prisma.taskGraphRun.deleteMany({ where: { id: { in: fixtureGraphs } } }); await prisma.task.deleteMany({ where: { id: { in: fixtureTasks } } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) normalRoomEntryRegression().catch(error => { console.error(error); process.exitCode = 1; });

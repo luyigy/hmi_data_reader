@@ -55,6 +55,8 @@ async function main() {
   adapter.resume = async args => adapter.execute(args);
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', agentId: 'codex', role: 'implementer' };
   const parent = await prisma.task.create({ data: { name: 'result boundary' } });
+  const fixtureRooms: string[] = [];
+  const fixtureParents = [parent.id];
   const graph = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
     deliveryContract: 'agent_owned_v1', specRef: 'test://room-results', nodes: ['A', 'B'].map(key => ({ key, goal: key, dependsOn: key === 'B' ? ['A'] : [], executionMode: 'lean',
       acceptance: { mode: 'automatic', checks: ['behavior'] }, executions: [{ key: 'repo', repository, gitRef: 'refs/heads/main', baseCommit: baseline,
@@ -84,6 +86,7 @@ async function main() {
     assert.match(git(job.worktreePath, 'status', '--porcelain'), /uncommitted.txt/);
     assert.equal(calls, 1);
     const room = await prisma.liveRoom.create({ data: { title: 'A results', sourceTaskId: job.childTaskId } });
+    fixtureRooms.push(room.id);
     await ensureGraphRoomParticipants(room.id, job.id);
     await prisma.feishuConversationBinding.create({ data: { liveRoomId: room.id, appId: 'fixture', chatId: 'results', scopeKey: room.id,
       chatType: 'group', threadId: 'thread', rootMessageId: 'root' } });
@@ -160,6 +163,7 @@ async function main() {
     commitRoom = false;
     const handover = await prisma.task.create({ data: { name: 'registered handover', workingDirectory: repository } });
     const handoverRoom = await prisma.liveRoom.create({ data: { title: 'handover', sourceTaskId: handover.id } });
+    fixtureRooms.push(handoverRoom.id);
     const source = await prisma.liveRoomMessage.create({ data: { roomId: handoverRoom.id, messageType: 'user', content: 'fixture' } });
     await prisma.workflowDispatch.create({ data: { projectId: 'fixture', jobId: 'watcher', eventKey: source.id, roomId: handoverRoom.id, messageId: source.id, state: 'reply_queued' } });
     assert.deepEqual(await resolveCompletionOwner(handover.id), { kind: 'handover', projectId: 'fixture', jobId: 'watcher' });
@@ -172,6 +176,7 @@ async function main() {
     assert.deepEqual(wakeups, [handover.id]);
     output = 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"automatic delivery","evidence":["artifact.txt"]}';
     const automaticParent = await prisma.task.create({ data: { name: 'automatic formal result' } });
+    fixtureParents.push(automaticParent.id);
     const automaticGraph = await createTaskGraphRun({ parentTaskId: automaticParent.id, version: 1, requestKey: automaticParent.id, definition: {
       specRef: 'test://automatic-results', nodes: ['C', 'D'].map(key => ({ key, goal: key, dependsOn: key === 'D' ? ['C'] : [], executionMode: 'implement',
         acceptance: { mode: 'automatic', checks: ['behavior'] }, executions: [{ key: 'repo', repository, gitRef: 'refs/heads/main', baseCommit: baseline,
@@ -190,6 +195,7 @@ async function main() {
     const reviewRepository = path.join(root, 'review-aux');
     git(root, 'clone', repository, reviewRepository);
     const reviewParent = await prisma.task.create({ data: { name: 'room reviewer publication' } });
+    fixtureParents.push(reviewParent.id);
     const reviewGraph = await createTaskGraphRun({ parentTaskId: reviewParent.id, version: 1, requestKey: reviewParent.id, definition: {
       deliveryContract: 'agent_owned_v1', specRef: 'test://room-review', nodes: ['R', 'S'].map(key => ({ key, goal: key, dependsOn: key === 'S' ? ['R'] : [], executionMode: key === 'R' ? 'lean' : 'implement',
         acceptance: key === 'R' ? { mode: 'agent', checks: ['behavior'], reviewerId: 'local:codex', reviewLaunchConfig: { participant: { ...participant, role: 'tester' } } } : { mode: 'automatic', checks: ['behavior'] },
@@ -201,6 +207,7 @@ async function main() {
     const reviewTurn = await prisma.taskRun.findFirstOrThrow({ where: { taskId: reviewTaskId }, orderBy: { createdAt: 'desc' } });
     assert.equal(await prisma.taskRun.count({ where: { taskId: reviewTaskId } }), 1, 'An ordinary reviewer reply must not start a result recollection');
     const reviewRoom = await prisma.liveRoom.create({ data: { title: 'review room', sourceTaskId: reviewJob.childTaskId } });
+    fixtureRooms.push(reviewRoom.id);
     await ensureGraphRoomParticipants(reviewRoom.id, reviewJob.id);
     const reviewBinding = await prisma.feishuConversationBinding.create({ data: { liveRoomId: reviewRoom.id, appId: 'fixture', chatId: 'review-results', scopeKey: reviewRoom.id, chatType: 'group', threadId: 'review-thread', rootMessageId: 'review-root' } });
     await prisma.taskRunFeishuRelay.create({ data: { taskRunId: reviewTurn.id, bindingId: reviewBinding.id, messageId: 'review-card' } });
@@ -240,6 +247,7 @@ async function main() {
     reviewOutput = null;
     output = '普通回答，等待下一条工作指令';
     const humanParent = await prisma.task.create({ data: { name: 'room human gate' } });
+    fixtureParents.push(humanParent.id);
     const humanGraph = await createTaskGraphRun({ parentTaskId: humanParent.id, version: 1, requestKey: humanParent.id, definition: {
       deliveryContract: 'agent_owned_v1', specRef: 'test://room-human', nodes: ['H', 'I'].map(key => ({ key, goal: key, dependsOn: key === 'I' ? ['H'] : [], executionMode: key === 'H' ? 'lean' : 'implement',
         acceptance: key === 'H' ? { mode: 'human', checks: ['behavior'], reviewerId: 'fixture-human' } : { mode: 'automatic', checks: ['behavior'] },
@@ -247,6 +255,7 @@ async function main() {
     await runTaskGraphCycle(); await drain();
     const humanJob = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: humanGraph.id, key: 'H' } } });
     const humanRoom = await prisma.liveRoom.create({ data: { title: 'human gate', sourceTaskId: humanJob.childTaskId } });
+    fixtureRooms.push(humanRoom.id);
     await ensureGraphRoomParticipants(humanRoom.id, humanJob.id);
     await prisma.feishuConversationBinding.create({ data: { liveRoomId: humanRoom.id, appId: 'fixture', chatId: 'human-results', scopeKey: humanRoom.id, chatType: 'group', threadId: 'human-thread', rootMessageId: 'human-root' } });
     commitRoom = true;
@@ -267,6 +276,9 @@ async function main() {
     await prisma.workflowDispatch.create({ data: { projectId: 'fixture', jobId: 'watcher', eventKey: conflict.id, roomId: room.id, messageId: conflict.id, state: 'reply_queued' } });
     await assert.rejects(resolveCompletionOwner(job.childTaskId), /conflicting registered workflow owners/);
     console.log('Actual automatic and Feishu room entry: shared durable result intake, duplicate callback, immutable receipt, no ordinary commit/recollection, exclusive graph/handover routing and automatic C -> D delivery passed. Room A -> B self-verification, final committed source, concurrent duplicate publication and exhausted history preservation passed.');
-  } finally { await drain(); adapter.execute = original.execute; adapter.resume = original.resume; await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await drain(); adapter.execute = original.execute; adapter.resume = original.resume;
+    await prisma.liveRoom.deleteMany({ where: { id: { in: fixtureRooms } } });
+    await prisma.taskGraphRun.deleteMany({ where: { parentTaskId: { in: fixtureParents } } });
+    await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

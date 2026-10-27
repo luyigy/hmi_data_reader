@@ -15,7 +15,8 @@ export async function retryResourceApplication(id: string, revision: number, act
     if (['waiting', 'scheduled'].includes(approval.payload.application.state)) return approval;
     if (approval.payload.application.state !== 'failed') throw new Error('当前无需重试');
     const { launch, application } = approval.payload;
-    if (launch.graphConversation || (launch.graphExecution || launch.graphReview) && (application.runId || application.eventId)) throw new Error('授权仍然有效，请在原任务卡处理执行恢复');
+    if (launch.graphConversation) throw new Error('旧问答启动已退出；授权仍保留，请在原聊天室继续工作');
+    if ((launch.graphExecution || launch.graphReview) && (application.runId || application.eventId)) throw new Error('授权仍然有效，请在原任务卡处理执行恢复');
     if (launch.graphExecution || launch.graphReview) {
       const node = launch.graphReview
         ? await tx.taskGraphNode.findUniqueOrThrow({ where: { id: launch.graphReview.nodeId }, include: { executions: true } })

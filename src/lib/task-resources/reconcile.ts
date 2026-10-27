@@ -78,7 +78,7 @@ async function reconcileOne(id: string) {
       await publish(id);
       return;
     }
-    if (launch.graphConversation) throw new Error('只读问答的资源申请须通过原任务调度恢复');
+    if (launch.graphConversation) throw new Error('旧问答启动已退出；授权仍保留，请在原聊天室继续工作');
     const result = await executeAcpxTaskRun(launch);
     const current = await getResourceApproval(id);
     if (current.status !== 'approved') return;

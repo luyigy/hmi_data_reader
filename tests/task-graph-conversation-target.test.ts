@@ -6,9 +6,10 @@ import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { createGraphWriter, releaseTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
-import { reserveConversationFollowup, startConversationFollowups } from '../src/lib/task-graph/conversation-followup';
+import { assertWorkspaceWriterAvailable, lockWriterAdmission } from '../src/lib/task-graph/writer-admission';
+import { executeLiveRoomReplyViaAcpx } from '../src/lib/live-room-delivery-execution';
+import { buildAcpxPermissionConfigForProfile } from '../src/lib/acpx/permissions';
 import assert from 'node:assert/strict';
-import { m06ConversationRegression } from './task-graph-m06-conversation.fixture';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { ensureGraphRoomParticipants } from '../src/lib/task-graph/conversation-members';
@@ -28,6 +29,9 @@ async function main() {
   process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(directory, 'validation');
   const require = createRequire(__filename);
   require('../src/lib/task-graph/feishu').postGraphChildProgress = async () => {};
+  require('../src/lib/scheduled-jobs/project-config').loadProjectsConfig = async () => ({ projects: [] });
+  require('../src/lib/feishu-live-room-relay').relayLiveRoomMessageToFeishu = async () => {};
+  require('../src/lib/live-room-progress').attachLiveRoomProgress = async () => ({ streamCallbacks: {}, dispose: async () => {} });
   const parent = await prisma.task.create({ data: { name: 'target isolation' } });
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', agentId: 'codex', role: 'implementer' };
   const graph = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
@@ -103,11 +107,14 @@ async function main() {
     await receiveGraphTaskMessage({ ...message, sourceId: 'followup-review', content: '解释刚才的验收结论' });
     const writer = await createGraphWriter();
     for (const run of [implementer, tester]) await prisma.taskRun.update({ where: { id: run.id }, data: { status: 'completed',
-      controlMetadata: JSON.stringify({ graphWriter: writer, reviewCandidates: [{ id: job.id, commit: commit }] }) } });
+      controlMetadata: JSON.stringify({ graphWriter: writer, ...(run.taskId === review.id ? { graphReview: { runId: graph.id, nodeId: job.nodeId, phase: 'acceptance', claimKey: 'fixture' } } : {}), reviewCandidates: [{ id: job.id, commit: commit }] }) } });
     await releaseTaskRunWriter(implementer.id, writer.nonce);
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { taskRunId: implementer.id } });
-    assert.equal(await reserveConversationFollowup(job.nodeId), null, 'An unreleased review writer blocks followup even after its status becomes completed');
+    await assert.rejects(prisma.$transaction(async tx => { await lockWriterAdmission(tx); await assertWorkspaceWriterAvailable(tx, { nodeId: job.nodeId, directory }); }), /writer/, 'Completed status alone cannot release a review writer');
     await releaseTaskRunWriter(tester.id, writer.nonce);
+    await prisma.taskRun.update({ where: { id: otherTester.id }, data: { status: 'completed', controlMetadata: JSON.stringify({ graphWriter: writer }) } });
+    await releaseTaskRunWriter(otherTester.id, writer.nonce);
+    await prisma.task.update({ where: { id: review.id }, data: { workingDirectory: directory, acpxPermissionConfig: JSON.stringify(buildAcpxPermissionConfigForProfile('dev_local', [directory])) } });
     const adapter = getHarnessAdapter('codex')!;
     const saved = { execute: adapter.execute, resume: adapter.resume };
     let turns = 0;
@@ -117,21 +124,19 @@ async function main() {
       assert.equal(args.sessionId, 'native-review');
       assert.equal(args.task.id, review.id);
       assert.equal(args.context.workingDirectory, directory);
-      assert.equal(args.context.permissionConfig?.sandboxMode, 'read-only');
+      assert.equal(args.context.permissionConfig?.sandboxMode, 'workspace-write');
       assert.match(args.continuationMessage, /解释刚才的验收结论/);
       const child = spawn(process.execPath, ['-e', 'process.exit(0)'], { env: { ...process.env, ...args.context.taskEnvironment }, stdio: 'ignore' });
       args.context.onSpawn?.(child); await once(child, 'exit');
-      const detach = args.context.streamCallbacks?.onSteeringReady?.(async (_id, text) => { assert.match(text, /补充一个问题/); return 'accepted'; });
-      await receiveGraphTaskMessage({ ...message, sourceId: 'followup-steering', content: '补充一个问题' });
-      await deliverConversationSteering(); detach?.();
       return { success: true, output: '这是原验收结论的解释。', sessionId: 'native-review', sessionKind: 'codex_thread', executionTime: 1 };
     };
     try {
-      const work = await startConversationFollowups(1);
-      assert.equal(work.length, 1);
-      await Promise.all(work.map(item => item.promise));
-      assert.equal(turns, 1, JSON.stringify(await prisma.taskGraphEvent.findMany({ where: { runId: graph.id, kind: 'conversation_followup_deferred' }, select: { payload: true } })));
-      assert.equal((await conversationInputs(job.id)).length, 0, 'Followup and its steering are consumed in the original reviewer session');
+      const source = await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: '解释刚才的验收结论', metadata: message.sourceMetadata } });
+      const loaded = await prisma.liveRoom.findUniqueOrThrow({ where: { id: room.id }, include: { members: { include: { gateway: true, agentRecord: true } } } });
+      const reviewer = loaded.members.find(member => member.role === 'tester')!;
+      const session = await prisma.liveRoomMemberSession.create({ data: { roomId: room.id, memberId: reviewer.id, backend: 'platform_local', sessionKey: reviewer.id } });
+      await executeLiveRoomReplyViaAcpx({ room: loaded, sourceMessage: source, targetMember: reviewer, session });
+      assert.equal(turns, 1);
       const last = await prisma.taskRun.findFirstOrThrow({ where: { taskId: review.id }, orderBy: { createdAt: 'desc' }, include: { participants: true } });
       assert.equal(last.status, 'completed');
       assert.equal(last.taskSessionId, tester.taskSessionId);
@@ -140,9 +145,8 @@ async function main() {
       const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
       assert.equal(current.status, 'integrated'); assert.equal(current.commit, commit);
       assert.doesNotMatch(JSON.stringify(current.dispatchMetadata), new RegExp('conversationOwnerRunId[^,]*' + last.id));
-      assert.equal((await startConversationFollowups(1)).length, 0, 'No fresh input means no repeat dispatch');
+      assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_reserved' } }), 0, 'Normal entry never creates a legacy reservation');
     } finally { adapter.execute = saved.execute; adapter.resume = saved.resume; }
-    await m06ConversationRegression();
     console.log('Same-model roles are distinct; quoted message stays bound to its original session across queueing and duplicate arrival');
   } finally {
     await prisma.taskGraphRun.delete({ where: { id: graph.id } });

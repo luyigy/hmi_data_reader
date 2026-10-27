@@ -83,7 +83,7 @@ for (const phase of ['architecture', 'acceptance'] satisfies ('architecture' | '
 const conversationAuthority: StageAuthority = { kind: 'conversation', taskRunId: 'task-run', executionId: 'execution', reservationId: 'reservation', candidateCommit: candidate };
 assert.throws(() => StageExecutionRequest.create({ authority: conversationAuthority, runtime, prompt }), /W001.*conversation/);
 const readonlyRuntime = structuredClone(runtime); readonlyRuntime.permissionConfig.sandboxMode = 'read-only';
-StageExecutionRequest.create({ authority: conversationAuthority, runtime: readonlyRuntime, prompt });
+assert.throws(() => StageExecutionRequest.create({ authority: conversationAuthority, runtime: readonlyRuntime, prompt }), /retired/);
 const ordinaryAuthority: StageAuthority = { ...authority, phase: 'implement' };
 const ordinaryRuntime = structuredClone(runtime);
 ordinaryRuntime.workingDirectory = '/repo/worktree'; ordinaryRuntime.workspaceRoot = '/repo/worktree';

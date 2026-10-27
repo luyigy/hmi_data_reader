@@ -89,9 +89,7 @@ function validate({ authority, runtime }: StageInput) {
       isolated = runtime.permissionConfig.sandboxMode !== 'read-only';
       break;
     case 'conversation':
-      text(authority.executionId); text(authority.reservationId); commit(authority.candidateCommit);
-      if (runtime.permissionConfig.sandboxMode !== 'read-only') reject('conversation source is writable');
-      break;
+      reject('legacy conversation authority is retired');
   }
   const writable = [...runtime.permissionConfig.writableRoots, ...runtime.extraWritableRoots,
     ...(runtime.permissionConfig.sandboxMode === 'workspace-write' ? [runtime.workspaceRoot || runtime.workingDirectory] : [])];

@@ -12,19 +12,6 @@ export async function bindPhaseReplyIdentity(tx: Prisma.TransactionClient, taskR
   await tx.taskRun.update({ where: { id: taskRunId }, data: { controlMetadata: JSON.stringify({ ...metadata, graphReplyIdentity: identity }) } });
 }
 
-/** Persist identity with input binding, before any native startup or card delivery. */
-export async function bindConversationReplyIdentity(tx: Prisma.TransactionClient, taskRunId: string, rootInputIds: string[]) {
-  if (!rootInputIds.length) return;
-  const run = await tx.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } });
-  const metadata = JSON.parse(run.controlMetadata || '{}');
-  if (!metadata.graphConversation) return;
-  const roots = Array.from(new Set(rootInputIds));
-  if (roots.length !== 1) throw new Error('A conversation turn must own exactly one source message');
-  const identity = conversationReplyIdentity(metadata.graphConversation.executionId, roots[0]);
-  if (metadata.graphReplyIdentity && metadata.graphReplyIdentity !== identity) throw new Error('Conversation reply identity already bound');
-  await tx.taskRun.update({ where: { id: taskRunId }, data: { controlMetadata: JSON.stringify({ ...metadata, graphReplyIdentity: identity }) } });
-}
-
 /** Caller holds the topic lock. Only the newest attempt can publish a shared turn card. */
 export async function conversationReplyOwner(tx: Prisma.TransactionClient, run: TaskRun, bindingId: string) {
   const identity = JSON.parse(run.controlMetadata || '{}').graphReplyIdentity;

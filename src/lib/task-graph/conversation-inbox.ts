@@ -1,8 +1,5 @@
 import { conversationTargetWasReset, assertGraphConversationRunSession } from './conversation-reset';
 import { implementationConversationInputs } from './conversation-routing';
-import { bindConversationReplyIdentity } from './conversation-reply-identity';
-import { isFeishuAdmin } from '../feishu-access-approval';
-import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { executionProgress, metadataWithProgress } from './execution-progress';
@@ -26,15 +23,12 @@ function parseInput(id: string, raw: Prisma.JsonValue): ConversationInput {
 }
 export const conversationReceiptKey = (id: string) => `conversation-input:${id}:delivery`;
 const unassignedInput = Prisma.sql`i.kind = 'conversation_input'
+  AND COALESCE(i.payload->>'receivedState', '') <> 'delivery_uncertain'
+  AND (i.payload->>'rootInputId' IS NULL OR i.payload->>'rootInputId' = i.id)
   AND EXISTS (SELECT 1 FROM "TaskGraphRun" g WHERE g.id = i."runId" AND g.status <> 'paused')
   AND NOT EXISTS (SELECT 1 FROM "TaskGraphEvent" r WHERE r."runId" = i."runId" AND r."idempotencyKey" = 'conversation-input:' || i.id || ':delivery')
   AND NOT EXISTS (SELECT 1 FROM "TaskGraphEvent" s WHERE s."runId" = i."runId" AND s."idempotencyKey" = 'conversation-input:' || i.id || ':delivery:steering'
     AND NOT EXISTS (SELECT 1 FROM "TaskGraphEvent" r WHERE r."runId" = s."runId" AND r."idempotencyKey" = s."idempotencyKey" || ':result' AND r.payload->>'result' = 'rejected'))`;
-
-export async function pendingConversationNodes() {
-  return prisma.$queryRaw<{ nodeId: string }[]>(Prisma.sql`SELECT i."nodeId" FROM "TaskGraphEvent" i
-    WHERE ${unassignedInput} AND i."nodeId" IS NOT NULL GROUP BY i."nodeId" ORDER BY min(i."createdAt") LIMIT 50`);
-}
 
 export async function conversationInputsByIds(tx: Prisma.TransactionClient, runId: string, executionId: string, ids: string[]) {
   const inputs = await tx.taskGraphEvent.findMany({ where: { id: { in: ids }, runId, kind: 'conversation_input',
@@ -109,7 +103,6 @@ export async function bindConversationInputs(tx: Prisma.TransactionClient, execu
   const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
   await assertGraphConversationRunSession(tx, job, taskRunId);
   const pending = await pendingConversationInputs(tx, job.node.runId, job.id);
-  await bindConversationReplyIdentity(tx, taskRunId, pending.filter(input => inputIds.includes(input.id)).map(input => input.rootInputId));
   for (const id of inputIds) {
     if (!pending.some(input => input.id === id)) throw new Error('Conversation input already claimed or belongs to another task');
     await assertConversationTargetRun(tx, pending.find(input => input.id === id)!.target, taskRunId);
@@ -152,8 +145,8 @@ export async function recoverConversationInputs(tx: Prisma.TransactionClient, ex
     const input = parseInput(original.id, original.payload);
     const key = `conversation-recovery:${original.id}:${taskRunId}`;
     await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: key } }, update: {}, create: {
-      runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input', idempotencyKey: key,
-      payload: { ...input, sourceId: key, content: `上轮写入者已确认退出，但未保存处理结果，消息投递可能已经发生。先核对原会话和工作区已执行的操作，不要重复产生副作用。原消息：\n${input.content}`, receivedState: 'delivery_uncertain' } } });
+      runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input_uncertain', idempotencyKey: key,
+      payload: { ...input, sourceId: input.sourceId, content: `上轮写入者已确认退出，但未保存处理结果，消息投递可能已经发生。先核对原会话和工作区已执行的操作，不要重复产生副作用。原消息：\n${input.content}`, receivedState: 'delivery_uncertain' } } });
   }
 }
 
@@ -193,8 +186,8 @@ export async function reconcileConversationDeliveries() {
         const input = parseInput(original.id, original.payload);
         const key = `conversation-recovery:${original.id}:${run.id}`;
         await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: receipt.runId, idempotencyKey: key } }, update: {}, create: {
-          runId: receipt.runId, nodeId: receipt.nodeId, kind: 'conversation_input', idempotencyKey: key,
-          payload: { ...input, sourceId: key, receivedState: 'delivery_uncertain',
+          runId: receipt.runId, nodeId: receipt.nodeId, kind: 'conversation_input_uncertain', idempotencyKey: key,
+          payload: { ...input, sourceId: input.sourceId, receivedState: 'delivery_uncertain',
             content: `上轮消息处理结果未知，原写入者已确认退出。此轮先在原生会话和工作区核对消息是否已执行，再处理尚未完成的部分；禁止机械重放副作用。原消息：\n${input.content}` } } });
       }
       if (receipt.kind === 'conversation_steering_started' && !steeringResult) await tx.taskGraphEvent.create({ data: {
@@ -210,19 +203,6 @@ export function conversationPrompt(inputs: ConversationInput[]) {
   return inputs.length ? '\n原任务话题的新消息，按顺序处理。\n' +
     inputs.map(input => JSON.stringify({ id: input.id, actor: input.actorId, content: input.content,
       receivedPhase: input.receivedPhase, receivedState: input.receivedState, sourceMetadata: input.sourceMetadata })).join('\n') : '';
-}
-
-export async function conversationHistoryPrompt(executionId: string, current: ConversationInput[]) {
-  const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
-  const events = await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input',
-    payload: { path: ['executionId'], equals: executionId } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 50 });
-  const currentIds = new Set(current.map(input => input.id));
-  const previous = events.map(event => parseInput(event.id, event.payload)).filter(input => !currentIds.has(input.id) &&
-    conversationTargetKey(input.target) === conversationTargetKey(current[0]?.target)).reverse();
-  if (!previous.length) return '';
-  return '\n本任务已处理的历史输入，可在接续时按 id 引用；无需要求用户重发。\n' +
-    previous.map(input => JSON.stringify({ id: input.id, history: true, actor: input.actorId, content: input.content,
-      receivedPhase: input.receivedPhase, receivedState: input.receivedState, sourceMetadata: input.sourceMetadata })).join('\n').slice(-20_000);
 }
 
 export async function conversationInputs(executionId: string, implementationOnly = false) {
@@ -275,31 +255,6 @@ export async function authorizedConversationInput(input: ConversationInput, task
   return !!metadata && typeof metadata === 'object' && 'source' in metadata && metadata.source === 'feishu' &&
     'feishuSenderOpenId' in metadata && metadata.feishuSenderOpenId === input.actorId &&
     'feishuMessageId' in metadata && input.sourceId === `feishu:${metadata.feishuMessageId}`;
-}
-
-/** Model handoff retains the owner/admin requirement; ordinary replies use their own input boundary. */
-export async function authorizedMaterialHandoffInput(input: ConversationInput, taskId: string, ownerUserId: string | null, db: Prisma.TransactionClient = prisma) {
-  if (!await authorizedConversationInput(input, taskId, ownerUserId, db)) return false;
-  if (input.rootInputId !== input.id) {
-    const original = await db.taskGraphEvent.findFirst({ where: { id: input.rootInputId, kind: 'conversation_input', payload: { path: ['executionId'], equals: input.executionId } } });
-    if (!original) return false;
-    input = parseInput(original.id, original.payload);
-  }
-  if (input.actorOrigin === 'platform') return true;
-  if (input.actorOrigin !== 'feishu') return false;
-  let metadata: unknown;
-  try { metadata = JSON.parse(input.sourceMetadata || 'null'); } catch { return false; }
-  const chat = metadata && typeof metadata === 'object' && 'feishuChatId' in metadata && typeof metadata.feishuChatId === 'string' ? metadata.feishuChatId :
-    (await db.feishuConversationBinding.findFirst({ where: { liveRoom: { sourceTaskId: taskId }, chatType: 'group' }, select: { chatId: true } }))?.chatId;
-  return isFeishuAdmin(input.actorId) || !!chat && await isFeishuGroupAdmin(chat, input.actorId);
-}
-
-/** A model can hand back only its own material conversation; admission checks the reservation. */
-export async function handoffConversationMaterials(args: { executionId: string; reservationId: string; expectedRevision: number }) {
-  const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
-  const { admitNode } = await import('./preparation-recovery');
-  return admitNode(job.nodeId, { source: 'materials', id: `conversation-material-handoff:${args.reservationId}`,
-    executionIds: [job.id], reservationId: args.reservationId, expectedRevision: args.expectedRevision });
 }
 
 const steering = new Map<string, { executionId: string; taskRunId: string; send: HarnessSteer }>();

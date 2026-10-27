@@ -91,7 +91,7 @@ export function diagnoseExecution(args: {
   if (args.dependencies.state !== 'verified') return classify('waiting_dependencies', '等待列出的前置节点完成；不作为本节点自身失败。', 'planned → ready', sources.release);
   if (progress?.state === 'waiting_for_user') {
     result.owner = failure ? failure.requiresUserDecision ? 'user' : 'implementer' : 'unknown';
-    return classify('waiting_for_user', progress.waitingMessage || '在原话题回复，平台接回原会话。', '原话题新输入 → 原执行者下一轮', 'src/lib/task-graph/conversation-followup.ts#startConversationFollowups');
+    return classify('waiting_for_user', progress.waitingMessage || '在原话题回复，平台接回原会话。', '原话题新输入 → 原执行者下一轮', 'src/lib/live-room-delivery-execution.ts#executeLiveRoomReplyViaAcpx');
   }
   if (progress?.state === 'exhausted' || job.issueKind === 'retry_exhausted') return classify('budget_exhausted', '保留计数与现场；协调器核对条件变化、无进展退避及执行边界后接续已批准工作。', '条件变化或用户输入 → admitNode', sources.outcome,
     '当前保留历史重试耗尽事实；不能据此判断已批准工作失去继续资格。');

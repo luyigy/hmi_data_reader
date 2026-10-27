@@ -1,4 +1,3 @@
-import { conversationImplementationHold, implementationConversationInputs } from './conversation-routing';
 import { validateResourceAdmission, preserveResourceReviewRuntime } from '../task-resources/graph-admission';
 import { updateResourceApplication } from '../task-resources/access';
 import { approvedRuntimeUpgrade } from './approved-runtime-upgrade';
@@ -29,8 +28,6 @@ import { ensureJobWorktree } from './worktree';
 import { withRepositoryLock } from './repository-lock';
 import { maxUnchangedWorkTurns } from './retry-limits';
 import type { ExecutionPhase, ExecutionProgress } from './execution-progress';
-import { pendingConversationInputs, authorizedConversationInput, authorizedMaterialHandoffInput } from './conversation-inbox';
-import { currentWaitCause } from './waiting-cause';
 import { assertPreparationTx } from './preparation-contract';
 import { observeTaskRunWriter } from './writer-ownership';
 
@@ -71,12 +68,11 @@ async function approvedScopeChange(job: TaskGraphExecution) {
 
 function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeApproved = false, conversationFinished = false): string | undefined {
   if (progress.businessResult && ['conditions', 'resource_approval', 'prepared_review'].includes(wake.source)) return 'business_result_stopped';
-  if (wake.source === 'conversation') { const hold = conversationImplementationHold(progress); if (hold) return hold; }
   if (wake.source === 'conditions' && progress.lastFailure?.code === 'resource_application_failed') return 'resource_application_unresolved';
   if (wake.source === 'conditions' && progress.lastFailure?.code === 'agent_capability_missing') return 'agent_capability_unresolved';
   if (progress.state === 'ownership_attention' || progress.lastFailure?.code === 'ownership_mismatch') return 'ownership_unresolved';
   if (progress.conflictRepair || progress.lastFailure?.code === 'integration_conflict') return 'controlled_conflict_required';
-  if (progress.conversation && !conversationFinished && !(wake.source === 'materials' && progress.conversation.reservationId === wake.reservationId)) return 'conversation_writer_reserved';
+  if (progress.conversation && !conversationFinished) return 'conversation_writer_reserved';
   const scopeResolved = wake.source === 'conditions' && scopeApproved && ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '');
   if (wake.source === 'conditions' && !scopeResolved && (progress.lastFailure?.requiresUserDecision === true ||
       ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '') ||
@@ -173,6 +169,7 @@ async function deferAdmission(job: TaskGraphExecution, runId: string, progress: 
 
 /** One admission boundary; triggers describe work, never grant resources. Slow observations stay outside the transaction. */
 export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<AdmissionResult> {
+  if (wake.source === 'conversation' || wake.source === 'materials') return { kind: 'rejected', reason: 'legacy_conversation_admission_retired' };
   if (!wake.id.trim()) throw new PreparationRejected('Admission wake requires a durable identity');
   await discoverLegacyProgress(nodeId);
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: { orderBy: { id: 'asc' } }, run: { include: { parentTask: { select: { ownerUserId: true } } } } } });
@@ -234,30 +231,6 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
     const hold = admissionHold(progress, wake, resolvedScopes.has(job.id), finishedConversations.has(job.id));
     if (hold) { lastReason = hold; continue; }
     if (!['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) && !(job.status === 'integrated' && ['architecture', 'acceptance'].includes(progress.phase) && ['active', 'ready'].includes(progress.state))) { lastReason = 'not_waiting'; continue; }
-    if (wake.source === 'materials' && (progress.revision !== wake.expectedRevision || progress.conversation?.reservationId !== wake.reservationId)) { lastReason = 'material_reservation_changed'; continue; }
-    if (wake.source === 'materials') {
-      const reservation = await prisma.taskGraphEvent.findFirst({ where: { id: wake.reservationId, nodeId, runId: node.runId, kind: 'conversation_followup_reserved' } });
-      const payload = reservation?.payload;
-      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.executionId !== job.id ||
-          !Array.isArray(payload.inputIds) || !payload.inputIds.length || !payload.inputIds.every((id): id is string => typeof id === 'string') || !job.childTaskId) {
-        lastReason = 'material_reservation_changed'; continue;
-      }
-      const { conversationInputsByIds } = await import('./conversation-inbox');
-      const inputs = await conversationInputsByIds(prisma, node.runId, job.id, payload.inputIds);
-      if (inputs.length !== payload.inputIds.length || !(await Promise.all(inputs.map(input => authorizedMaterialHandoffInput(input, job.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) {
-        lastReason = 'input_not_authorized'; continue;
-      }
-      const cause = await currentWaitCause(job, progress);
-      if (!cause) { lastReason = 'unknown_wait_cause'; continue; }
-      if (cause.requiresUserDecision || ['permission_required', 'scope_change'].includes(cause.code)) { lastReason = 'human_input_required'; continue; }
-    }
-    if (wake.source === 'conversation') {
-      const inputs = await implementationConversationInputs(prisma, job, await pendingConversationInputs(prisma, node.runId, job.id));
-      if (!inputs.length || inputs.map(input => input.id).join() !== wake.inputIds.join() || !job.childTaskId ||
-          !(await Promise.all(inputs.map(input => authorizedConversationInput(input, job.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) {
-        lastReason = 'input_not_authorized'; continue;
-      }
-    }
     const isReview = progress.phase === 'architecture' || progress.phase === 'acceptance';
     const reviewRunIds = isReview ? node.executions.flatMap(item => {
       const binding = executionProgress(item.dispatchMetadata)?.review; return binding?.kind === 'running' ? [binding.taskRunId] : [];
@@ -333,42 +306,17 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
           bound.expectedRevision !== entry.progress.revision || bound.candidateCommit !== entry.job.commit) throw new PreparationRejected('Stale prepared review identity');
     }
     if (prepared && wake.source === 'operator' && wake.preparedEventId) await assertPreparationTx(tx, node.runId, node.key, wake.preparedEventId, prepared);
-    const conversationEpochs = new Map<string, string>();
-    if (wake.source === 'conversation') {
-      const owner = await tx.task.findUniqueOrThrow({ where: { id: current.run.parentTaskId }, select: { ownerUserId: true } });
-      if (owner.ownerUserId !== node.run.parentTask.ownerUserId) return { kind: 'deferred', reason: 'input_owner_changed' };
-      const inputs = (await Promise.all(observations.map(async entry => implementationConversationInputs(tx, entry.job, await pendingConversationInputs(tx, node.runId, entry.job.id))))).flat();
-      for (const input of inputs) conversationEpochs.set(input.executionId, `conversation:${input.executionId}:${input.rootInputId}`);
-      if (inputs.map(input => input.id).join() !== wake.inputIds.join() ||
-          !(await Promise.all(inputs.map(input => authorizedConversationInput(input, observations.find(entry => entry.job.id === input.executionId)!.job.childTaskId!, owner.ownerUserId, tx)))).every(Boolean)) return { kind: 'deferred', reason: 'input_identity_changed' };
-    }
-    if (wake.source === 'materials') {
-      const owner = await tx.task.findUniqueOrThrow({ where: { id: current.run.parentTaskId }, select: { ownerUserId: true } });
-      if (owner.ownerUserId !== node.run.parentTask.ownerUserId) return { kind: 'deferred', reason: 'input_owner_changed' };
-      const reservation = await tx.taskGraphEvent.findUnique({ where: { id: wake.reservationId } });
-      const payload = reservation?.payload;
-      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Array.isArray(payload.inputIds) ||
-          !payload.inputIds.every((id): id is string => typeof id === 'string')) return { kind: 'deferred', reason: 'material_reservation_changed' };
-      const { conversationInputsByIds } = await import('./conversation-inbox');
-      for (const { job } of observations) {
-        const inputs = await conversationInputsByIds(tx, node.runId, job.id, payload.inputIds);
-        if (inputs.length !== payload.inputIds.length || !(await Promise.all(inputs.map(input => authorizedMaterialHandoffInput(input, job.childTaskId!, owner.ownerUserId, tx)))).every(Boolean)) return { kind: 'deferred', reason: 'input_identity_changed' };
-      }
-    }
     for (const entry of observations) {
       const { job, progress, exit, review } = entry;
       const phase: ExecutionPhase = progress.phase;
       await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
-        outcomeId: `admit:${wake.source}:${wake.id}:${progress.revision}`, outcome: { kind: 'admitted', requestId: conversationEpochs.get(job.id) || wake.id,
+        outcomeId: `admit:${wake.source}:${wake.id}:${progress.revision}`, outcome: { kind: 'admitted', requestId: wake.id,
           stage: review ? { kind: 'review', phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: `admit:${wake.id}` }
             : { kind: 'implementation', phase } } }, exit, job);
       await tx.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId, kind: 'execution_conditions_ready',
         idempotencyKey: entry.conditionKey, payload: { executionId: job.id, revision: progress.revision, candidateCommit: progress.candidateCommit,
           claimToken: job.claimToken, ...entry.conditions, writerExited: true } }], skipDuplicates: true });
-      if (wake.source === 'conversation') await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId, kind: 'conversation_turn_scheduled',
-        idempotencyKey: `conversation-turn:${job.id}:${progress.revision}`, payload: { executionId: job.id, inputIds: wake.inputIds,
-          previousClaimToken: job.claimToken, previousTaskRunId: job.taskRunId, expectedRevision: progress.revision, revision: progress.revision + 1,
-          candidateCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, worktreePath: job.worktreePath, writerExited: true } } });
+
     }
     const reviewing = observations.every(entry => entry.review);
     const otherWriter = current.executions.some(job => job.status === 'claimed');
@@ -381,15 +329,6 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
         checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId,
         previousClaimToken: job.claimToken, previousCommit: job.commit, previousEvidence: job.evidence, previousDispatch: job.dispatchMetadata })) } } });
     if (wake.source === 'resource_approval') await updateResourceApplication(wake.id, { state: 'scheduled', eventId: event.id }, tx);
-    const requests = await tx.taskGraphEvent.findMany({ where: { nodeId, kind: 'conversation_review_recovery_requested' }, select: { id: true } });
-    for (const request of requests) {
-      const key = `conversation:review-recovery:${request.id}:started`;
-      if (await tx.taskGraphEvent.count({ where: { runId: node.runId, idempotencyKey: key + ':finished' } })) continue;
-      await tx.taskGraphEvent.createMany({ data: [
-        { runId: node.runId, nodeId, kind: 'conversation_review_recovery_started', idempotencyKey: key, payload: { receiptId: event.id } },
-        { runId: node.runId, nodeId, kind: 'conversation_review_recovery_finished', idempotencyKey: key + ':finished', payload: { receiptId: event.id } },
-      ], skipDuplicates: true });
-    }
     if (wake.source === 'operator' && wake.preparedEventId) await tx.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId,
       kind: 'platform_preparation_consumed', idempotencyKey: `preparation-consumed:${wake.preparedEventId}`,
       payload: { preparationEventId: wake.preparedEventId, kind: 'scheduled', eventId: event.id } }], skipDuplicates: true });

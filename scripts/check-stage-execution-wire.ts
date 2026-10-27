@@ -8,7 +8,6 @@ const dispatch = 'src/lib/acpx/stage-harness-dispatch.ts';
 const prompt = 'src/lib/acpx/prompt.ts';
 const producers = new Map([
   ['src/lib/task-graph/coordinator.ts', 1],
-  ['src/lib/task-graph/conversation-followup.ts', 1],
   ['src/lib/task-graph/review-result.ts', 1],
 ]);
 function sources(directory = 'src/lib'): Map<string, string> {

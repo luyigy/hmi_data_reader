@@ -70,7 +70,7 @@ async function main() {
     try { const [code] = await once(graph, 'exit'); await Promise.all(pending); assert.equal(code, 0, graphLog); }
     finally { clearTimeout(deadline); }
     assert.equal(snapshots.length, 2);
-    const files = ['conversation-followup.ts', 'coordinator.ts', 'execution-progress.ts', 'review-recovery.ts', 'writer-snapshot.ts'];
+    const files = ['coordinator.ts', 'execution-progress.ts', 'review-recovery.ts', 'writer-snapshot.ts'];
     const sources = Object.fromEntries(await Promise.all(files.map(async file => [file, createHash('sha256').update(await fs.readFile(`src/lib/task-graph/${file}`)).digest('hex')])));
     const receipt = { isolated: true, host: '127.0.0.1', port, schema, health: true, unauthorizedStatus: 401, loginStatus: 200, snapshots, sourceSha256: sources, productionRestarted: false };
     if (process.env.AP_P0_SERVICE_RECEIPT) await fs.writeFile(process.env.AP_P0_SERVICE_RECEIPT, JSON.stringify(receipt, null, 2) + '\n');

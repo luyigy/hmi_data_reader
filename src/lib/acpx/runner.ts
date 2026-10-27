@@ -69,7 +69,6 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
         workingDirectory: request.workingDirectory || process.cwd(),
         ...(request.graphReview ? { graphReview: request.graphReview } : {}),
         ...(request.graphAssociation ? { graphAssociation: request.graphAssociation } : {}),
-        ...(request.graphConversation ? { graphConversation: request.graphConversation } : {}),
         permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
         permissionSupport: request.participants.map((participant) => ({
           participantKey: `${participant.executionBackend}:${participant.harnessType}:${participant.role}`,
@@ -128,7 +127,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
 
   request = { ...request, taskSessionId: taskSession.id };
   const graphExecution = request.graphExecution;
-  const conversationExecutions = graphExecution ? [graphExecution.executionId] : request.graphConversation ? [request.graphConversation.executionId]
+  const conversationExecutions = graphExecution ? [graphExecution.executionId]
     : request.graphReview ? (await prisma.taskGraphExecution.findMany({ where: { nodeId: request.graphReview.nodeId }, select: { id: true } })).map(job => job.id) : request.graphAssociation?.executionIds || [];
   const resourceExit = await resourceContinuationExit(request);
   const startRun = () => prisma.$transaction(async tx => {
@@ -144,7 +143,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${request.taskId} FOR UPDATE`;
     if (request.resourceContinuation && (await tx.task.findUniqueOrThrow({ where: { id: request.taskId } })).currentTaskSessionId !== taskSession.id) throw new Error('原任务 Session 已改变');
     await tx.$queryRaw`SELECT id FROM "TaskSession" WHERE id = ${taskSession.id} FOR UPDATE`;
-    if (!graphExecution && !request.graphReview && !request.graphConversation && await tx.taskRun.count({
+    if (!graphExecution && !request.graphReview && await tx.taskRun.count({
       where: { taskSessionId: taskSession.id, status: { in: ['pending', 'running', 'waiting_for_input'] } },
     })) throw new Error('Session already has an active run');
     await assertGraphResetComplete(tx, conversationExecutions, request.participants);
@@ -161,7 +160,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     await tx.taskRun.update({ where: { id: created.id }, data: { controlMetadata: stringifyJson({ ...JSON.parse(bound.controlMetadata || '{}'), completionOwner }) } });
     await reserveResourceContinuation(tx, request, created.id, resourceExit);
     return created;
-  });
+  }, { timeout: 25_000 });
 
   const waitForWriter = async () => {
     for (;;) {
@@ -344,8 +343,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     }
   }
 
-  const conversationExecution = graphExecution || request.graphConversation;
-  if (conversationExecution) await completeConversationTurn(conversationExecution.executionId, taskRun.id);
+  if (graphExecution) await completeConversationTurn(graphExecution.executionId, taskRun.id);
   return {
     taskRunId: taskRun.id,
     status: runStatus,

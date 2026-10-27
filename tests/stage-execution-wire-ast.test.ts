@@ -30,7 +30,6 @@ const fixture = new Map([
   `],
   [coordinator, `import {executeAcpxTaskRun, implementationConversation} from './boundary';
     implementationConversation(id, participant); executeAcpxTaskRun(request);`],
-  ['src/lib/task-graph/conversation-followup.ts', `import {executeAcpxTaskRun} from '../acpx/runner'; executeAcpxTaskRun(request);`],
   ['src/lib/task-graph/review-result.ts', `import {executeAcpxTaskRun} from '../acpx/runner'; executeAcpxTaskRun(request);`],
 ]);
 assert.deepEqual(checkStageExecutionWire(fixture), [], 'Representative registered AST topology must pass');

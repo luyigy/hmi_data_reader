@@ -23,7 +23,7 @@ export const withFeishuBotContactInstructions = (message: string) => `${message}
 - Include a unique marker, retain the message_id and read back mentions to verify the target. Establish a readable reply channel before sending; do not interrupt another event connection. Only a matching reply confirms a response; a Typing reaction or successful send does not mean the task completed.
 - After a timeout, check existing outputs and running operations before retrying; avoid duplicate execution. This protocol does not authorize unsolicited messages.`;
 
-export const isGraphStageRequest = (request: AcpxRunRequest) => Boolean(request.graphExecution || request.graphReview || request.graphConversation);
+export const isGraphStageRequest = (request: AcpxRunRequest) => Boolean(request.graphExecution || request.graphReview);
 
 export function harnessContinuationInput(request: AcpxRunRequest, participant: AcpxParticipantRequest, prepared: string,
   context?: { capabilityInstructions: string; longFileContext?: LongFileRuntimeContext | null }) {

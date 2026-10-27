@@ -1,5 +1,4 @@
 import { assertRoomResultAuthority } from './room-result-authority';
-import { inheritConversationReply } from './conversation-handoff-reply';
 import { bindPhaseReplyIdentity } from './conversation-reply-identity';
 import { observeTaskRunExit, taskRunExitMatches, type TaskRunExitProof } from './task-run-exit-proof';
 import { requireGraphNodeActiveTx } from './run-control';
@@ -392,9 +391,7 @@ export async function bindExecutionTaskRun(tx: Prisma.TransactionClient, args: {
   const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
   const progress = executionProgress(current.dispatchMetadata);
   if (!progress || progress.revision !== args.revision || current.status !== 'claimed' || current.claimToken !== args.claimToken || current.taskRunId) throw new Error('TaskRun execution binding is stale or occupied');
-  if (!await inheritConversationReply(tx, taskRunId, job.id, progress.replyEpoch)) {
-    await bindPhaseReplyIdentity(tx, taskRunId, { executionId: job.id, phase: 'implement', repair: progress.repairAttempts, epoch: progress.replyEpoch || null });
-  }
+  await bindPhaseReplyIdentity(tx, taskRunId, { executionId: job.id, phase: 'implement', repair: progress.repairAttempts, epoch: progress.replyEpoch || null });
   await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
     taskRunId, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, { ...progress, taskRunId, conversationOwnerRunId: taskRunId }),
   } });
