@@ -1,0 +1,56 @@
+{
+  "version": "1.0.1",
+  "ui_family": "YIZUMI",
+  "page": "injection_metering",
+  "profile_id": "yizumi.injection_metering.injection_holding_f2",
+  "page_version": "1",
+  "rule_version": "raw-f2.1",
+  "layout_variant": "injection_holding_f2",
+  "extractor": "registered_extractor",
+  "enabled": true,
+  "field_labels": {},
+  "enum_labels": {},
+  "stage_limits": {},
+  "description": "YIZUMI F2 射胶保压完整原屏声明40项；经原图及OCR验证的部分读数，启用状态未知，复选框未支持，不自动写入。",
+  "family_detect_groups": [
+    [
+      "射胶"
+    ],
+    [
+      "切保压"
+    ],
+    [
+      "位置模式"
+    ],
+    [
+      "保压"
+    ]
+  ],
+  "layout_anchors": [
+    "YIZUMI",
+    "射胶",
+    "切保压",
+    "位置模式",
+    "保压"
+  ],
+  "require_anchor_match": true,
+  "sample_ids": [
+    "development",
+    "retained"
+  ],
+  "business_profile_candidate": {},
+  "extractor_id": "yizumi.injection_holding_f2",
+  "extractor_version": "1",
+  "page_identity": {
+    "brand": "YIZUMI",
+    "controller_family": "YIZUMI",
+    "interface_generation": null,
+    "page_type": "injection_metering",
+    "layout_variant": "injection_holding_f2",
+    "evidence_sample_ids": [
+      "development",
+      "retained"
+    ]
+  },
+  "contract_version": "2.11.0"
+}

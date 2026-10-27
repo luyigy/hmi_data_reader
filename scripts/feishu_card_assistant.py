@@ -69,7 +69,7 @@ PAGE_NAME_MAP = {
 # 1. 单图端到端识别流水线
 # -----------------------------------------------------------------------------
 
-def run_ocr_for_image(img_path: Path) -> List[Dict[str, Any]]:
+def run_ocr_for_image(img_path: Path, use_angle_cls: bool = False) -> List[Dict[str, Any]]:
     """使用 paddleocr 执行单图 OCR 提取"""
     # 强制 CPU & 清代理
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -79,8 +79,8 @@ def run_ocr_for_image(img_path: Path) -> List[Dict[str, Any]]:
     try:
         from paddleocr import PaddleOCR
         # Rectified HMI cells are upright; angle classification can flip 90 into 06.
-        ocr = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
-        result = ocr.ocr(str(img_path), cls=False)
+        ocr = PaddleOCR(use_gpu=False, use_angle_cls=use_angle_cls, lang="ch", show_log=False)
+        result = ocr.ocr(str(img_path), cls=use_angle_cls)
         lines = []
         if result and result[0]:
             for line in result[0]:
@@ -128,6 +128,9 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
     # 使用矫正图（如果成功）或原图进行 OCR
     ocr_target_img = rect_img_path if rect_img_path.is_file() else img_path
     lines = run_ocr_for_image(ocr_target_img)
+    if find_ui_family(lines)[0] == "FANUC":
+        # FANUC callers were validated with angle classification; TACT5 keeps it off.
+        lines = run_ocr_for_image(ocr_target_img, use_angle_cls=True)
     ocr_data = {
         "filename": ocr_target_img.name,
         "path": str(ocr_target_img),

@@ -13,7 +13,7 @@ from extract_families.coordinates import project_boxes
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = "yizumi.injection_metering.injection_holding_f2"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 DEFINITION = "contracts/raw-pages/yizumi-injection-f2-1.0.0.json"
 FILES = ("scripts/raw_yizumi.py", "scripts/raw_contract.py", "scripts/raw_page.py",
          "scripts/extract_families/coordinates.py", DEFINITION)
@@ -143,6 +143,10 @@ def observe_yizumi_page(lines, meta, image_sha256, root=ROOT, version=VERSION):
         if any(stage not in config["stages"] for stage, _, _ in found):
             issues.append(dict(code="STAGE_ID_UNSUPPORTED", section=section))
         orders[section] = {stage: order for order, (stage, _, _) in enumerate(found, 1)}
+    row_centers = {}
+    for spec in definition["fields"]:
+        if spec.get("stage") is not None:
+            row_centers.setdefault(spec["section"], set()).add((spec["region"][1] + spec["region"][3]) / 2)
     fields = []
     for spec in definition["fields"]:
         region, reading, order = list(spec["region"]), None, spec.get("order")
@@ -158,6 +162,24 @@ def observe_yizumi_page(lines, meta, image_sha256, root=ROOT, version=VERSION):
         candidates = [(index, line, NUMBER.fullmatch(line["text"]))
                       for index, line in enumerate(lines) if _inside(line, mapped(region), size)
                       and NUMBER.fullmatch(line["text"])] if reading is None else []
+        row_bounds = None
+        if not candidates and reading is None and spec.get("stage") is not None:
+            centers = sorted(row_centers[spec["section"]])
+            center = (region[1] + region[3]) / 2
+            if len(centers) > 1:
+                position = centers.index(center)
+                previous = centers[position - 1] if position else 2 * center - centers[1]
+                following = centers[position + 1] if position + 1 < len(centers) else 2 * center - centers[-2]
+                cell = mapped([region[0], (previous + center) / 2, region[2], (center + following) / 2])
+                candidates = []
+                for index, line in enumerate(lines):
+                    box = _line_box(line)
+                    center_y = (box[1] + box[3]) / (2 * size[1])
+                    match = NUMBER.fullmatch(line["text"])
+                    if (match and _inside(line, cell, size)
+                            and not any(math.isclose(center_y, edge) for edge in (cell[1], cell[3]))):
+                        candidates.append((index, line, match))
+                row_bounds = cell
         chosen = candidates[0] if len(candidates) == 1 else None
         confidence = chosen[1].get("conf", chosen[1].get("confidence")) if chosen else None
         value = float(chosen[2][1]) if chosen else None
@@ -190,6 +212,8 @@ def observe_yizumi_page(lines, meta, image_sha256, root=ROOT, version=VERSION):
                      template_ref=dict(profile_id=PROFILE, version=version,
                                        sha256=package["raw_field_definition_sha256"],
                                        unit=spec["unit"] if unit is None else None, role=spec["role"]))
+        if row_bounds:
+            field["reasons"].append("ROW_CELL_MIDPOINT_BOUNDS:" + json.dumps(row_bounds))
         if len(candidates) > 1:
             field["candidates"] = [dict(text=line["text"], bbox=_line_box(line), line_index=index)
                                    for index, line, _ in candidates]

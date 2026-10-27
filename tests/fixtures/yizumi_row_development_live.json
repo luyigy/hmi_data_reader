@@ -1,0 +1,1285 @@
+{
+  "provenance": {
+    "reader_commit": "e9622681f765cbe0e1319696695f233f4c98c529",
+    "source": "real_cpu_ocr",
+    "reference_truth": "ai_visual_review",
+    "blind": false
+  },
+  "observations": {
+    "image_sha256": "a4c8615afdc328aa9e11bf8ade34258335532827defcdb3e9ffa727127e8f771",
+    "ocr_evidence": {
+      "coordinate_space": "rectified_pixels",
+      "screen_size": [
+        1566,
+        1172
+      ],
+      "lines": [
+        {
+          "text": "1PDP记录文件已满，请导出记录文",
+          "confidence": 0.9850996732711792,
+          "bbox": [
+            85.0,
+            15.0,
+            566.0,
+            48.0
+          ]
+        },
+        {
+          "text": "®",
+          "confidence": 0.5653814077377319,
+          "bbox": [
+            591.0,
+            18.0,
+            628.0,
+            45.0
+          ]
+        },
+        {
+          "text": "O",
+          "confidence": 0.5115113854408264,
+          "bbox": [
+            674.0,
+            17.0,
+            695.0,
+            42.0
+          ]
+        },
+        {
+          "text": "barlWp",
+          "confidence": 0.8179826140403748,
+          "bbox": [
+            730.0,
+            10.0,
+            842.0,
+            50.0
+          ]
+        },
+        {
+          "text": "0.0",
+          "confidence": 0.9935150146484375,
+          "bbox": [
+            863.0,
+            13.0,
+            910.0,
+            45.0
+          ]
+        },
+        {
+          "text": "bar",
+          "confidence": 0.9983425736427307,
+          "bbox": [
+            935.0,
+            15.0,
+            982.0,
+            48.0
+          ]
+        },
+        {
+          "text": "2026-10-20/20:23:45",
+          "confidence": 0.9865050315856934,
+          "bbox": [
+            1046.0,
+            15.0,
+            1328.0,
+            48.0
+          ]
+        },
+        {
+          "text": "YIZUMI",
+          "confidence": 0.8867451548576355,
+          "bbox": [
+            1385.0,
+            13.0,
+            1543.0,
+            53.0
+          ]
+        },
+        {
+          "text": "射胶",
+          "confidence": 0.9946336150169373,
+          "bbox": [
+            13.0,
+            72.0,
+            132.0,
+            120.0
+          ]
+        },
+        {
+          "text": "0",
+          "confidence": 0.8738541007041931,
+          "bbox": [
+            481.0,
+            80.0,
+            501.0,
+            105.0
+          ]
+        },
+        {
+          "text": "bar",
+          "confidence": 0.9965381622314453,
+          "bbox": [
+            542.0,
+            77.0,
+            597.0,
+            108.0
+          ]
+        },
+        {
+          "text": "%",
+          "confidence": 0.9952070116996765,
+          "bbox": [
+            750.0,
+            78.0,
+            781.0,
+            108.0
+          ]
+        },
+        {
+          "text": "0.0",
+          "confidence": 0.9939001202583313,
+          "bbox": [
+            863.0,
+            80.0,
+            905.0,
+            107.0
+          ]
+        },
+        {
+          "text": "mm=",
+          "confidence": 0.7591197490692139,
+          "bbox": [
+            930.0,
+            72.0,
+            1028.0,
+            113.0
+          ]
+        },
+        {
+          "text": "P",
+          "confidence": 0.8863468170166016,
+          "bbox": [
+            408.0,
+            82.0,
+            434.0,
+            105.0
+          ]
+        },
+        {
+          "text": "0.0",
+          "confidence": 0.994067370891571,
+          "bbox": [
+            1057.0,
+            77.0,
+            1106.0,
+            108.0
+          ]
+        },
+        {
+          "text": "mmm",
+          "confidence": 0.8010054230690002,
+          "bbox": [
+            1127.0,
+            71.0,
+            1227.0,
+            112.0
+          ]
+        },
+        {
+          "text": "80.3",
+          "confidence": 0.9977352619171143,
+          "bbox": [
+            1246.0,
+            77.0,
+            1308.0,
+            108.0
+          ]
+        },
+        {
+          "text": "mm",
+          "confidence": 0.9843540191650391,
+          "bbox": [
+            1325.0,
+            83.0,
+            1383.0,
+            108.0
+          ]
+        },
+        {
+          "text": "0.0",
+          "confidence": 0.9937508702278137,
+          "bbox": [
+            1440.0,
+            77.0,
+            1488.0,
+            108.0
+          ]
+        },
+        {
+          "text": "mm",
+          "confidence": 0.9951342344284058,
+          "bbox": [
+            1507.0,
+            85.0,
+            1561.0,
+            110.0
+          ]
+        },
+        {
+          "text": "射胶",
+          "confidence": 0.9991782903671265,
+          "bbox": [
+            10.0,
+            142.0,
+            75.0,
+            178.0
+          ]
+        },
+        {
+          "text": "段数",
+          "confidence": 0.9998283386230469,
+          "bbox": [
+            1362.0,
+            140.0,
+            1427.0,
+            176.0
+          ]
+        },
+        {
+          "text": "3",
+          "confidence": 0.9995130300521851,
+          "bbox": [
+            1473.0,
+            148.0,
+            1488.0,
+            168.0
+          ]
+        },
+        {
+          "text": "射胶",
+          "confidence": 0.9992789626121521,
+          "bbox": [
+            498.0,
+            196.0,
+            566.0,
+            241.0
+          ]
+        },
+        {
+          "text": "三段",
+          "confidence": 0.9998233914375305,
+          "bbox": [
+            1108.0,
+            198.0,
+            1174.0,
+            238.0
+          ]
+        },
+        {
+          "text": "射胶保护",
+          "confidence": 0.9988483190536499,
+          "bbox": [
+            3.0,
+            208.0,
+            121.0,
+            245.0
+          ]
+        },
+        {
+          "text": "1510",
+          "confidence": 0.8445233106613159,
+          "bbox": [
+            338.0,
+            208.0,
+            400.0,
+            238.0
+          ]
+        },
+        {
+          "text": "二段",
+          "confidence": 0.9999008774757385,
+          "bbox": [
+            1235.0,
+            200.0,
+            1300.0,
+            238.0
+          ]
+        },
+        {
+          "text": "一段",
+          "confidence": 0.9963409900665283,
+          "bbox": [
+            1362.0,
+            200.0,
+            1427.0,
+            236.0
+          ]
+        },
+        {
+          "text": "位置",
+          "confidence": 0.9983801245689392,
+          "bbox": [
+            498.0,
+            247.0,
+            567.0,
+            292.0
+          ]
+        },
+        {
+          "text": "23.0",
+          "confidence": 0.9978461861610413,
+          "bbox": [
+            1186.0,
+            253.0,
+            1251.0,
+            290.0
+          ]
+        },
+        {
+          "text": "0.22S",
+          "confidence": 0.8940902948379517,
+          "bbox": [
+            341.0,
+            263.0,
+            426.0,
+            293.0
+          ]
+        },
+        {
+          "text": "40.0",
+          "confidence": 0.9979771375656128,
+          "bbox": [
+            1316.0,
+            256.0,
+            1377.0,
+            288.0
+          ]
+        },
+        {
+          "text": "mm",
+          "confidence": 0.98960280418396,
+          "bbox": [
+            1463.0,
+            263.0,
+            1517.0,
+            288.0
+          ]
+        },
+        {
+          "text": "冷却时间",
+          "confidence": 0.9950940608978271,
+          "bbox": [
+            3.0,
+            315.0,
+            119.0,
+            350.0
+          ]
+        },
+        {
+          "text": "15.0S",
+          "confidence": 0.9227763414382935,
+          "bbox": [
+            340.0,
+            309.0,
+            430.0,
+            350.0
+          ]
+        },
+        {
+          "text": "压力",
+          "confidence": 0.9924074411392212,
+          "bbox": [
+            501.0,
+            306.0,
+            564.0,
+            345.0
+          ]
+        },
+        {
+          "text": "120.0",
+          "confidence": 0.9984800219535828,
+          "bbox": [
+            1121.0,
+            308.0,
+            1197.0,
+            340.0
+          ]
+        },
+        {
+          "text": "140.0",
+          "confidence": 0.9964949488639832,
+          "bbox": [
+            1248.0,
+            310.0,
+            1325.0,
+            341.0
+          ]
+        },
+        {
+          "text": "140.0",
+          "confidence": 0.9973717927932739,
+          "bbox": [
+            1373.0,
+            308.0,
+            1454.0,
+            343.0
+          ]
+        },
+        {
+          "text": "bar",
+          "confidence": 0.99697345495224,
+          "bbox": [
+            1460.0,
+            313.0,
+            1507.0,
+            340.0
+          ]
+        },
+        {
+          "text": "0.0s",
+          "confidence": 0.8920179605484009,
+          "bbox": [
+            357.0,
+            368.0,
+            427.0,
+            400.0
+          ]
+        },
+        {
+          "text": "速度",
+          "confidence": 0.9995333552360535,
+          "bbox": [
+            501.0,
+            360.0,
+            564.0,
+            398.0
+          ]
+        },
+        {
+          "text": "20",
+          "confidence": 0.9992434978485107,
+          "bbox": [
+            1124.0,
+            363.0,
+            1160.0,
+            393.0
+          ]
+        },
+        {
+          "text": "80",
+          "confidence": 0.9991803169250488,
+          "bbox": [
+            1248.0,
+            361.0,
+            1290.0,
+            395.0
+          ]
+        },
+        {
+          "text": "80",
+          "confidence": 0.9993035793304443,
+          "bbox": [
+            1377.0,
+            365.0,
+            1414.0,
+            393.0
+          ]
+        },
+        {
+          "text": "%",
+          "confidence": 0.9993891716003418,
+          "bbox": [
+            1458.0,
+            360.0,
+            1498.0,
+            396.0
+          ]
+        },
+        {
+          "text": "射胶终点",
+          "confidence": 0.9878802299499512,
+          "bbox": [
+            0.0,
+            416.0,
+            121.0,
+            457.0
+          ]
+        },
+        {
+          "text": "10.7",
+          "confidence": 0.9985182881355286,
+          "bbox": [
+            346.0,
+            421.0,
+            414.0,
+            453.0
+          ]
+        },
+        {
+          "text": "时间",
+          "confidence": 0.9992104768753052,
+          "bbox": [
+            499.0,
+            413.0,
+            566.0,
+            451.0
+          ]
+        },
+        {
+          "text": "0.00",
+          "confidence": 0.9974925518035889,
+          "bbox": [
+            1109.0,
+            416.0,
+            1173.0,
+            446.0
+          ]
+        },
+        {
+          "text": "0.00",
+          "confidence": 0.9955334067344666,
+          "bbox": [
+            1236.0,
+            416.0,
+            1298.0,
+            448.0
+          ]
+        },
+        {
+          "text": "0.22",
+          "confidence": 0.997547447681427,
+          "bbox": [
+            1364.0,
+            416.0,
+            1426.0,
+            446.0
+          ]
+        },
+        {
+          "text": "mm",
+          "confidence": 0.9877021908760071,
+          "bbox": [
+            405.0,
+            426.0,
+            465.0,
+            451.0
+          ]
+        },
+        {
+          "text": "S",
+          "confidence": 0.8078730702400208,
+          "bbox": [
+            1465.0,
+            426.0,
+            1480.0,
+            441.0
+          ]
+        },
+        {
+          "text": "最大射速",
+          "confidence": 0.9978055953979492,
+          "bbox": [
+            2.0,
+            473.0,
+            121.0,
+            508.0
+          ]
+        },
+        {
+          "text": "79.3mm/s",
+          "confidence": 0.98518967628479,
+          "bbox": [
+            344.0,
+            471.0,
+            488.0,
+            510.0
+          ]
+        },
+        {
+          "text": "切保压",
+          "confidence": 0.9987430572509766,
+          "bbox": [
+            502.0,
+            488.0,
+            595.0,
+            524.0
+          ]
+        },
+        {
+          "text": "位置模式",
+          "confidence": 0.9942243099212646,
+          "bbox": [
+            651.0,
+            488.0,
+            772.0,
+            524.0
+          ]
+        },
+        {
+          "text": "18.0",
+          "confidence": 0.9979515075683594,
+          "bbox": [
+            1132.0,
+            489.0,
+            1194.0,
+            521.0
+          ]
+        },
+        {
+          "text": "18.0",
+          "confidence": 0.9975472092628479,
+          "bbox": [
+            1267.0,
+            489.0,
+            1331.0,
+            521.0
+          ]
+        },
+        {
+          "text": "mm",
+          "confidence": 0.9839289784431458,
+          "bbox": [
+            1357.0,
+            496.0,
+            1411.0,
+            519.0
+          ]
+        },
+        {
+          "text": "最大射压",
+          "confidence": 0.9959367513656616,
+          "bbox": [
+            2.0,
+            526.0,
+            121.0,
+            561.0
+          ]
+        },
+        {
+          "text": "143bar",
+          "confidence": 0.9965470433235168,
+          "bbox": [
+            351.0,
+            526.0,
+            453.0,
+            561.0
+          ]
+        },
+        {
+          "text": "时间模式",
+          "confidence": 0.9942351579666138,
+          "bbox": [
+            649.0,
+            541.0,
+            770.0,
+            578.0
+          ]
+        },
+        {
+          "text": "1.50",
+          "confidence": 0.9931156635284424,
+          "bbox": [
+            1130.0,
+            543.0,
+            1194.0,
+            574.0
+          ]
+        },
+        {
+          "text": "0.22",
+          "confidence": 0.9971678256988525,
+          "bbox": [
+            1266.0,
+            544.0,
+            1329.0,
+            574.0
+          ]
+        },
+        {
+          "text": "射胶起始位置",
+          "confidence": 0.9926050305366516,
+          "bbox": [
+            3.0,
+            579.0,
+            179.0,
+            614.0
+          ]
+        },
+        {
+          "text": "80.3mm",
+          "confidence": 0.9951054453849792,
+          "bbox": [
+            341.0,
+            577.0,
+            465.0,
+            616.0
+          ]
+        },
+        {
+          "text": "压力模式",
+          "confidence": 0.9956035017967224,
+          "bbox": [
+            651.0,
+            593.0,
+            772.0,
+            629.0
+          ]
+        },
+        {
+          "text": "86.2",
+          "confidence": 0.998401403427124,
+          "bbox": [
+            1269.0,
+            596.0,
+            1329.0,
+            628.0
+          ]
+        },
+        {
+          "text": "bar",
+          "confidence": 0.994712769985199,
+          "bbox": [
+            1359.0,
+            601.0,
+            1401.0,
+            626.0
+          ]
+        },
+        {
+          "text": "保压切换位置",
+          "confidence": 0.9936480522155762,
+          "bbox": [
+            3.0,
+            633.0,
+            178.0,
+            666.0
+          ]
+        },
+        {
+          "text": "18.0mm",
+          "confidence": 0.9964633584022522,
+          "bbox": [
+            342.0,
+            629.0,
+            465.0,
+            668.0
+          ]
+        },
+        {
+          "text": "实际射压",
+          "confidence": 0.9980491399765015,
+          "bbox": [
+            2.0,
+            686.0,
+            121.0,
+            721.0
+          ]
+        },
+        {
+          "text": "Obar",
+          "confidence": 0.8710817098617554,
+          "bbox": [
+            383.0,
+            688.0,
+            452.0,
+            718.0
+          ]
+        },
+        {
+          "text": "压力切保开始",
+          "confidence": 0.9973451495170593,
+          "bbox": [
+            3.0,
+            739.0,
+            179.0,
+            772.0
+          ]
+        },
+        {
+          "text": "165.8mm",
+          "confidence": 0.992035448551178,
+          "bbox": [
+            331.0,
+            741.0,
+            463.0,
+            771.0
+          ]
+        },
+        {
+          "text": "保压",
+          "confidence": 0.9991939663887024,
+          "bbox": [
+            500.0,
+            742.0,
+            568.0,
+            786.0
+          ]
+        },
+        {
+          "text": "二段",
+          "confidence": 0.9999353885650635,
+          "bbox": [
+            1111.0,
+            747.0,
+            1176.0,
+            786.0
+          ]
+        },
+        {
+          "text": "一段",
+          "confidence": 0.9406212568283081,
+          "bbox": [
+            1236.0,
+            747.0,
+            1303.0,
+            786.0
+          ]
+        },
+        {
+          "text": "段数",
+          "confidence": 0.9998424053192139,
+          "bbox": [
+            1374.0,
+            747.0,
+            1439.0,
+            784.0
+          ]
+        },
+        {
+          "text": "压力",
+          "confidence": 0.996982216835022,
+          "bbox": [
+            502.0,
+            799.0,
+            566.0,
+            837.0
+          ]
+        },
+        {
+          "text": "75.0",
+          "confidence": 0.9966395497322083,
+          "bbox": [
+            1111.0,
+            804.0,
+            1174.0,
+            836.0
+          ]
+        },
+        {
+          "text": "65.0",
+          "confidence": 0.9976553916931152,
+          "bbox": [
+            1240.0,
+            804.0,
+            1303.0,
+            836.0
+          ]
+        },
+        {
+          "text": "bar",
+          "confidence": 0.9969399571418762,
+          "bbox": [
+            1349.0,
+            806.0,
+            1393.0,
+            836.0
+          ]
+        },
+        {
+          "text": "速度",
+          "confidence": 0.9991732835769653,
+          "bbox": [
+            501.0,
+            852.0,
+            568.0,
+            891.0
+          ]
+        },
+        {
+          "text": "3",
+          "confidence": 0.9991981387138367,
+          "bbox": [
+            1132.0,
+            859.0,
+            1155.0,
+            886.0
+          ]
+        },
+        {
+          "text": "4",
+          "confidence": 0.9978839755058289,
+          "bbox": [
+            1256.0,
+            857.0,
+            1284.0,
+            887.0
+          ]
+        },
+        {
+          "text": "%",
+          "confidence": 0.7227797508239746,
+          "bbox": [
+            1346.0,
+            857.0,
+            1378.0,
+            887.0
+          ]
+        },
+        {
+          "text": "时间",
+          "confidence": 0.997968316078186,
+          "bbox": [
+            501.0,
+            906.0,
+            568.0,
+            944.0
+          ]
+        },
+        {
+          "text": "3.00",
+          "confidence": 0.9965863823890686,
+          "bbox": [
+            1111.0,
+            911.0,
+            1174.0,
+            942.0
+          ]
+        },
+        {
+          "text": "1.00",
+          "confidence": 0.9980069994926453,
+          "bbox": [
+            1238.0,
+            911.0,
+            1300.0,
+            942.0
+          ]
+        },
+        {
+          "text": "S",
+          "confidence": 0.9243115782737732,
+          "bbox": [
+            1349.0,
+            919.0,
+            1364.0,
+            937.0
+          ]
+        },
+        {
+          "text": "12Startup",
+          "confidence": 0.9810203909873962,
+          "bbox": [
+            468.0,
+            1032.0,
+            624.0,
+            1073.0
+          ]
+        },
+        {
+          "text": "下限：0.0上限：3000.0",
+          "confidence": 0.9763643145561218,
+          "bbox": [
+            1277.0,
+            1027.0,
+            1564.0,
+            1064.0
+          ]
+        },
+        {
+          "text": "国",
+          "confidence": 0.6005921959877014,
+          "bbox": [
+            272.0,
+            1039.0,
+            331.0,
+            1069.0
+          ]
+        },
+        {
+          "text": "F1监视页",
+          "confidence": 0.984588623046875,
+          "bbox": [
+            7.0,
+            1087.0,
+            134.0,
+            1117.0
+          ]
+        },
+        {
+          "text": "F2射胶",
+          "confidence": 0.9983071684837341,
+          "bbox": [
+            160.0,
+            1087.0,
+            263.0,
+            1122.0
+          ]
+        },
+        {
+          "text": "F3曲线",
+          "confidence": 0.989165186882019,
+          "bbox": [
+            315.0,
+            1085.0,
+            419.0,
+            1120.0
+          ]
+        },
+        {
+          "text": "F4针阀",
+          "confidence": 0.995406985282898,
+          "bbox": [
+            471.0,
+            1083.0,
+            578.0,
+            1124.0
+          ]
+        },
+        {
+          "text": "F8参",
+          "confidence": 0.9922146797180176,
+          "bbox": [
+            1104.0,
+            1087.0,
+            1176.0,
+            1117.0
+          ]
+        },
+        {
+          "text": "F9参二",
+          "confidence": 0.978732705116272,
+          "bbox": [
+            1261.0,
+            1085.0,
+            1349.0,
+            1115.0
+          ]
+        },
+        {
+          "text": "F10返回",
+          "confidence": 0.9961285591125488,
+          "bbox": [
+            1414.0,
+            1082.0,
+            1527.0,
+            1117.0
+          ]
+        },
+        {
+          "text": "川",
+          "confidence": 0.7163059115409851,
+          "bbox": [
+            207.0,
+            1127.0,
+            261.0,
+            1160.0
+          ]
+        }
+      ]
+    },
+    "layout_alignment": {
+      "method": "ocr_landmarks_affine.v1",
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "offset": [
+        0.0,
+        0.0
+      ],
+      "line_indexes": [
+        24,
+        58,
+        79,
+        22
+      ],
+      "coordinate_space": "normalized_rectified"
+    },
+    "transform": {
+      "filename": "raw_upload.png",
+      "ok": true,
+      "method": "corners",
+      "screen_quad": [
+        [
+          569.6000366210938,
+          332.8000183105469
+        ],
+        [
+          2192.0,
+          313.6000061035156
+        ],
+        [
+          2140.800048828125,
+          1488.0
+        ],
+        [
+          630.4000244140625,
+          1500.800048828125
+        ]
+      ],
+      "screen_size": [
+        1566,
+        1172
+      ],
+      "original_size": [
+        2560,
+        1920
+      ],
+      "original_sha256": "a4c8615afdc328aa9e11bf8ade34258335532827defcdb3e9ffa727127e8f771",
+      "output_path": "/home/hello/.agent-platform/task-validation/150d5ec8261cadc3b40ee695/895335f0809ca6b80bbe43b6/m6-reader-vp9tjhjx/hmi_req_t1id370a/rectified/raw_upload.png",
+      "warnings": [],
+      "rectifier_input_sha256": "e3fb9189a1182074860c4c97f3c7d71f65002e4a977d222ecd1f9d7e66d11d45"
+    },
+    "fields": [
+      {
+        "screen_field_key": "injection.position.stage-2",
+        "value": 23.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.position.stage-1",
+        "value": 40.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-3",
+        "value": 120.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-2",
+        "value": 140.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-1",
+        "value": 140.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.speed.stage-3",
+        "value": 20.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.speed.stage-2",
+        "value": 80.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.speed.stage-1",
+        "value": 80.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.time.stage-3",
+        "value": 0.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.time.stage-2",
+        "value": 0.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.time.stage-1",
+        "value": 0.22,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "holding.pressure.stage-2",
+        "value": 75.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "holding.pressure.stage-1",
+        "value": 65.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "holding.speed.stage-2",
+        "value": 3.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "holding.speed.stage-1",
+        "value": 4.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "holding.time.stage-2",
+        "value": 3.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "holding.time.stage-1",
+        "value": 1.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "left.cooling.setting",
+        "value": 15.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "left.injection.end",
+        "value": 10.7,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "left.injection.max_speed",
+        "value": 79.3,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "left.injection.max_pressure",
+        "value": 143.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "left.injection.start",
+        "value": 80.3,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "left.vp.position",
+        "value": 18.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "left.vp.pressure_start",
+        "value": 165.8,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "vp.position.left",
+        "value": 18.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "vp.position.right",
+        "value": 18.0,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "vp.time.left",
+        "value": 1.5,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "vp.time.right",
+        "value": 0.22,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "vp.pressure.right",
+        "value": 86.2,
+        "reading": "known"
+      },
+      {
+        "screen_field_key": "injection.printed_count",
+        "value": 3.0,
+        "reading": "known"
+      }
+    ]
+  }
+}
