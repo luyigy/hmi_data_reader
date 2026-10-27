@@ -24,6 +24,24 @@ GitNexus results should support engineering decisions, not replace understanding
 
 ## 任务图工作流
 
+### 2026-10-27 588 PLAN 的薄平台聊天室 HANDOVER 接续例外（最新）
+
+用户在 Feishu DM 08a216 要求 Codex 与 antigravity 讨论定稿，提交真实 PLAN 审批卡，
+批准后使用旧 HANDOVER watcher 分 Session 自动接续。此例外仅覆盖
+`docs/588_PLAN_20261027_薄平台聊天室统一执行通路.md` 及其后续 HANDOVER，优先于下方默认任务图规则。
+
+- 本轮只写计划、校验并提审；首个 Slice 必须由用户在真实审批卡批准，Agent 不代批。
+- 沿用本项目已启用的 `semi_auto + implement`，Codex 实施并自测，不默认派独立验收者。
+  提审前核对 pending、排队/运行、监控 ref 与 Git 历史。当前游标已在准备基线时不重置游标。
+- 每 Session 一个 Slice；成功才以 `next_slice` 交给下一 Session，失败/未完用 `blocked`，
+  S04 完成用 `await_acceptance`。不发布 Issues、不为本包新建 task-graph 路线。
+- 源代码服务直接读取当前工作区；S01—S03 必须在 588 指定的隔离 worktree 编码，
+  监控分支只追加 PLAN/HANDOVER 文档，禁止把“未重启服务”当成未部署证明。
+- 批准本 PLAN 后，S04 才执行整包集成、验证、平台部署及按既有授权恢复 M06、观察 M07；
+  不伪造验收通过，不修改 Mold 业务代码、不改写历史批准快照，不跳过独立验收或人工 Gate。
+- 后续 Session 以 588 的审阅裁定、切片边界、工作区路径及部署规则为准；
+  不因旧文档中的只读问答约定重新引入已明确要求删除的阶段限制。
+
 ### 2026-10-26 581 PLAN 的 HANDOVER 自动接续例外（最新）
 
 用户在本私聊先要求恢复旧入口，随后明确“OK，继续”修改接续文档、确定消费起点并启用实测。
