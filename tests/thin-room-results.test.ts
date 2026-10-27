@@ -1,3 +1,4 @@
+import { graphRoomTarget } from '../src/lib/task-graph/room-context';
 import { publishRoomResult, recoverRoomResults } from '../src/lib/task-graph/room-result-publication';
 import { recoverGraphExecution } from '../src/lib/task-graph/restart-recovery';
 import { ensureGraphRoomParticipants } from '../src/lib/task-graph/conversation-members';
@@ -164,6 +165,9 @@ async function main() {
     await Promise.all([publishRoomResult(delivered.turn.id), publishRoomResult(delivered.turn.id)]);
     for (let i = 0; i < 8; i++) { await runTaskGraphCycle(); await drain(); }
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: job.nodeId } })).status, 'passed');
+    const followup = await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: '解释刚才的交付' } });
+    const followupTarget = await graphRoomTarget(room.id, followup.id);
+    assert.equal(followupTarget?.target.kind === 'session' && followupTarget.target.role, 'implementer', 'Automatic acceptance without a reviewer keeps its implementation conversation');
     const successor = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: graph.id, key: 'B' } } });
     assert.ok(successor.childTaskId);
     assert.equal(await prisma.taskRun.count({ where: { taskId: successor.childTaskId } }), 1);

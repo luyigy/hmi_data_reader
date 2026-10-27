@@ -80,7 +80,8 @@ export async function resolveConversationTarget(tx: Prisma.TransactionClient, jo
   if (role !== 'implementer') {
     const taskId = role === 'tester' ? `task-graph-review-${job.nodeId}` : `task-graph-architecture-${job.nodeId}`;
     const run = await tx.taskRun.findFirst({ where: { taskId, participants: { some: { role } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
-    return run ? fromRun(run.id, role) : { kind: 'unresolved', reason: '当前阶段的复核会话尚未建立，不能改送实施者。' };
+    if (run) return fromRun(run.id, role);
+    if (!room || room.members.some(member => member.role === role)) return { kind: 'unresolved', reason: '当前阶段的复核会话尚未建立，不能改送实施者。' };
   }
   const owner = progress?.conversationOwnerRunId || progress?.taskRunId || job.taskRunId;
   if (owner) return fromRun(owner, 'implementer');
