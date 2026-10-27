@@ -1,8 +1,9 @@
 import { SandboxScopeError } from '../../sandbox-manager';
 import type { HarnessAdapter, HarnessExecutionContext, NormalizedContextUsage } from '../types';
 import { homedir } from 'node:os';
+import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { SHARED_ENTRIES } from '@/lib/real-agents/codex-home';
+import { SHARED_ENTRIES, sharedCodexAuthPath } from '@/lib/real-agents/codex-home';
 import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
 import { collectCodexTelemetry } from '@/lib/real-agents/codex-runtime-state';
 import { withCodexSessionSize } from '@/lib/real-agents/codex-session-size';
@@ -36,9 +37,8 @@ function contextTelemetry(context: HarnessExecutionContext) {
 }
 
 // Explicit mounts replace automatic config symlink discovery in Bubblewrap.
-const codexReadOnlyPaths = (extra?: string[]) => extra?.length
-  ? [...SHARED_ENTRIES.map((entry) => path.join(process.env.CODEX_HOME?.trim() || path.join(homedir(), '.codex'), entry)), ...extra]
-  : undefined;
+const codexReadOnlyPaths = (extra: string[] = []) =>
+  [...SHARED_ENTRIES.map((entry) => path.join(process.env.CODEX_HOME?.trim() || path.join(homedir(), '.codex'), entry)), ...extra];
 
 // Bubblewrap enforces the write boundary; nesting workspace-write blocks Git metadata.
 const innerSandboxMode = (context: HarnessExecutionContext) =>
@@ -48,6 +48,15 @@ const innerSandboxMode = (context: HarnessExecutionContext) =>
 
 function prepareCodexInvocationContext(context: HarnessExecutionContext) {
   const boundary = resolveWorkflowCodexBoundary(context.permissionConfig, context.workingDirectory, context.codexHome);
+  const sharedAuth = sharedCodexAuthPath({ runtimeHome: context.runtimeHome, codexHome: boundary?.codexHome ?? context.codexHome });
+  const readOnlyPaths = context.extraReadOnlyPaths?.length || boundary?.readOnlyPaths || sharedAuth
+    ? Array.from(new Set([
+      ...(context.extraReadOnlyPaths?.length || sharedAuth ? codexReadOnlyPaths(context.extraReadOnlyPaths) : []),
+      ...(boundary?.readOnlyPaths || []),
+    ]))
+      // Both transports mount this exact credential writable; a later read-only bind would undo it.
+      .filter(source => !sharedAuth || !existsSync(source) || realpathSync(source) !== sharedAuth)
+    : undefined;
   return {
     workingDirectory: context.workingDirectory,
     workspaceRoot: context.workspaceRoot,
@@ -57,8 +66,7 @@ function prepareCodexInvocationContext(context: HarnessExecutionContext) {
     sandboxMode: innerSandboxMode(context),
     approvalPolicy: context.permissionConfig?.approvalPolicy,
     ...boundary,
-    readOnlyPaths: context.extraReadOnlyPaths?.length || boundary?.readOnlyPaths
-      ? Array.from(new Set([...(codexReadOnlyPaths(context.extraReadOnlyPaths) || []), ...(boundary?.readOnlyPaths || [])])) : undefined,
+    readOnlyPaths,
     sandbox: context.sandbox,
   };
 }

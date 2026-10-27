@@ -41,9 +41,14 @@ export const resolvePlatformLocalCodexHome = (
   ? path.join(workspaceGitDirectory(workspaceRoot), 'agent-platform', 'codex', path.basename(requestedHome || 'session'))
   : requestedHome;
 
-export const codexSandboxConfigPaths = ({ runtimeHome, codexHome }: { runtimeHome?: string; codexHome?: string }) => {
-  const paths = [runtimeHome || codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`];
+export const sharedCodexAuthPath = ({ runtimeHome, codexHome }: { runtimeHome?: string; codexHome?: string }) => {
   const sharedAuth = runtimeHome && codexHome ? path.join(codexHome, 'auth.json') : null;
-  if (sharedAuth && existsSync(sharedAuth)) paths.push(realpathSync(sharedAuth));
+  return sharedAuth && existsSync(sharedAuth) ? realpathSync(sharedAuth) : null;
+};
+
+export const codexSandboxConfigPaths = (options: { runtimeHome?: string; codexHome?: string }) => {
+  const paths = [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`];
+  const sharedAuth = sharedCodexAuthPath(options);
+  if (sharedAuth) paths.push(sharedAuth);
   return paths;
 };
