@@ -19,6 +19,7 @@ import { prepareGraphHarnessRuntime } from '../task-graph/harness-runtime';
 import path from 'node:path';
 import { prisma } from '../prisma';
 import { existsSync } from 'node:fs';
+import { agentCommitGitAccess } from '../task-graph/agent-commit';
 import { linkedWorktreeGitDirectories } from '../real-agents/git-worktree-paths';
 import type { ChildProcess } from 'child_process';
 import { updateCodexQuotaCache } from '@/lib/codex-telemetry';
@@ -162,10 +163,12 @@ export const executeViaLocalHarness = async (
   const graphRuntime = isGraph
     ? prepareGraphHarnessRuntime(request.taskId, participant.harnessType) : null;
   if ((request.graphExecution || request.graphReview) && !workspaceRoot) throw new Error('任务图执行需要受限工作区，不能使用 full_access。');
-  const graphGit = graphRuntime ? linkedWorktreeGitDirectories(runtimeWorkspace) : [];
+  const agentGit = graphRuntime && permissionConfig.sandboxMode !== 'read-only' ? await agentCommitGitAccess(request.taskId, runtimeWorkspace) : null;
+  const graphGit = agentGit ? agentGit.readonly : graphRuntime ? linkedWorktreeGitDirectories(runtimeWorkspace) : [];
   const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
+  if (agentGit) extraWritableRoots.push(...agentGit.writable);
   extraWritableRoots.push(...resourceAccess.write);
   if (inputs) { task.description += inputs.instructions; extraWritableRoots.push(...inputs.writablePaths); }
   const outputWorkspaces = graphJobs.some(job => job.childTaskId === request.taskId)
@@ -193,7 +196,7 @@ export const executeViaLocalHarness = async (
   const declaredRuntime = output && runtimeWorkspace ? await prepareTaskDeclaredRuntime({ conversationAssociation: !request.graphExecution && !request.graphReview ? request.graphAssociation : undefined, taskId: request.taskId, taskRunId, permissionConfig, workspace: runtimeWorkspace, approvedReadOnlyRoots: [...extraReadOnlyPaths, ...extraWritableRoots], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
   if (declaredRuntime) { task.description += declaredRuntime.instructions; extraReadOnlyPaths.push(...declaredRuntime.readOnlyPaths); }
   if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
-  const explicitWrites = permissionConfig.sandboxMode === 'read-only' ? [] : [...permissionConfig.writableRoots, ...resourceAccess.write, ...(inputs?.writablePaths || [])].filter((root): root is string => !!root);
+  const explicitWrites = permissionConfig.sandboxMode === 'read-only' ? [] : [...permissionConfig.writableRoots, ...(agentGit?.writable || []), ...resourceAccess.write, ...(inputs?.writablePaths || [])].filter((root): root is string => !!root);
   const protectedReads = new Set([...resourceAccess.read, ...(resourceAccess.protectedPaths || []), ...(inputs?.paths || []), ...(output?.readOnlyPaths || []), ...graphGit, ...(graphRuntime?.readonly || [])]);
   for (let i = extraReadOnlyPaths.length - 1; i >= 0; i--) {
     const root = extraReadOnlyPaths[i];

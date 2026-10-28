@@ -1,3 +1,4 @@
+import { validateAgentCommit } from './agent-commit';
 import { assertRoomResultAuthority } from './room-result-authority';
 import { bindPhaseReplyIdentity } from './conversation-reply-identity';
 import { observeTaskRunExit, taskRunExitMatches, type TaskRunExitProof } from './task-run-exit-proof';
@@ -222,7 +223,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     let outcome = args.outcome;
     if (outcome.kind === 'repair_required' && !outcome.conflictRepair && outcome.failure.code !== 'verification_input_changed') {
       const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: current.node.runId }, select: { snapshot: true } });
-      if (record(run.snapshot).deliveryContract === 'agent_owned_v1') outcome = {
+      if (['agent_owned_v1', 'agent_commit_v1'].includes(String(record(run.snapshot).deliveryContract || ''))) outcome = {
         kind: 'business_stopped', result: 'failed', failure: { ...outcome.failure, owner: 'implementer', requiresUserDecision: false },
       };
     }
@@ -281,6 +282,12 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       else if (outcome.conflictRepair) progress.conflictRepair = outcome.conflictRepair;
       if (outcome.conflictRepair === null) delete progress.runtimeDirectory;
     } else if (outcome.kind === 'integrated') {
+      const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: current.node.runId } });
+      if (record(run.snapshot).deliveryContract === 'agent_commit_v1') {
+        const taskRunId = record(outcome.evidence).taskRunId;
+        if (typeof taskRunId !== 'string' || taskRunId !== (args.roomTaskRunId || current.taskRunId)) throw new Error('Agent delivery TaskRun mismatch');
+        await validateAgentCommit(tx, current, taskRunId, outcome.commit);
+      }
       if (!/^[0-9a-f]{40,64}$/.test(outcome.commit) || !current.worktreePath || !current.worktreeBranch) throw new Error('Missing integration identity');
       status = 'integrated'; progress.phase = 'architecture'; progress.candidateCommit = outcome.commit;
     } else if (outcome.kind === 'integration_stale') {
@@ -361,6 +368,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       status, issueKind, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, progress),
       ...(status === 'ready' ? { claimToken: null, claimedAt: null, taskRunId: null, sessionId: null } : {}),
       ...(outcome.kind === 'integrated' ? { commit: outcome.commit, evidence: outcome.evidence } : {}),
+      ...(roomDelivery?.binding.deliveryContract === 'agent_commit_v1' ? { taskRunId: args.roomTaskRunId } : {}),
     } });
     if (outcome.kind === 'business_stopped' || status === 'attention' && outcome.kind !== 'admission_deferred') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
     if (status === 'ready' && outcome.kind !== 'admitted') {

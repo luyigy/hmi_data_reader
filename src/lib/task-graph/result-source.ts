@@ -16,7 +16,7 @@ export async function captureRoomResultSource(taskRunId: string) {
   const turn = await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } });
   const metadata = JSON.parse(turn.controlMetadata || '{}');
   const binding = metadata.graphResultBinding as ResultBinding | undefined;
-  if (binding?.source !== 'room') return;
+  if (!binding || binding.source !== 'room' && binding.deliveryContract !== 'agent_commit_v1') return;
   const output = turn.participants[0]?.summary || turn.summary || '';
   const result = parseGraphResult(output, binding.marker || '', binding.checks);
   const formal = binding.authorized && turn.participants.length === 1 && turn.participants[0].status === 'completed' &&
@@ -24,13 +24,14 @@ export async function captureRoomResultSource(taskRunId: string) {
   const completion: ResultCompletion = { outputHash: resultOutputHash(output), sources: [] };
   if (formal) {
     try {
-      const runtime = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { runId_idempotencyKey: {
+      const runtime = binding.source === 'room' ? await prisma.taskGraphEvent.findUniqueOrThrow({ where: { runId_idempotencyKey: {
         runId: binding.runId, idempotencyKey: `room-runtime:${taskRunId}`,
-      } } });
-      if (!isRecord(runtime.payload) || runtime.payload.taskRunId !== taskRunId || !Array.isArray(runtime.payload.sources)) throw new Error('Missing source runtime receipt');
+      } } }) : null;
+      if (runtime && (!isRecord(runtime.payload) || runtime.payload.taskRunId !== taskRunId || !Array.isArray(runtime.payload.sources))) throw new Error('Missing source runtime receipt');
       const jobs = await prisma.taskGraphExecution.findMany({ where: { id: { in: binding.executionIds }, nodeId: binding.nodeId } });
       for (const job of jobs) {
-        const sources = runtime.payload.sources.filter(source => isRecord(source) && source.key === job.key && source.repository === job.repository);
+        const runtimeSources = runtime && isRecord(runtime.payload) && Array.isArray(runtime.payload.sources) ? runtime.payload.sources : [{ key: job.key, repository: job.repository, directory: job.worktreePath }];
+        const sources = runtimeSources.filter(source => isRecord(source) && source.key === job.key && source.repository === job.repository);
         const source = sources[0];
         if (sources.length !== 1 || !isRecord(source) || typeof source.directory !== 'string') throw new Error('Ambiguous result source directory');
         const directory = source.directory;
@@ -49,7 +50,7 @@ export async function captureRoomResultSource(taskRunId: string) {
     const saved = JSON.parse(current.controlMetadata || '{}');
     if (saved.graphResultCompletion && !isDeepStrictEqual(saved.graphResultCompletion, completion)) throw new Error('Final result source is immutable');
     await tx.taskRun.update({ where: { id: taskRunId }, data: { controlMetadata: JSON.stringify({ ...saved,
-      graphResultCompletion: completion, graphRoomResultPending: formal }) } });
+      graphResultCompletion: completion, graphRoomResultPending: binding.source === 'room' && formal }) } });
   });
 }
 

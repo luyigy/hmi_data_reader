@@ -37,7 +37,7 @@ async function main() {
       key: 'app', instructions: 'This repo', repository: root, gitRef: 'refs/heads/execution', baseCommit: git('rev-parse', 'HEAD'), agentSelector: 'local:codex',
       launchConfig: { participant: { gatewayId: 'local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' }, checks: [{ name: 'smoke', argv: ['true'] }] },
     }] };
-    const settings: IssueRouteSettings = { parent: parentRef, slices: { A: slice, B: slice, C: slice } };
+    const settings: IssueRouteSettings = { deliveryContract: 'agent_commit_v1', parent: parentRef, slices: { A: slice, B: slice, C: slice } };
     const directory = path.join(root, 'docs/specs/fixture');
     await mkdir(directory, { recursive: true });
     await writeFile(path.join(directory, 'spec.md'), '# Spec');
@@ -49,6 +49,7 @@ async function main() {
     const { proposeIssueSpec } = await import('../src/lib/task-graph/propose-spec');
     const args = { repository: root, commit: git('rev-parse', 'HEAD'), manifestPath: 'docs/specs/fixture/spec-package.json', parentTaskId: parent.id, createdBy: 'test' };
     const proposal = await proposeIssueSpec(args);
+    assert.equal((proposal.definition as { deliveryContract?: string }).deliveryContract, 'agent_commit_v1', 'Explicit contract survives Issue package import and proposal defaults');
     const again = await proposeIssueSpec(args);
     assert.equal(again.id, proposal.id); assert.equal(cards, 1); assert.equal(files, 2);
     assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0, 'Propose must not dispatch');
@@ -62,6 +63,7 @@ async function main() {
     await handleGraphProposalCardAction(action);
     await handleGraphProposalCardAction(action);
     const run = await prisma.taskGraphRun.findFirstOrThrow({ where: { parentTaskId: parent.id }, include: { nodes: true } });
+    assert.deepEqual(run.snapshot, proposal.definition, 'Approval freezes the chosen delivery contract without rewriting it');
     assert.deepEqual(run.nodes.sort((a, b) => a.key.localeCompare(b.key)).map((node) => [node.key, node.status]), [['A', 'ready'], ['B', 'ready'], ['C', 'planned']]);
     assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 1);
     console.log('Committed Issue Spec produces one compact Feishu approval; drift blocks launch and remote close cannot unlock dependencies');

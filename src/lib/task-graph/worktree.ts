@@ -36,6 +36,7 @@ export interface JobWorktreeRequest {
   worktreeRoot?: string;
   worktreePath?: string;
   resumeCommit?: string;
+  agentCommit?: boolean;
 }
 
 export interface JobWorktree {
@@ -147,8 +148,13 @@ async function workspaceRoot(repo: string, requested?: string): Promise<string> 
   return real;
 }
 
-function jobBranch(runId: string, jobId: string): string {
-  return `refs/heads/task-graph/jobs/${hash(runId)}/${hash(jobId)}`;
+function jobBranch(runId: string, jobId: string, agentCommit = false): string {
+  return `refs/heads/task-graph/jobs/${hash(runId)}/${hash(jobId)}${agentCommit ? '/head' : ''}`;
+}
+
+async function registeredJobBranch(repo: string, runId: string, jobId: string) {
+  const scoped = jobBranch(runId, jobId, true);
+  return await refCommit(repo, scoped) ? scoped : jobBranch(runId, jobId);
 }
 
 function integrationBranch(runId: string): string {
@@ -161,13 +167,14 @@ function jobPath(root: string, repo: string, runId: string, jobId: string): stri
 
 async function locateJob(repo: string, request: { runId: string; jobId: string; worktreeRoot?: string; worktreePath?: string; resumeCommit?: string }): Promise<string> {
   workspaceSegment(request.runId); workspaceSegment(request.jobId);
-  const matches = (await worktrees(repo)).filter(tree => tree.branch === jobBranch(request.runId, request.jobId));
+  const branch = await registeredJobBranch(repo, request.runId, request.jobId);
+  const matches = (await worktrees(repo)).filter(tree => tree.branch === branch);
   if (matches.length > 1) throw new TaskGraphGitError('workspace_collision', 'Multiple registered workspaces for job');
   if (request.worktreePath) {
     const missingCheckpoint = !matches.length && request.resumeCommit &&
       !await fs.lstat(request.worktreePath).then(() => true, () => false) &&
       await fs.realpath(path.dirname(request.worktreePath)).catch(() => '') === path.dirname(request.worktreePath) &&
-      await refCommit(repo, jobBranch(request.runId, request.jobId)) === request.resumeCommit;
+      await refCommit(repo, branch) === request.resumeCommit;
     if (!path.isAbsolute(request.worktreePath) || path.normalize(request.worktreePath) !== request.worktreePath ||
         matches[0]?.path !== request.worktreePath && !missingCheckpoint) {
       throw new TaskGraphGitError('workspace_collision', 'Recorded workspace is missing or differs from Git ownership; preserve original binding', request.worktreePath);
@@ -227,7 +234,7 @@ export async function ensureIntegrationRef(request: IntegrationRefRequest): Prom
 export async function ensureJobWorktree(request: JobWorktreeRequest): Promise<JobWorktree> {
   const repo = await repositoryRoot(request.repoPath);
   await exactCommit(repo, request.baseCommit);
-  const branch = jobBranch(request.runId, request.jobId);
+  const branch = request.agentCommit ? jobBranch(request.runId, request.jobId, true) : await registeredJobBranch(repo, request.runId, request.jobId);
   const target = await locateJob(repo, request);
   const registered = findWorkspace(await worktrees(repo), target);
   if (request.resumeCommit) {
@@ -299,7 +306,7 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
   }
   await assertIntegrationNotCheckedOut(repo, request.integrationRef);
   const job = await locateJob(repo, request);
-  const branch = jobBranch(request.runId, request.jobId);
+  const branch = await registeredJobBranch(repo, request.runId, request.jobId);
   const currentJob = findWorkspace(await worktrees(repo), job);
   if (!currentJob || currentJob.branch !== branch || !(await isAncestor(repo, request.baseCommit, currentJob.head))) {
     throw new TaskGraphGitError('workspace_collision', `Job worktree is missing or mismatched: ${job}`, job);
@@ -368,7 +375,8 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
 export async function commitJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef' | 'baseCommit'> & { message: string }): Promise<string> {
   const repo = await repositoryRoot(request.repoPath);
   const target = await locateJob(repo, request);
-  const branch = jobBranch(request.runId, request.jobId);
+  const branch = await registeredJobBranch(repo, request.runId, request.jobId);
+  if (branch.endsWith('/head')) throw new TaskGraphGitError('ownership_mismatch', 'Agent-owned branch cannot be committed by the platform', target);
   const tree = findWorkspace(await worktrees(repo), target);
   if (!tree || tree.branch !== branch || await git(target, 'symbolic-ref', 'HEAD') !== branch ||
       await git(target, 'rev-parse', '--path-format=absolute', '--git-common-dir') !== await git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')) {
@@ -391,7 +399,7 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
     throw new TaskGraphGitError('invalid_ref', 'Integration ref does not match run identity');
   }
   const target = await locateJob(repo, request);
-  const branch = jobBranch(request.runId, request.jobId);
+  const branch = await registeredJobBranch(repo, request.runId, request.jobId);
   const tree = findWorkspace(await worktrees(repo), target);
   const jobHead = tree?.head || await refCommit(repo, branch);
   if (!jobHead) return;
@@ -425,7 +433,7 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
 export async function inspectJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef'> & { allowPendingMerge?: boolean }): Promise<JobWorktree & { head: string }> {
   const repo = await repositoryRoot(request.repoPath);
   const target = await locateJob(repo, request);
-  const branch = jobBranch(request.runId, request.jobId);
+  const branch = await registeredJobBranch(repo, request.runId, request.jobId);
   const registered = findWorkspace(await worktrees(repo), target);
   if (!registered || registered.branch !== branch || await git(target, 'symbolic-ref', 'HEAD') !== branch ||
       await git(target, 'rev-parse', '--path-format=absolute', '--git-common-dir') !== await git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')) {

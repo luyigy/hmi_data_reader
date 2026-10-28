@@ -3,6 +3,7 @@ import { trackerRequest, type TrackerRequest } from './issue-tracker';
 import { validateTaskGraphDefinition, type GraphDefinition, type GraphNode } from './domain';
 
 export type IssueRouteSettings = {
+  deliveryContract?: GraphDefinition['deliveryContract'];
   parent: string; repositories?: string[];
   slices?: Record<string, Pick<GraphNode, 'acceptance' | 'executions' | 'executionMode' | 'architectureReview' | 'consumeUpstream' | 'services' | 'extraRepositories'>>;
   existingRun?: { runId: string; snapshotHash: string };
@@ -22,6 +23,6 @@ export async function buildIssueGraph(specRef: string, settings: IssueRouteSetti
     return { ...configured, key: ticket.key, goal: ticket.title, dependsOn: ticket.blockedBy.map((ref) => byRef.get(ref)!),
       executions: configured.executions.map((job) => ({ ...job, instructions: `Issue：${ticket.ref}\n${ticket.body}\n\n本仓范围：${job.instructions}` })) };
   });
-  return validateTaskGraphDefinition({ specRef, issueSource: source, nodes });
+  return validateTaskGraphDefinition({ ...(settings.deliveryContract ? { deliveryContract: settings.deliveryContract } : {}), specRef, issueSource: source, nodes });
 }
 

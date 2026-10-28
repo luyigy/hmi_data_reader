@@ -1,3 +1,4 @@
+import { assertAgentCommitEvidence } from './agent-commit';
 import { assertRoomResultAuthority } from './room-result-authority';
 import { lockWriterAdmission, assertWorkspaceWriterAvailable, WorkspaceWriterBusy } from './writer-admission';
 import { validAcceptanceReceipt, type AcceptanceReceipt } from './acceptance-evidence';
@@ -330,7 +331,8 @@ export async function submitNodeVerificationTx(tx: Prisma.TransactionClient, arg
         node.status = 'verifying';
       }
     }
-    const agentOwned = definition.deliveryContract === 'agent_owned_v1';
+    const agentCommit = definition.deliveryContract === 'agent_commit_v1';
+    const agentOwned = definition.deliveryContract === 'agent_owned_v1' || agentCommit;
     const reviewComplete = !args.review || args.review.outcome === 'classified' && !args.review.decision;
     if (node.acceptance === 'agent' && node.reviewerId !== args.actorId) throw new Error('Wrong review agent');
     if (agentOwned) {
@@ -344,7 +346,8 @@ export async function submitNodeVerificationTx(tx: Prisma.TransactionClient, arg
             commits.some(item => !jobs.some(job => job.repository === item.repository && job.commit === item.commit)) ||
             !validAcceptanceReceipt(receipt, planned, verificationInputs(jobs), commits, true)) throw new Error('Independent acceptance receipt is missing or does not match fixed inputs');
       }
-      if (node.acceptance !== 'agent') {
+      if (agentCommit) await assertAgentCommitEvidence(tx, jobs);
+      if (!agentCommit && node.acceptance !== 'agent') {
         const quality = implementationQuality(planned, jobs);
         if (!quality || args.evidence.checks.some(item => item.passed && !quality.decision.approved)) throw new Error('Approved implementor Ticket verification is missing or not passed');
       }
@@ -424,8 +427,9 @@ export async function approveHumanNode(args: {
     }
     if (node.status !== 'awaiting_human') throw new Error('Node is not awaiting human review');
     const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
-    if (args.approved && (run.snapshot as unknown as GraphDefinition).deliveryContract === 'agent_owned_v1') {
+    if (args.approved && ['agent_owned_v1', 'agent_commit_v1'].includes((run.snapshot as unknown as GraphDefinition).deliveryContract || '')) {
       const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
+      if ((run.snapshot as unknown as GraphDefinition).deliveryContract === 'agent_commit_v1') await assertAgentCommitEvidence(tx, jobs);
       const formal = await tx.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'human_review_requested' }, orderBy: { createdAt: 'desc' } });
       const payload = formal?.payload;
       const evidence = node.evidence;

@@ -60,6 +60,7 @@ function acceptanceSummary(node: GraphNode) {
 function roleSummary(definition: GraphDefinition, node: GraphNode) {
   const mode = node.executionMode || 'full';
   const roles = [`实施:${implementationSummary(node)}`];
+  if (definition.deliveryContract === 'agent_commit_v1') roles.push('Agent 自主提交 · 平台形式核验');
   if (mode === 'full') roles.push(`审查:${shortSelector(effectiveArchitectureReview(definition, node)?.reviewerId || '未配置')}`);
   roles.push(`验收:${definition.deliveryContract === 'agent_owned_v1' && mode !== 'implement' && node.acceptance.mode !== 'agent' ? `整票自查:${selfCheckExecution(node) || '待指定'}${node.acceptance.mode === 'human' ? ' + 人工批准' : ''}` : acceptanceSummary(node)}`);
   const selfTest = definition.deliveryContract === 'agent_owned_v1' && mode !== 'implement' && node.acceptance.mode === 'automatic';
@@ -180,20 +181,20 @@ export function buildGraphProposalCard(id: string, definition: GraphDefinition, 
       return [
         text(`**${node.key} · ${shortGoal(node.goal)}${nodeRepositories(node).filter((repository) => repository !== primaryRepository).length
           ? ` (${nodeRepositories(node).filter((repository) => repository !== primaryRepository).join(', ')})` : ''}**`),
-        select(`mode_${i}`, '模式：', mode, Object.entries(graphModeLabels).map(([value, label]) => ({ value, label: definition.deliveryContract === 'agent_owned_v1' && value === 'lean' ? '精简 · 实施自测 / 可选验收' : label }))),
+        select(`mode_${i}`, '模式：', mode, Object.entries(graphModeLabels).filter(([value]) => definition.deliveryContract !== 'agent_commit_v1' || value !== 'implement').map(([value, label]) => ({ value, label: definition.deliveryContract === 'agent_owned_v1' && value === 'lean' ? '精简 · 实施自测 / 可选验收' : label }))),
         ...node.executions.map((job, j) => select(`job_${i}_${j}`, multipleJobs ? `实施(${job.key})：` : '实施：', job.agentSelector, agentChoices)),
         mode === 'lean' || mode === 'implement' ? text('审查：此模式不启用')
           : select(`architecture_${i}`, '审查：', effectiveArchitectureReview(definition, node)?.reviewerId || '', agentChoices),
         mode === 'implement' ? text('验收：仅交付，未验收')
           : select(`acceptance_${i}`, '验收：', node.acceptance.mode === 'automatic' ? 'automatic'
             : node.acceptance.mode === 'human' ? 'human' : node.acceptance.reviewerId || '',
-          [{ value: 'automatic', label: definition.deliveryContract === 'agent_owned_v1' ? '实施自测，无独立验收' : '自动检查' }, { value: 'human', label: '人工验收' }, ...agentChoices]),
+          [{ value: 'automatic', label: definition.deliveryContract === 'agent_commit_v1' ? 'Agent 交付，无独立验收' : definition.deliveryContract === 'agent_owned_v1' ? '实施自测，无独立验收' : '自动检查' }, { value: 'human', label: '人工验收' }, ...agentChoices]),
       ];
     }),
     ...(page > 0 ? [formButton('◀ 保存并上一页', 'page', page - 1)] : []),
     ...(page + 1 < pageCount ? [formButton('保存并下一页 ▶', 'page', page + 1)] : []),
     formButton('保存并收起', 'configure', -1),
-    formButton('重置推荐分配', 'suggest', page, definition.deliveryContract === 'agent_owned_v1' ? '这会重置实施与架构推荐；保留已选择的验收方式。' : '这会覆盖整条路线已手动调整的实施、架构和验收角色。'),
+    formButton('重置推荐分配', 'suggest', page, ['agent_owned_v1', 'agent_commit_v1'].includes(definition.deliveryContract || '') ? '这会重置实施与架构推荐；保留已选择的验收方式。' : '这会覆盖整条路线已手动调整的实施、架构和验收角色。'),
     text(operationText),
     ...(ready ? [formButton('确认并启动', 'approve', -1)] : []),
   ] } : null;

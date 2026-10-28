@@ -1,3 +1,4 @@
+import { publishAgentCommit } from './agent-commit';
 import { assertAcceptanceModels } from './acceptance-models';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -53,7 +54,9 @@ export async function publishRoomResult(taskRunId: string) {
       const source = completion.sources[0];
       if (!job || binding.executionIds.length !== 1 || source.directory !== job.worktreePath) throw new Error('Implementation result does not own the registered worktree');
       const integration = await ensureIntegrationRef({ repoPath: job.repository, runId: node.runId, baseRef: job.gitRef, baseCommit: job.baseCommit });
-      const integrated = await integrateJobWorktree({ repoPath: job.repository, runId: node.runId, jobId: job.id,
+      const autonomous = definition.deliveryContract === 'agent_commit_v1';
+      const integrated = autonomous ? await publishAgentCommit({ job, taskRunId, commit: result.result.commit!,
+        integrationRef: integration.ref, expectedCommit: integration.commit }, tx) : await integrateJobWorktree({ repoPath: job.repository, runId: node.runId, jobId: job.id,
         integrationRef: integration.ref, expectedIntegrationCommit: integration.commit, baseCommit: executionProgress(job.dispatchMetadata)?.workspaceBase || job.baseCommit,
         verify: async directory => {
           if (await graphGit(directory, 'rev-parse', 'HEAD^{tree}') !== source.tree) throw new Error('Integration changed tested source; retest and submit the new version');

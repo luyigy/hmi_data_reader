@@ -97,7 +97,7 @@ export async function createGraphProposal(args: {
 }) {
   const parent = await prisma.task.findUnique({ where: { id: args.parentTaskId }, select: { id: true, ownerUserId: true } });
   if (!parent) throw new Error('父任务不存在');
-  let definition = validateTaskGraphDefinition(args.definition.adoptRun ? args.definition : { ...args.definition, deliveryContract: 'agent_owned_v1' });
+  let definition = validateTaskGraphDefinition(args.definition.adoptRun ? args.definition : { ...args.definition, deliveryContract: args.definition.deliveryContract || 'agent_owned_v1' });
   await Promise.all(definition.nodes.map(node => prepareExtraRepositories(node.extraRepositories)));
   const specPackage = await assertSpecPackage(definition.specPackage);
   for (const node of definition.nodes) {

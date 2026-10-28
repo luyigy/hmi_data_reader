@@ -52,7 +52,7 @@ export async function resolveAcceptanceModels(node: GraphNode): Promise<Acceptan
 
 /** Pin before hashing a proposal; approval and dispatch only verify the approved binding. */
 export async function configureAcceptanceModels(graph: GraphDefinition, mode: 'pin' | 'verify' = 'pin') {
-  if (graph.deliveryContract !== 'agent_owned_v1' || graph.adoptRun) return;
+  if (!['agent_owned_v1', 'agent_commit_v1'].includes(graph.deliveryContract || '') || graph.adoptRun) return;
   for (const node of graph.nodes) {
     if (node.executionMode === 'implement' || node.acceptance.mode !== 'agent') {
       if (mode === 'pin') delete node.acceptance.models;

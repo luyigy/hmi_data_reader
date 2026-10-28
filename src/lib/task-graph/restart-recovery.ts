@@ -28,6 +28,8 @@ async function interruptExitedRun(tx: Prisma.TransactionClient, taskRunId: strin
 export async function recoverGraphExecution(executionId: string) {
   const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
   if (job.status !== 'claimed' || !job.claimToken) return false;
+  const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: job.node.runId } });
+  const agentCommit = (run.snapshot as { deliveryContract?: string }).deliveryContract === 'agent_commit_v1';
   const claimToken = job.claimToken;
   const taskRunId = job.taskRunId || executionProgress(job.dispatchMetadata)?.taskRunId;
   const progress = executionProgress(job.dispatchMetadata);
@@ -45,6 +47,7 @@ export async function recoverGraphExecution(executionId: string) {
   let phase = progress.phase;
   let waitNote: string | undefined;
   let waitResult: 'question' | 'answered' = 'question';
+  let failedResult: Extract<ImplementationResult, { status: 'failed' }> | undefined;
   let blockedResult: Extract<ImplementationResult, { status: 'blocked' }> | undefined;
   let candidate = progress.candidateCommit;
   const ordinaryAnswer = previous?.status === 'completed' && parseGraphResult(previous.participants[0]?.summary || previous.summary || '', 'TASK_GRAPH_IMPLEMENTATION').kind === 'conversation';
@@ -58,6 +61,7 @@ export async function recoverGraphExecution(executionId: string) {
         if (path.resolve(inspected.path) !== path.resolve(recordedPath) || inspected.branch !== recordedBranch) throw new TaskGraphGitError('workspace_collision', 'Restart workspace path or branch differs from the execution ledger', inspected.path);
         await assertExecutionOwnership(job.id, claimToken, progress.revision);
         if (progress.conflictRepair) return progress.candidateCommit;
+        if (agentCommit) return inspected.head;
         return commitJobWorktree({ repoPath: job.repository, runId: job.node.runId, jobId: job.id, message: `Task graph restart checkpoint ${job.node.key}/${job.key}` });
       });
     } catch (error) {
@@ -90,9 +94,10 @@ export async function recoverGraphExecution(executionId: string) {
     try {
       const result = parseImplementationResult(previous.participants[0]?.summary || previous.summary || '', { conversation: true });
       if (result.status === 'delivered') phase = 'check';
+      if (agentCommit && result.status === 'failed') failedResult = result;
       if (result.status === 'waiting_for_user' || result.status === 'answered') { waitNote = result.note; waitResult = result.status === 'answered' ? 'answered' : 'question'; }
       if (result.status === 'blocked') {
-        if (phase === 'implement' && result.blockerKind === 'missing_business_material') waitNote = result.note;
+        if (!agentCommit && phase === 'implement' && result.blockerKind === 'missing_business_material') waitNote = result.note;
         else blockedResult = result;
       }
     } catch { phase = 'collect_result'; }
@@ -108,6 +113,13 @@ export async function recoverGraphExecution(executionId: string) {
     const hasInput = (await pendingConversationInputs(tx, job.node.runId, job.id)).length > 0;
     const saved = await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: claimToken, expectedRevision: progress.revision,
       outcomeId: `restart-checkpoint:${job.claimToken}`, outcome: { kind: 'checkpoint', phase: waitNote || hasInput || blockedResult ? 'implement' : phase, ...(candidate ? { candidateCommit: candidate } : {}) } });
+    if (agentCommit && (failedResult || blockedResult)) {
+      const failure = failedResult || blockedResult!;
+      await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken, expectedRevision: saved.revision,
+        outcomeId: `restart-business-stopped:${claimToken}`, outcome: { kind: 'business_stopped', result: failure.status,
+          failure: { code: failure.status === 'failed' ? 'implementation_failed' : failure.blockerKind, detail: failure.note, owner: 'implementer', requiresUserDecision: false } } });
+      return true;
+    }
     if (blockedResult) {
       await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken, expectedRevision: saved.revision,
         outcomeId: `restart-blocked:${job.claimToken}`, outcome: { kind: 'decision_required', failure: { code: blockedResult.blockerKind,

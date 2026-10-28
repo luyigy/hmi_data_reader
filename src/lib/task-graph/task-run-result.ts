@@ -11,6 +11,7 @@ import { graphReviewChecks, type ReviewCheck } from './review-contract';
 import { parseGraphResult, type GraphResultMarker, type GraphResult } from './result-protocol';
 
 export type ResultBinding = {
+  deliveryContract?: GraphDefinition['deliveryContract'];
   version: 1; runId: string; nodeId: string; taskId: string; taskRunId: string;
   source: 'scheduled' | 'room'; marker: GraphResultMarker | null; snapshotHash: string;
   executionIds: string[]; inputs: { executionId: string; commit: string | null }[];
@@ -53,6 +54,7 @@ export async function bindTaskRunResult(tx: Prisma.TransactionClient, request: A
   const historicalInputs = !job && Array.isArray(metadata.reviewCandidates)
     ? metadata.reviewCandidates.map((item: { id: string; commit: string }) => ({ executionId: item.id, commit: item.commit })).sort((a: { executionId: string }, b: { executionId: string }) => a.executionId.localeCompare(b.executionId)) : undefined;
   const binding: ResultBinding = {
+    ...(definition.deliveryContract === 'agent_commit_v1' ? { deliveryContract: definition.deliveryContract } : {}),
     version: 1, runId: node.runId, nodeId: node.id, taskId: request.taskId, taskRunId,
     source: request.graphExecution || request.graphReview ? 'scheduled' : 'room',
     marker: job ? 'TASK_GRAPH_IMPLEMENTATION' : phase === 'architecture' ? 'TASK_GRAPH_ARCH_REVIEW' : phase === 'acceptance' ? 'TASK_GRAPH_REVIEW' : null,

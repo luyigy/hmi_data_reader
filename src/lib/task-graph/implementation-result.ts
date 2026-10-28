@@ -9,7 +9,7 @@ import { redactSensitiveText } from '../redact-sensitive';
 
 export type ImplementationResult =
   | { status: 'failed'; note: string }
-  | { status: 'delivered'; note: string; evidence: string[]; ticketVerification?: ClassifiedReview }
+  | { status: 'delivered'; note: string; evidence: string[]; commit?: string; ticketVerification?: ClassifiedReview }
   | { status: 'waiting_for_user'; note: string }
   | { status: 'answered'; note: string }
   | { status: 'working'; note: string }
@@ -40,9 +40,10 @@ function decodeImplementationResult(output: string, checks: ReviewCheck[] = []):
   if (value.status === 'failed' || value.status === 'waiting_for_user' || value.status === 'answered' || value.status === 'working') return { status: value.status, note };
   if (value.status === 'delivered' && Array.isArray(value.evidence) && value.evidence.length &&
       value.evidence.every(item => typeof item === 'string' && item.trim())) {
+    if (value.commit !== undefined && (typeof value.commit !== 'string' || !/^[a-f0-9]{40,64}$/.test(value.commit))) throw new Error('交付 commit 必须为完整 Git SHA');
     const decision = value.ticketVerification === undefined ? undefined : classifyReview(value.ticketVerification, checks);
     if (decision === null) throw new Error('ticketVerification 缺少有效的正式验收结论或缺陷归属');
-    return { status: 'delivered', note, evidence: value.evidence, ...(decision ? { ticketVerification: decision } : {}) };
+    return { status: 'delivered', note, evidence: value.evidence, ...(typeof value.commit === 'string' ? { commit: value.commit } : {}), ...(decision ? { ticketVerification: decision } : {}) };
   }
   const kind = value.blockerKind;
   const cause = value.blockerCause;
@@ -70,7 +71,7 @@ export async function pauseGraphImplementation(args: {
     });
   }
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId } });
-  if (progress && (run.snapshot as unknown as GraphDefinition).deliveryContract === 'agent_owned_v1' && args.result.status === 'blocked' &&
+  if (progress && ['agent_owned_v1', 'agent_commit_v1'].includes((run.snapshot as unknown as GraphDefinition).deliveryContract || '') && args.result.status === 'blocked' &&
       (args.blockedPhase || 'implementation') === 'implementation') {
     const requiresUserDecision = ['permission_required', 'scope_change', 'missing_business_material'].includes(args.result.blockerKind);
     return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,

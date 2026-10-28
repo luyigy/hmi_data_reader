@@ -45,7 +45,7 @@ export function configureGraphRoles(args: {
 }): GraphDefinition {
   const graph = structuredClone(args.definition);
   if (graph.adoptRun) return graph;
-  const agentOwned = graph.deliveryContract === 'agent_owned_v1';
+  const agentOwned = ['agent_owned_v1', 'agent_commit_v1'].includes(graph.deliveryContract || '');
   // Only proposal configuration supplies defaults; approved run snapshots are never normalized.
   if (agentOwned) for (const node of graph.nodes) {
     if (!node.executionMode && !node.architectureReview && !graph.defaultArchitectureReview) node.executionMode = 'lean';

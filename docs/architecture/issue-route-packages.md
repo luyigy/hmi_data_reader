@@ -43,6 +43,20 @@
 
 提交包后，在父任务飞书菜单选择「任务图 / Jobs → 提出任务路线」，再从下拉框选择 Spec。平台读取 tracker，发送 HTML/MD 附件和精简确认卡。用户展开调整模式与角色，保存后确认启动。准备动作不派发任务。
 
+## Agent 自主提交合同
+
+在新包的 `issueRoute` 中明确填写 `"deliveryContract": "agent_commit_v1"`，或在 GraphDefinition 顶层选择同值；提审卡会显示“Agent 自主提交 · 平台形式核验”。该值参与批准快照哈希，不迁移或改写旧 Graph；未选择的新提议仍使用 `agent_owned_v1`，历史无合同快照保持原行为。
+
+本合同每个节点仅支持一个 execution，使用正式交付模式 `lean` 或 `full`，不支持 `implement` 的“未验收交付”。实施者在分配的 worktree 自主编辑、测试、Git 提交，并给出唯一一行结果：
+
+```text
+TASK_GRAPH_IMPLEMENTATION {"status":"delivered","commit":"完整 Git SHA","note":"实际完成内容","evidence":["实际自测命令及结果"]}
+```
+
+平台核验批准仓库/基线/参与者、TaskRun 最终源码、Writer 退出、worktree 注册与分支、SHA 祖先关系、工作区干净和回执格式。无独立 Reviewer 时不再要求 `ticketVerification`，不重跑 `launchConfig.checks` 或 `integrationChecks`；这些仍交给 Agent 自主验证。`acceptance.checks` 可为空。已有人工 Gate、独立验收或有效架构 Gate 继续生效。普通回复和 working/blocked/failed 均不是节点完成。
+
+Git 仅开放对象库、本 worktree 元数据和本 execution 私有 ref/log 目录；主分支、其他 execution 和共享 Git 配置保持只读。平台只以 CAS 推进已验证的提交引用，不运行 add/commit/merge。若已有集成引用不是候选的祖先，本合同停止发布，不擅自执行跨分支集成。旧合同的多 execution、多仓和冲突集成能力保留。
+
 ## 执行依据
 
 确认时重新读取 Issue，冻结目标、依赖、仓库基线、角色、模式与验收条件。JSONB 回读不会改变冻结哈希。普通评论、Issue 关闭不改变目标哈希，也不能代替账本验收。

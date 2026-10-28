@@ -26,7 +26,7 @@ export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId:
   const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: node.runId }, select: { snapshot: true } });
   const snapshot = run.snapshot;
   const businessBlocked = args.kind === 'decision_required' && ['blocked_require_human', 'environment_failed'].includes(args.failure.code) &&
-    snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) && snapshot.deliveryContract === 'agent_owned_v1';
+    snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) && ['agent_owned_v1', 'agent_commit_v1'].includes(String(snapshot.deliveryContract || ''));
   if (node.status !== 'verifying' || !node.executions.length) throw new Error('Review failure no longer owns verification');
   const exhausted = args.kind === 'protocol_exhausted' || args.kind === 'platform_failure' && node.executions.some(job => (executionProgress(job.dispatchMetadata)?.platformAttempts || 0) >= executionRetryLimits.platformAttempts);
   const failure: ExecutionFailure = args.kind === 'platform_failure' ? { ...args.failure, owner: 'platform', requiresUserDecision: false } : args.failure;

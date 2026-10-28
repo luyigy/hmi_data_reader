@@ -2,15 +2,17 @@ import { selfCheckExecution } from './domain';
 import type { GraphDefinition, GraphNode } from './domain';
 
 export function implementationInstructions(graph: GraphDefinition, node: GraphNode) {
+  const autonomous = graph.deliveryContract === 'agent_commit_v1';
   return [
     `本次执行采用已确认任务图，模式 ${node.executionMode || 'full'}；Spec：${graph.specRef}。`,
+    ...(autonomous ? [`批准的验收要求：${JSON.stringify(node.acceptance.checks)}。批准的整票命令：${JSON.stringify(node.acceptance.integrationChecks || [])}。由你自主执行实际验证，平台不会补跑；存在其他已批准 Gate 时仍须等待。`] : []),
     ...(graph.issueSource ? [`关联 Issue：${graph.issueSource.tickets.find((ticket) => ticket.key === node.key)?.ref}。Issue 范围与依赖已由平台校验，使用本次冻结的目标和指令；不要求在沙箱内读取宿主 tracker 凭据。`] : []),
-    '只实施当前 ticket 范围。在指定 worktree 编辑代码，汇报改动和实际验证证据。Git 元数据只读，由平台受控提交和集成；不要自行 git add/commit/merge。',
+    autonomous ? '只实施当前 ticket 范围，在指定 worktree 自主编码、自测、git add 和 git commit。最终报告完整 commit SHA，交付时工作区必须干净。不要改其他分支或主分支。平台不代提交、不代跑业务测试。' : '只实施当前 ticket 范围。在指定 worktree 编辑代码，汇报改动和实际验证证据。Git 元数据只读，由平台受控提交和集成；不要自行 git add/commit/merge。',
     '平台默认只读复用源项目已配置的 Python 环境，PATH 自动提供同一解释器和命令。不要另建虚拟环境、pip install --user 或修改共享依赖；缺依赖/版本冲突请明确报告，单独处理项目环境变更。',
     '使用本次任务图替代历史 PLAN/HANDOVER 接力要求；不要创建新的 PLAN/HANDOVER、next_action 或 WORKFLOW_READY。',
     '面向用户的进度每次用一至三句说明已完成什么、当前在做什么、是否需要用户处理；不用源码清单、哈希或审查原文充当进度。最终先给不超过三条的简明结论，详细技术报告写证据文件；结构化结论仍单独保留。',
-    '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',
-    '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
+    autonomous ? '平台只核验身份、版本、工作区与正式结果，并管理已批准的 Gate 和任务依赖；不要自行启动后继。' : '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',
+    autonomous ? '最终单独一行给出唯一正式结果：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","commit":"完整 Git SHA","note":"实际交付说明","evidence":["实际自测与交付证据"]}。无需额外 ticketVerification；只有确实完成目标、自测并提交后才能 delivered。失败用 failed，阻塞用 blocked 并说明 blockerKind。' : '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
     '在原会话直接处理用户补充，按原授权读取、修改和测试，不需要聊天转实施交接。普通文字答复会保存本轮并等待新消息；需要平台继续下一轮工作时，明确返回 TASK_GRAPH_IMPLEMENTATION {"status":"working","note":"下一步具体工作"}。明确等待用户时返回 status=waiting_for_user；范围或权限需要人决定时返回 status=blocked，并注明 scope_change 或 permission_required。',
     '必需运行能力确实不可用时返回 TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"environment_failed","blockerCause":"missing_capability","note":"缺少的能力和实际探针结果"}。只读资源是否授权由平台校验，不自行扩大挂载；不要仅更换报告路径重复相同失败探针。',
     ...(graph.deliveryContract === 'agent_owned_v1' ? ['业务问题由你在当前会话与预算内修复并自测。最终结果使用 delivered、blocked 或 failed；失败返回 TASK_GRAPH_IMPLEMENTATION {"status":"failed","note":"实际失败原因和验证结果"}。blocked/failed 会停止本轮，平台不按业务错误分类重派实施者。working 仅表示你明确请求继续尚未结束的工作；waiting_for_user 仅用于确需用户输入。'] : []),

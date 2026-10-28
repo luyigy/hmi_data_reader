@@ -30,7 +30,7 @@ export async function runArchitectureReview(args: {
     const payload = latest?.payload;
     if (latest?.kind === 'architecture_passed' && payload && typeof payload === 'object' && !Array.isArray(payload) &&
         payload.reviewerId === review.reviewerId && isDeepStrictEqual(payload.commits, args.commits) &&
-        (args.definition.deliveryContract !== 'agent_owned_v1' || isDeepStrictEqual(payload.inputs, verificationInputs(jobs)))) return 'passed';
+        (!['agent_owned_v1', 'agent_commit_v1'].includes(args.definition.deliveryContract || '') || isDeepStrictEqual(payload.inputs, verificationInputs(jobs)))) return 'passed';
   }
   const basis = createHash('sha256').update(JSON.stringify(args.commits)).digest('hex').slice(0, 24);
   const fallbackClaimKey = `node:${args.nodeKey}:architecture_claimed:${basis}`;
@@ -78,7 +78,7 @@ export async function runArchitectureReview(args: {
     runId: args.runId, nodeId: args.nodeId, idempotencyKey: resultKey,
     kind: approved ? 'architecture_passed' : 'architecture_failed',
     payload: { ...(workspaceInvalid ? { failureKind: 'ownership_mismatch' } : result.kind === 'classified' ? result.decision : { failureKind: result.kind }), approved, note, reviewerId: review.reviewerId,
-      taskRunId: result.taskRunId, claimKey, commits: args.commits, ...(args.definition.deliveryContract === 'agent_owned_v1' ? { inputs: verificationInputs(executions) } : {}) } as Prisma.InputJsonValue,
+      taskRunId: result.taskRunId, claimKey, commits: args.commits, ...(['agent_owned_v1', 'agent_commit_v1'].includes(args.definition.deliveryContract || '') ? { inputs: verificationInputs(executions) } : {}) } as Prisma.InputJsonValue,
   } });
   });
   return approved ? 'passed' : 'failed';

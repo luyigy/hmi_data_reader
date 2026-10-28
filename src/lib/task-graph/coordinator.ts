@@ -1,3 +1,4 @@
+import { validateAgentCommit, publishAgentCommit, assertAgentCommitEvidence } from './agent-commit';
 import { recoverRoomResults } from './room-result-publication';
 import { recordedImplementationResult } from './task-run-result';
 import { assertAcceptanceModels } from './acceptance-models';
@@ -180,7 +181,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   const policy = definition.nodes.find((item) => item.key === nodeKey)?.acceptance;
   if (!policy) throw new Error(`Unknown acceptance policy for ${nodeKey}`);
   const plannedNode = definition.nodes.find((item) => item.key === nodeKey)!;
-  const agentOwned = definition.deliveryContract === 'agent_owned_v1';
+  const agentCommit = definition.deliveryContract === 'agent_commit_v1';
+  const agentOwned = definition.deliveryContract === 'agent_owned_v1' || agentCommit;
   if (plannedNode.executionMode === 'implement') {
     await completeUnverifiedNode(runId, nodeKey);
     await cleanupCompletedNodeWorkspaces(runId, nodeKey);
@@ -189,7 +191,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     await postGraphParentProgress(run.parentTaskId, runId, `${nodeKey} 已交付（未验收），按批准的仅实施模式放行后继。`);
     return;
   }
-  const selfChecked = agentOwned && policy.mode !== 'agent';
+  const selfChecked = definition.deliveryContract === 'agent_owned_v1' && policy.mode !== 'agent';
   const results = node.executions.flatMap((execution) => {
     const evidence = execution.evidence as unknown as { checks?: CheckResult[] } | null;
     return evidence?.checks || [];
@@ -228,6 +230,10 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       }
     }
     await assertReviewWorkspacesClean(workspaces);
+    if (agentCommit) {
+      await assertAgentCommitEvidence(prisma, node.executions);
+      if (policy.mode !== 'agent') for (const name of policy.checks) results.push({ name, passed: true, evidence: `Agent 正式交付 ${node.executions[0].commit}；平台形式核验通过，业务自测证据见实施回执。` });
+    }
     if (selfChecked) {
       const owner = node.executions.find(job => job.key === selfCheckExecution(plannedNode))!;
       const combined = workspaces.slice().reverse().find(workspace => workspace.repository === owner.repository)!;
@@ -265,7 +271,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
         evidence: matches.map((item) => item.evidence).join('\n') || '没有验证结果' };
     }), ...integrationResults],
     ...(agentOwned ? { inputs: verificationInputs(node.executions) } : {}),
-    summary: `${selfChecked ? `实施自测（${selfQuality!.owner.key}），无独立验收${policy.mode === 'human' ? '；另需人工批准' : ''}；` : ''}已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
+    summary: agentCommit ? `Agent 自主提交；平台形式核验，业务验证证据由 Agent 提供。固定提交 ${JSON.stringify(commits)}。` : `${selfChecked ? `实施自测（${selfQuality!.owner.key}），无独立验收${policy.mode === 'human' ? '；另需人工批准' : ''}；` : ''}已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
   };
   const architecture = await runArchitectureReview({
     runId, nodeId: node.id, nodeKey, definition, commits, workspaces, evidence,
@@ -395,8 +401,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       .catch((error) => console.error('[TaskGraph] human review card failed:', error));
   }
   await refreshTaskGraphRunStatus(runId);
-  const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? `${selfChecked ? '已交付，实施自测通过，无独立验收' : '验收通过'}，Slice 已完成；符合条件的后继将自动启动。`
-    : updated.status === 'awaiting_human' ? `${selfChecked ? '实施自测已通过' : '自动检查已结束'}，等待已配置的人工验收。`
+  const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? `${agentCommit && policy.mode !== 'agent' ? 'Agent 已交付，平台形式核验通过，无独立验收' : selfChecked ? '已交付，实施自测通过，无独立验收' : '验收通过'}，Slice 已完成；符合条件的后继将自动启动。`
+    : updated.status === 'awaiting_human' ? `${agentCommit ? 'Agent 交付形式核验已通过' : selfChecked ? '实施自测已通过' : '自动检查已结束'}，等待已配置的人工验收。`
     : reviewDecision.failureKind === 'in_scope_defect' ? definition.deliveryContract === 'agent_owned_v1' ? '业务验证失败，已保留原因与证据；本轮结束，后继继续等待。' : '回修未产生新的进展，已停止空转并保留原会话和各轮报告；后继继续等待。'
     : ['platform_failure', 'environment_failed'].includes(String(reviewDecision.failureKind)) ? '验收未完成，复核执行失败；已有测试结果保留，后继继续等待。'
     : reviewDecision.failureKind === 'protocol_exhausted' ? '复核结论补收已耗尽，交付现场保留，需要明确处理方案后再排期。'
@@ -449,6 +455,8 @@ export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: s
 }
 
 async function executeJob(runId: string, nodeKey: string, execution: TaskGraphExecution, claimToken: string) {
+  const approvedRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId } });
+  const agentCommit = (approvedRun.snapshot as unknown as GraphDefinition).deliveryContract === 'agent_commit_v1';
   const config = launchConfig(execution);
   const repair = await latestGraphRepair(execution.nodeId);
   const continuation = await latestImplementationRecovery(execution.nodeId);
@@ -497,7 +505,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         }
       }
       const workspace = await ensureJobWorktree({
-        repoPath: execution.repository, runId, jobId: execution.id,
+        repoPath: execution.repository, runId, jobId: execution.id, agentCommit,
         baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || workspaceBase,
         worktreePath: execution.worktreePath || undefined,
         ...(resumeCommit ? { resumeCommit } : {}),
@@ -509,14 +517,14 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     await assertExecutionOwnership(execution.id, claimToken);
     const implementationBase = await graphGit(workspace.path, 'rev-parse', 'HEAD');
     const workspaceContext = `本轮工作区候选：${implementationBase}。工作区基线：${workspace.baseCommit}。当前集成参考：${integration.commit}。` +
-      '工作区候选与集成参考是独立引用，可以不同；在本轮候选上继续实施，平台在交付时受控合并，不要求先把工作区 HEAD 对齐到集成参考。';
+      (agentCommit ? '请在此工作区自主编码、自测并提交，报告完整 commit SHA；本合同不处理跨分支集成。' : '工作区候选与集成参考是独立引用，可以不同；在本轮候选上继续实施，平台在交付时受控合并，不要求先把工作区 HEAD 对齐到集成参考。');
     const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
     await recordExecutionDispatch({
       runId, nodeKey, executionKey: execution.key, claimToken,
       childTaskId: task.id, worktreePath: workspace.path, worktreeBranch: workspace.branch,
       dispatchMetadata: execution.worktreePath ? undefined : { ...immutableDispatchMetadata(execution.dispatchMetadata), integrationRef: integration.ref, workspaceBase: workspace.baseCommit, ...(checkpoint ? { resumedFrom: checkpoint.checkpointCommit, attemptId: continuation?.id } : {}) },
     });
-    await outcome({ kind: 'checkpoint', phase: persisted?.phase || 'implement', workspaceBase: workspace.baseCommit, candidateCommit: implementationBase });
+    await outcome({ kind: 'checkpoint', phase: agentCommit && persisted?.phase === 'prepare' ? 'implement' : persisted?.phase || 'implement', workspaceBase: workspace.baseCommit, candidateCommit: implementationBase });
     const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
     const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
     const definition = snapshot.snapshot as unknown as GraphDefinition;
@@ -532,7 +540,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
     await postTaskRoomMessage({
       roomId: room.id, userId: 'task-graph', userName: '任务图调度器',
-      content: `执行 ${nodeKey}/${execution.key}。${workspaceContext}请在此 worktree 编辑代码并报告结果；平台负责受控提交，不要自行运行 git add/commit/merge。`,
+      content: `执行 ${nodeKey}/${execution.key}。${workspaceContext}${agentCommit ? 'Agent 自行 git add/commit 并报告 SHA，平台只做形式核验。' : '请在此 worktree 编辑代码并报告结果；平台负责受控提交，不要自行运行 git add/commit/merge。'}`,
     });
     const beforeRun = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
     const progress = executionProgress(beforeRun.dispatchMetadata)!;
@@ -622,6 +630,14 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const candidate = await withRepositoryLock(execution.repository, async () => {
       await requireGraphRunActive(runId);
       await assertExecutionOwnership(execution.id, claimToken);
+      if (agentCommit) {
+        const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+        if (parsedResult.kind === 'implementation' && parsedResult.result.status === 'delivered') {
+          await validateAgentCommit(prisma, job, result.taskRunId, parsedResult.result.commit);
+          return parsedResult.result.commit!;
+        }
+        return graphGit(workspace.path, 'rev-parse', 'HEAD');
+      }
       if (progress.conflictRepair && repairRuntime) return finishConflictRepair({
         repoPath: execution.repository, runId, jobId: execution.id, baseCommit: workspace.baseCommit, integrationRef: integration.ref,
         checkpoint: progress.conflictRepair, resolutionFile: await conflictResolutionFile({ nodeId: execution.nodeId, taskId: task.id, taskRunId: result.taskRunId }),
@@ -666,7 +682,13 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       return ensureIntegrationRef({ repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit });
     });
     const beforeIntegration = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } })).dispatchMetadata);
-    const integrated = await integrateJobWithRetry({
+    const integrated = agentCommit ? await withRepositoryLock(execution.repository, async () => {
+      await requireGraphRunActive(runId);
+      await assertExecutionOwnership(execution.id, claimToken);
+      await outcome({ kind: 'checkpoint', phase: 'integrate', candidateCommit: candidate });
+      const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+      return publishAgentCommit({ job, taskRunId: result.taskRunId, commit: candidate, integrationRef: latest.ref, expectedCommit: latest.commit });
+    }) : await integrateJobWithRetry({
       repoPath: execution.repository, runId, jobId: execution.id,
       integrationRef: latest.ref, expectedIntegrationCommit: latest.commit, baseCommit: workspace.baseCommit,
       maxAttempts: Math.max(1, 3 - (beforeIntegration?.integrationAttempts || 0)),
@@ -709,7 +731,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       const preparation = runtimePreparationError(error);
       if (preparation) {
         const saved = executionProgress(current.dispatchMetadata)!;
-        if (current.worktreePath && !saved.conflictRepair) {
+        if (current.worktreePath && !saved.conflictRepair && !agentCommit) {
           const candidateCommit = await withRepositoryLock(execution.repository, async () => {
             await requireGraphRunActive(runId);
             await assertExecutionOwnership(execution.id, claimToken);
@@ -723,6 +745,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         const checkpointCommit = executionProgress(current.dispatchMetadata)?.conflictRepair?.candidateCommit || await withRepositoryLock(execution.repository, async () => {
           await requireGraphRunActive(runId);
           await assertExecutionOwnership(execution.id, claimToken);
+          if (agentCommit) return graphGit(current.worktreePath!, 'rev-parse', 'HEAD');
           return commitJobWorktree({
             repoPath: execution.repository, runId, jobId: execution.id, message: `Input preparation checkpoint ${nodeKey}/${execution.key}`,
           });
@@ -739,6 +762,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           const candidateCommit = await withRepositoryLock(execution.repository, async () => {
             await requireGraphRunActive(runId);
             await assertExecutionOwnership(execution.id, claimToken);
+            if (agentCommit) return graphGit(current.worktreePath!, 'rev-parse', 'HEAD');
             return commitJobWorktree({
               repoPath: execution.repository, runId, jobId: execution.id, message: `Checked candidate ${nodeKey}/${execution.key}`,
             });
