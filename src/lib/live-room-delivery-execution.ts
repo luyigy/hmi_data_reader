@@ -1,3 +1,4 @@
+import { lockSessionActivity, refreshSessionActivity } from './acpx/session-activity';
 import { graphRoomContext } from './task-graph/room-context';
 import { prepareGraphConversationTask } from './task-graph/conversation-task';
 import { collectLiveRoomFootnotes } from '@/lib/live-room-footnotes';
@@ -237,6 +238,7 @@ const annotateFreshRetryMetadata = async ({
 const runLiveRoomAcpxAttempt = async ({
   sourceTask,
   room,
+  deliveryId, retryOfRunId,
   participant,
   currentMemberId,
   contentForAgent,
@@ -247,6 +249,7 @@ const runLiveRoomAcpxAttempt = async ({
   forceEphemeral = false, workflowCompletionGate,
   streamCallbacks, graphContext,
 }: {
+  deliveryId?: string; retryOfRunId?: string;
   graphContext?: Awaited<ReturnType<typeof graphRoomContext>>;
   sourceTask: NonNullable<Awaited<ReturnType<typeof syncLiveRoomSourceTask>>>;
   room: DeliveryRoom & {
@@ -307,6 +310,8 @@ const runLiveRoomAcpxAttempt = async ({
   ].join('\n').trim();
 
   return executeAcpxTaskRun({
+    ...(!graphContext && !discussion && deliveryId ? { roomDelivery: { deliveryId, retryOfRunId,
+      resumeSourceParticipantId: shouldUseContinuation ? latestSession?.participant?.id : undefined } } : {}),
     graphAssociation: graphContext?.association,
     extraReadOnlyPaths: graphContext?.session.extraReadOnlyPaths,
     taskId: sourceTask.id,
@@ -342,8 +347,9 @@ export const executeLiveRoomReplyViaAcpx = async ({
   room,
   sourceMessage,
   targetMember,
-  session,
+  session, deliveryId,
 }: {
+  deliveryId?: string;
   room: DeliveryRoom & {
     sourceTask?: {
       id: string;
@@ -491,6 +497,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     room,
     participant,
     currentMemberId: targetMember.id,
+    deliveryId,
     contentForAgent,
     desiredDirectedTarget,
     permissionConfig,
@@ -542,6 +549,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       room,
       participant,
       currentMemberId: targetMember.id,
+      deliveryId, retryOfRunId: acpxResult.taskRunId,
       contentForAgent,
       desiredDirectedTarget,
       permissionConfig,
@@ -581,6 +589,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       room,
       participant,
       currentMemberId: targetMember.id,
+      deliveryId, retryOfRunId: acpxResult.taskRunId,
       contentForAgent,
       desiredDirectedTarget,
       permissionConfig,
@@ -607,24 +616,29 @@ export const executeLiveRoomReplyViaAcpx = async ({
     });
   }
 
-  await prisma.task.update({
-    where: { id: sourceTask.id },
-    data: {
-      status: finalStatus,
-      completedAt: new Date(),
-      result: JSON.stringify({
-        executionMode: 'acpx',
-        source: 'live_room',
-        liveRoomId: room.id,
-        taskRunId: acpxResult.taskRunId,
-        summary: acpxResult.summary,
-        participants: acpxResult.participants,
-      }),
-      error:
-        acpxResult.status === 'failed'
-          ? participantResult?.error || 'Live room ACPX execution failed'
-          : null,
-    },
+  await prisma.$transaction(async tx => {
+    const taskSessionId = graphContext?.session.taskSessionId || sourceTask.currentTaskSession?.id;
+    if (taskSessionId) await lockSessionActivity(tx, sourceTask.id, taskSessionId);
+    await tx.task.update({
+      where: { id: sourceTask.id },
+      data: {
+        status: finalStatus,
+        completedAt: new Date(),
+        result: JSON.stringify({
+          executionMode: 'acpx',
+          source: 'live_room',
+          liveRoomId: room.id,
+          taskRunId: acpxResult.taskRunId,
+          summary: acpxResult.summary,
+          participants: acpxResult.participants,
+        }),
+        error:
+          acpxResult.status === 'failed'
+            ? participantResult?.error || 'Live room ACPX execution failed'
+            : null,
+      },
+    });
+    if (taskSessionId) await refreshSessionActivity(tx, sourceTask.id, taskSessionId);
   });
 
   const finalSummary = acpxResult.status === 'completed'

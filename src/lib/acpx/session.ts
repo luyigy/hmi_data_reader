@@ -1,3 +1,4 @@
+import { lockSessionActivity, refreshSessionActivity } from './session-activity';
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from './permissions';
 import type { AcpxPermissionConfig } from './types';
@@ -151,11 +152,11 @@ export const rotateTaskSession = async (taskId: string, options: EnsureTaskSessi
   return session;
 };
 
-export const setTaskSessionActiveRun = async (taskSessionId: string, taskRunId: string | null) =>
-  prisma.taskSession.update({
-    where: { id: taskSessionId },
-    data: {
-      activeRunId: taskRunId,
-      updatedAt: new Date(),
-    },
+/** Compatibility setter: recompute the projection instead of overwriting another member's pointer. */
+export const setTaskSessionActiveRun = async (taskSessionId: string, _taskRunId: string | null) =>
+  prisma.$transaction(async tx => {
+    const session = await tx.taskSession.findUniqueOrThrow({ where: { id: taskSessionId } });
+    await lockSessionActivity(tx, session.taskId, taskSessionId);
+    await refreshSessionActivity(tx, session.taskId, taskSessionId);
+    return tx.taskSession.findUniqueOrThrow({ where: { id: taskSessionId } });
   });

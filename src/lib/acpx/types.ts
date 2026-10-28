@@ -103,6 +103,7 @@ export interface AcpxParticipantRequest {
 }
 
 export interface AcpxRunRequest {
+  roomDelivery?: { deliveryId: string; retryOfRunId?: string; resumeSourceParticipantId?: string };
   graphAssociation?: import('../task-graph/graph-association').GraphAssociation;
   resourceContinuation?: { approvalId: string; revision: number };
   graphReview?: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string };

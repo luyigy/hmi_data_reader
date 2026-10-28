@@ -1,3 +1,4 @@
+import { setTaskSessionActiveRun } from './session';
 import { submitRunnerResourceRequest } from '../task-resources/runner-protocol';
 import { prisma } from '@/lib/prisma';
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
@@ -187,13 +188,7 @@ export const handleHarnessInteractionRequest = async ({
   });
 
   if (existingTaskRun?.taskSessionId) {
-    await prisma.taskSession.update({
-      where: { id: existingTaskRun.taskSessionId },
-      data: {
-        status: isWaitingUser ? 'waiting_user' : 'failed',
-        attentionState: isWaitingUser ? 'needs_user_input' : 'error',
-      },
-    });
+    await setTaskSessionActiveRun(existingTaskRun.taskSessionId, taskRunId);
   }
   if (!existingRequest) {
     await publishTaskRunEvent({
@@ -293,13 +288,7 @@ export const clearWaitingForInputIfNeeded = async (taskRunId: string, participan
     });
 
     if (taskRun.taskSessionId) {
-      await prisma.taskSession.update({
-        where: { id: taskRun.taskSessionId },
-        data: {
-          status: 'active',
-          attentionState: 'normal',
-        },
-      });
+      await setTaskSessionActiveRun(taskRun.taskSessionId, taskRunId);
     }
   }
 

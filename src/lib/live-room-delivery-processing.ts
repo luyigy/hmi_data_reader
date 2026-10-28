@@ -274,8 +274,8 @@ export const processLiveRoomDelivery = async ({
     }
   }
 
-  await prisma.liveRoomDelivery.update({
-    where: { id: delivery.id },
+  const claimed = await prisma.liveRoomDelivery.updateMany({
+    where: { id: delivery.id, deliveryStatus: 'pending' },
     data: {
       sessionId: session.id,
       deliveryStatus: 'running',
@@ -283,6 +283,7 @@ export const processLiveRoomDelivery = async ({
       fallbackReason: null,
     },
   });
+  if (!claimed.count) return;
 
   await prisma.liveRoomMember.update({
     where: { id: targetMember.id },
@@ -302,6 +303,7 @@ export const processLiveRoomDelivery = async ({
     }).catch(() => undefined);
 
     const acpxResult = await executeLiveRoomReplyViaAcpx({
+      deliveryId: delivery.id,
       room,
       sourceMessage: {
         id: sourceMessage.id,

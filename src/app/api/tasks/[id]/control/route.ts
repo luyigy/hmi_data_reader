@@ -200,6 +200,11 @@ export async function POST(
 
     const room = await ensureTaskChatRoom(task.id, task.name);
 
+    if (!runId && await prisma.taskRun.count({ where: { taskId: task.id,
+      status: { in: ['pending', 'running', 'waiting_for_input'] } } }) > 1) {
+      return NextResponse.json({ error: 'Multiple active runs; specify runId to select the member to control' }, { status: 409 });
+    }
+
     const fallbackActiveRun = !runId && !task.currentTaskSession?.activeRunId
       ? findActiveRunFromRuns(
           await prisma.taskRun.findMany({
