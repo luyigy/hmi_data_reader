@@ -1,0 +1,96 @@
+{
+  "sourceCommit": "8be8dfb77276874f2ed6f503c1c411f822783a50",
+  "finishedAt": "2026-10-28T11:04:54.288Z",
+  "nativeExited": true,
+  "beforeServices": {
+    "agent-platform-dev.service": {
+      "MainPID": "984067",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-dev.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "3a86319cd5fc4f7aa262cc2977ee425f"
+    },
+    "agent-platform-task-graph.service": {
+      "MainPID": "984068",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "ed4484714b11406ba2d21c64eac7099c"
+    },
+    "agent-platform-task-graph-feishu.service": {
+      "MainPID": "984069",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "2724bc8c5cf44fd496bd498fd7f63354"
+    },
+    "agent-platform-feishu.service": {
+      "MainPID": "984070",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "25c302ecee8f4b01a910cbc0e20b9867"
+    },
+    "agent-platform-scheduled-jobs.service": {
+      "MainPID": "984071",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-scheduled-jobs.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "9818eb94bd1e4a36b9dac2f26dbae090"
+    }
+  },
+  "afterServices": {
+    "agent-platform-dev.service": {
+      "MainPID": "277195",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-dev.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "1f2ad10717314a9f8b0a655d3401a217"
+    },
+    "agent-platform-task-graph.service": {
+      "MainPID": "277196",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "e7e5c08916c44017aced6f7d2d53ff4f"
+    },
+    "agent-platform-task-graph-feishu.service": {
+      "MainPID": "277197",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "b5cc3b61d0f247a6bbb83034a50054c4"
+    },
+    "agent-platform-feishu.service": {
+      "MainPID": "277200",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "769f664b7d6d45f18c3ca1329a1d996b"
+    },
+    "agent-platform-scheduled-jobs.service": {
+      "MainPID": "277204",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-scheduled-jobs.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "9d02ca291ddc4063af9a8ba2ece4e549"
+    }
+  },
+  "health": {
+    "ok": true,
+    "status": "healthy",
+    "timestamp": "2026-10-28T11:04:54.119Z"
+  },
+  "approvedSnapshotsUnchanged": true,
+  "approvedSnapshotCount": 6
+}
