@@ -1,3 +1,4 @@
+import { piSizeProbeCommand, withRemotePiSessionSize } from './ssh-session-size';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { promises as fs } from 'fs';
@@ -14,6 +15,7 @@ interface RemoteHarnessTask {
 }
 
 interface RemoteSshExecutionOptions {
+  onSessionSize?: (sessionId: string, size: { totalBytes: number; deltaBytes?: number }) => void | Promise<void>;
   timeout: number;
   harnessType: string;
   host: RemoteHarnessHostRecord;
@@ -401,7 +403,7 @@ const extractClaudeModifiedFiles = (output: string): string[] => {
   return files;
 };
 
-export const executeRemoteSshTask = async (
+const executeRemoteSshTaskWithoutTelemetry = async (
   task: RemoteHarnessTask,
   options: RemoteSshExecutionOptions
 ): Promise<RemoteSshExecutionResult> => {
@@ -655,6 +657,21 @@ export const executeRemoteSshTask = async (
         : undefined,
     timing,
   };
+};
+
+export const executeRemoteSshTask = async (task: RemoteHarnessTask, options: RemoteSshExecutionOptions): Promise<RemoteSshExecutionResult> => {
+  const execute = () => executeRemoteSshTaskWithoutTelemetry(task, options);
+  if (options.harnessType !== 'pi-agent' || !options.onSessionSize) return execute();
+  const sessionId = resolveRemotePiSessionDir(task.id, options.resumeSessionId);
+  return withRemotePiSessionSize({
+    execute,
+    publish: size => options.onSessionSize!(sessionId, size),
+    read: async () => {
+      const probe = (windows: boolean) => runRemoteSshCommand({ host: options.host, timeout: 5000, command: piSizeProbeCommand(sessionId, windows) });
+      try { return (await probe(false)).stdout; }
+      catch (error) { if (shouldRetryWithPowerShell(error)) return (await probe(true)).stdout; throw error; }
+    },
+  });
 };
 
 const runRemoteSshCommand = async ({

@@ -1,0 +1,63 @@
+{
+  "featureCommit": "92567d8",
+  "wwPi": {
+    "observedAt": "2026-10-28T12:09:58.956Z",
+    "files": 9,
+    "totalBytes": 15900692,
+    "independentStatBytes": 15900692
+  },
+  "tests": [
+    {
+      "log": "output/session-size-606-ssh.log",
+      "sha256": "ced9a9ad811b9fb3a44a7ad181e8b70f69c8915d5b8a76af849fd7c1b0b5d0ea",
+      "exitCode": 0
+    },
+    {
+      "log": "output/session-size-606-ssh-progress.log",
+      "sha256": "33770035e3abee2e875cab6a5a5487e2485f96599e344676449b5a42b6271771",
+      "exitCode": 0
+    },
+    {
+      "log": "output/session-size-606-ssh-windows.log",
+      "sha256": "70180ca4fb59ac8d1e270af13d36129a61ae7ad77266bfa6096a826ba74ad83e",
+      "exitCode": 0
+    },
+    {
+      "log": "output/session-size-606-checks.log",
+      "sha256": "596fe7a0d454676d3b50025b52347302d630ee35712e6f2e16f5480edd5c75bf",
+      "exitCode": 0
+    },
+    {
+      "log": "output/session-size-606-deploy-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0
+    },
+    {
+      "log": "output/session-size-606-build-final.log",
+      "sha256": "936daa8b5e0bd263fb9df3130bee8a05607f7f15773cb5de53492d5bda9376a0",
+      "exitCode": 0,
+      "environment": "Disposable PostgreSQL schema inside Bubblewrap"
+    }
+  ],
+  "windowsRunner": "Pending maintenance access; platform receiving code and downloadable runner updated, old remote process not replaced",
+  "nativeReadOnlySmoke": {
+    "observedAt": "2026-10-28T12:14:35.471Z",
+    "wwPi": {
+      "totalBytes": 15900692,
+      "files": 9,
+      "footer": [
+        "会话记录：15.16 MiB · 本轮新增：未知（磁盘历史，非上下文占用；采样 2026-10-28T12:14:36.814Z）",
+        "⚠️ 会话记录已超过提醒阈值 10 MiB，建议保存交接并重置当前 Agent 会话。"
+      ]
+    },
+    "kimi": {
+      "totalBytes": 326690
+    },
+    "antigravity": {
+      "totalBytes": 901120
+    },
+    "localPi": {
+      "totalBytes": 58614
+    }
+  }
+}

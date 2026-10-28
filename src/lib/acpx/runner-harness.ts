@@ -459,6 +459,7 @@ export const executeViaRemoteSshHarness = async (
     );
   }
 
+  const runtime = participant.harnessType === 'pi-agent' ? await beginHarnessRuntimeExecution(participantId) : null;
   return executeRemoteSshTask(
     {
       id: request.taskId,
@@ -472,6 +473,10 @@ export const executeViaRemoteSshHarness = async (
       ) ?? DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS,
       harnessType: participant.harnessType,
       host: remoteHost,
+      onSessionSize: runtime ? async (sessionId, size) => {
+        const sample = normalizeSessionSize({ ...size, executionId: runtime.id, sessionId, observedAt: Date.now() });
+        if (sample && await persistSessionSize(runtime, sample, { sessionKind: 'pi_session_dir' })) await callbacks.onSessionSize?.(sample);
+      } : undefined,
       resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
       continuationMessage: participant.resumeSessionId
         ? harnessContinuationInput(request, participant, buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning)) : undefined,
