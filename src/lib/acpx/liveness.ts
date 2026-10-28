@@ -1,3 +1,4 @@
+import { lockSessionActivity, refreshSessionActivity } from './session-activity';
 import { promises as fs } from 'fs';
 import { prisma } from '@/lib/prisma';
 import { publishTaskRunEvent } from './event-bus';
@@ -160,81 +161,72 @@ const reconcileTaskRun = async (taskRunId: string) => {
       : 'Run was stopped after the local harness process disappeared';
 
   await finishPendingTaskRunInteractionRequests({ taskRunId: run.id, status: 'expired' });
-  await prisma.$transaction([
-    prisma.taskRun.update({
-      where: { id: run.id },
-      data: {
-        status: finalRunStatus,
-        activityState: 'stalled',
-        completedAt: now,
-        error: runError,
-        controlMetadata: stringifyMetadata({
-          ...parseMetadata(run.controlMetadata),
-          liveness: {
-            reconciledAt: now.toISOString(),
-            staleParticipantIds: Array.from(staleParticipantIds),
-            reason: 'local_process_missing',
-          },
-        }),
-      },
-    }),
-    prisma.task.update({
-      where: { id: run.taskId },
-      data: {
-        status: finalRunStatus,
-        completedAt: now,
-        error: finalRunStatus === 'failed' ? runError : undefined,
-      },
-    }),
-    ...(run.taskSession
-      ? [
-          prisma.taskSession.update({
-            where: { id: run.taskSession.id },
-            data: {
-              status: 'failed',
-              attentionState: finalRunStatus === 'failed' ? 'stuck' : 'needs_review',
-              activeRunId: null,
-              summary: run.summary ?? runError,
+  await prisma.$transaction(async tx => {
+    if (run.taskSessionId) await lockSessionActivity(tx, run.taskId, run.taskSessionId);
+    await Promise.all([
+      tx.taskRun.update({
+        where: { id: run.id },
+        data: {
+          status: finalRunStatus,
+          activityState: 'stalled',
+          completedAt: now,
+          error: runError,
+          controlMetadata: stringifyMetadata({
+            ...parseMetadata(run.controlMetadata),
+            liveness: {
+              reconciledAt: now.toISOString(),
+              staleParticipantIds: Array.from(staleParticipantIds),
+              reason: 'local_process_missing',
             },
           }),
-        ]
-      : []),
-    ...run.participants
-      .filter((participant) =>
-        participant.status === 'pending'
-        || participant.status === 'running'
-        || participant.status === 'waiting_for_input'
-      )
-      .map((participant) =>
-        prisma.taskRunParticipant.update({
-          where: { id: participant.id },
-          data: {
-            status:
-              staleParticipantIds.has(participant.id)
-                ? terminalParticipantStatus
-                : finalRunStatus === 'failed'
-                ? 'failed'
-                : terminalParticipantStatus,
-            activityState: staleParticipantIds.has(participant.id)
-              ? finalRunStatus === 'failed'
-                ? 'stalled'
-                : 'terminating'
-              : 'stalled',
-            completedAt: now,
-            error: staleParticipantIds.has(participant.id)
-              ? runError
-              : `Run ended before ${participant.role} could start`,
-            controlMetadata: stringifyMetadata({
-              ...parseMetadata(participant.controlMetadata),
-              liveness: {
-                reconciledAt: now.toISOString(),
-                staleRunDetected: staleParticipantIds.has(participant.id),
-              },
-            }),
-          },
-        })
-      ),
-  ]);
+        },
+      }),
+      tx.task.update({
+        where: { id: run.taskId },
+        data: {
+          status: finalRunStatus,
+          completedAt: now,
+          error: finalRunStatus === 'failed' ? runError : undefined,
+        },
+      }),
+      ...run.participants
+        .filter((participant) =>
+          participant.status === 'pending'
+          || participant.status === 'running'
+          || participant.status === 'waiting_for_input'
+        )
+        .map((participant) =>
+          tx.taskRunParticipant.update({
+            where: { id: participant.id },
+            data: {
+              status:
+                staleParticipantIds.has(participant.id)
+                  ? terminalParticipantStatus
+                  : finalRunStatus === 'failed'
+                  ? 'failed'
+                  : terminalParticipantStatus,
+              activityState: staleParticipantIds.has(participant.id)
+                ? finalRunStatus === 'failed'
+                  ? 'stalled'
+                  : 'terminating'
+                : 'stalled',
+              completedAt: now,
+              error: staleParticipantIds.has(participant.id)
+                ? runError
+                : `Run ended before ${participant.role} could start`,
+              controlMetadata: stringifyMetadata({
+                ...parseMetadata(participant.controlMetadata),
+                liveness: {
+                  reconciledAt: now.toISOString(),
+                  staleRunDetected: staleParticipantIds.has(participant.id),
+                },
+              }),
+            },
+          })
+        ),
+    ]);
+    if (run.taskSessionId) await refreshSessionActivity(tx, run.taskId, run.taskSessionId);
+  });
 
   for (const { participant, pid, reason } of staleParticipants) {
     await publishTaskRunEvent({

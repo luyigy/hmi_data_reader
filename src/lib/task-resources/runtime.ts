@@ -34,6 +34,8 @@ export async function resourceContinuationLaunch(approval: ResourceApproval, cur
   }
   await resolveResourceAccess({ ...current, participants: [participant] });
   return { ...current, taskSessionId: payload.launch.taskSessionId, participants: [participant],
+    ...(current.roomDelivery && payload.source ? { roomDelivery: { deliveryId: current.roomDelivery.deliveryId, resumeSourceParticipantId: payload.source.participantId,
+      retryOfRunId: payload.applicationHistory?.at(-1)?.runId } } : {}),
     resourceContinuation: { approvalId: approval.id, revision: payload.revision } };
 }
 
@@ -91,7 +93,7 @@ export async function resourcesForRun(request: AcpxRunRequest, taskRunId: string
   for (const root of read) if (existingWrite.some(w => directoryContains(root, w))) throw new Error('只读资源会覆盖当前可写工作区，需调整目录范围');
   for (const root of write) if (read.some(r => directoryContains(root, r) || directoryContains(r, root)) || existingRead.some(r => directoryContains(r, root) && r !== root)) throw new Error('补充目录读写范围重叠，需明确独立目录');
   {
-    const checkWriters = Boolean(request.graphAssociation || request.graphExecution || request.graphReview) && Boolean(existingWrite.length || write.length);
+    const checkWriters = Boolean(request.graphAssociation || request.graphExecution || request.graphReview || request.roomDelivery) && Boolean(existingWrite.length || write.length);
     const proofs = checkWriters ? await observeResourceWriters(taskRunId, existingWrite, write) : [];
     await prisma.$transaction(async tx => {
       if (checkWriters) await reserveResourceWriters(tx, taskRunId, participantId, existingWrite, write, proofs);

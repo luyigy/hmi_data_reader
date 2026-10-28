@@ -1,0 +1,536 @@
+{
+  "baseline": "0a4f69dbca406cc4ce96e6af1a0917b1df9ee82d",
+  "sources": [
+    "4d5760cb33fca34751f3bfb3644c0135b27b5a7b",
+    "9b10a79dd0aec7457a726dd7bf3cbc11ade4efab"
+  ],
+  "changedFiles": [
+    "docs/603_HANDOVER_20261028_TaskGraph自主提交第一刀.md",
+    "docs/604_HANDOVER_20261028_飞书成员并发准入修复.md",
+    "docs/605_HANDOVER_20261028_603与604集成部署.md",
+    "docs/architecture/issue-route-packages.md",
+    "scripts/test-task-graph-postgres.mjs",
+    "src/app/api/tasks/[id]/control/route.ts",
+    "src/app/tasks/[id]/chat/use-task-chat-actions.ts",
+    "src/app/tasks/[id]/chat/use-task-chat-derived.ts",
+    "src/lib/acpx/liveness.ts",
+    "src/lib/acpx/room-admission.ts",
+    "src/lib/acpx/run-selection.ts",
+    "src/lib/acpx/runner-harness.ts",
+    "src/lib/acpx/runner-interactions.ts",
+    "src/lib/acpx/runner.ts",
+    "src/lib/acpx/session-activity.ts",
+    "src/lib/acpx/session.ts",
+    "src/lib/acpx/types.ts",
+    "src/lib/feishu-startup-task-cleanup.ts",
+    "src/lib/live-room-delivery-execution.ts",
+    "src/lib/live-room-delivery-processing.ts",
+    "src/lib/task-graph/acceptance-models.ts",
+    "src/lib/task-graph/agent-commit.ts",
+    "src/lib/task-graph/architecture-review.ts",
+    "src/lib/task-graph/conversation-inbox.ts",
+    "src/lib/task-graph/coordinator.ts",
+    "src/lib/task-graph/domain.ts",
+    "src/lib/task-graph/execution-progress.ts",
+    "src/lib/task-graph/implementation-result.ts",
+    "src/lib/task-graph/issue-route.ts",
+    "src/lib/task-graph/prompts.ts",
+    "src/lib/task-graph/proposal-card.ts",
+    "src/lib/task-graph/proposals.ts",
+    "src/lib/task-graph/repair.ts",
+    "src/lib/task-graph/restart-recovery.ts",
+    "src/lib/task-graph/result-source.ts",
+    "src/lib/task-graph/review-publication.ts",
+    "src/lib/task-graph/role-configuration.ts",
+    "src/lib/task-graph/room-result-publication.ts",
+    "src/lib/task-graph/store.ts",
+    "src/lib/task-graph/task-run-result.ts",
+    "src/lib/task-graph/worktree.ts",
+    "src/lib/task-resources/recovery.ts",
+    "src/lib/task-resources/runtime.ts",
+    "tests/acpx-run-selection.test.ts",
+    "tests/fixtures/agent-commit-crash-worker.ts",
+    "tests/fixtures/room-admission-worker.ts",
+    "tests/room-member-admission.test.ts",
+    "tests/task-graph-agent-commit.test.ts",
+    "tests/task-graph-conversation-delivery.test.ts",
+    "tests/task-graph-issue-proposal.test.ts",
+    "docs/evidence/603-604-integration/verification.json"
+  ],
+  "runs": [
+    {
+      "name": "new",
+      "command": "node scripts/sandbox-postgres-session.mjs run task-graph-agent-commit room-member-admission",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-new.log",
+      "sha256": "791a9b971f4bd43e33790ef83498be5958a4f8760c8f9ea729bfdff63ffece75",
+      "signals": [
+        "PASS delivered: platform business commands=0, platform commits=0",
+        "PASS human: platform business commands=0, platform commits=0",
+        "PASS architecture: platform business commands=0, platform commits=0",
+        "PASS plain: platform business commands=0, platform commits=0",
+        "PASS working: platform business commands=0, platform commits=0",
+        "PASS blocked: platform business commands=0, platform commits=0",
+        "PASS failed: platform business commands=0, platform commits=0",
+        "PASS dirty: platform business commands=0, platform commits=0",
+        "PASS staged: platform business commands=0, platform commits=0",
+        "PASS missing-sha: platform business commands=0, platform commits=0",
+        "PASS wrong-sha: platform business commands=0, platform commits=0",
+        "PASS duplicate: platform business commands=0, platform commits=0",
+        "PASS foreign-branch: platform business commands=0, platform commits=0",
+        "PASS wrong-identity: platform business commands=0, platform commits=0",
+        "PASS room: platform business commands=0, platform commits=0",
+        "PASS restart: platform business commands=0, platform commits=0",
+        "PASS restart-failed: platform business commands=0, platform commits=0",
+        "PASS restart-blocked: platform business commands=0, platform commits=0",
+        "PASS cross-process local Kimi/remote WPI, same-member exclusion, terminal projection, replay",
+        "PASS same-directory writer conflict before harness execution",
+        "PASS identical request race and alternate delivery replay",
+        "PASS same harness/display name, different bound members; failure preserves peer",
+        "PASS trusted resume binding and native-session exclusion across members",
+        "PASS forged member and unowned native identity rejected",
+        "PASS liveness cleanup, startup failure, legitimate retry once; surviving member preserved",
+        "[inner] shared phase lifecycle: PASS; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 0"
+      ]
+    },
+    {
+      "name": "null-red",
+      "command": "node scripts/sandbox-postgres-session.mjs run task-graph-conversation-delivery",
+      "status": "expected-red: target steering sends 0 instead of 1",
+      "exitCode": 1,
+      "log": "output/integration-605-null-red.log",
+      "sha256": "f45baa20561c40ba4330bb25d54d03981872936f3c5aa3debe5022f7225c8ab3",
+      "signals": [
+        "[inner] shared phase lifecycle: FAIL; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 1，详见 output/sandbox-postgres-runs/2026-10-28T185157-104500"
+      ]
+    },
+    {
+      "name": "regression",
+      "command": "node scripts/sandbox-postgres-session.mjs run acpx-run-selection task-graph-conversation-delivery graph-writer-scope task-graph-writer-ownership task-resource-runtime task-resource-runtime-safety task-resource-writers thin-room-entry thin-room-resources thin-room-results task-graph-conversation-target feishu-startup-task-cleanup acpx-interaction-events task-graph-worktree task-graph-integration-retry",
+      "status": "baseline-failure: first five suites pass, then task-resource-runtime-safety fails",
+      "exitCode": 1,
+      "log": "output/integration-605-regression.log",
+      "sha256": "09a559c835e49d5a5682e03f2e99aac18b71dadbaf08dca9a8fe4c35019c361e",
+      "signals": [
+        "PASS active TaskRun selection: multiple, explicit member, terminal selection, pending, idle",
+        "Actual writer exit fences uncertain delivery; unknown steering is never replayed, rejected input stays queued, failed bound turns retain explicit recovery context, concurrent reconciliation is idempotent.",
+        "conversation: historical Writer cannot block Kimi/Codex replies; no new Writer; session guard and completion routing preserved",
+        "handover: historical Writer cannot block Kimi/Codex replies; no new Writer; session guard and completion routing preserved",
+        "Live supervisor and orphan child prevent takeover; confirmed exit and unknown ownership are distinguished",
+        "Approved Reader grant maps to pinned private checkout; real sandbox edits and regression succeed; shared source, fixed input and Git stay readonly; replay preserves edits; changed claim rejected",
+        "task-resource-runtime passed: real read/write sandbox, native-session continuity without graph Writer, terminal-state recheck and approval replay dedupe",
+        "[inner] shared phase lifecycle: FAIL; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 1，详见 output/sandbox-postgres-runs/2026-10-28T185516-135021"
+      ]
+    },
+    {
+      "name": "baseline-safety",
+      "command": "node scripts/sandbox-postgres-session.mjs run task-resource-runtime-safety",
+      "status": "same failure on unmodified baseline 0a4f69d",
+      "exitCode": 1,
+      "log": "output/integration-605-baseline-safety.log",
+      "sha256": "5fd66f4ce4f561e20b75a4256d1e6a4f31f9d3d7d34ad68c875b4e1c35ac88c5",
+      "signals": [
+        "[inner] shared phase lifecycle: FAIL; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 1，详见 output/sandbox-postgres-runs/2026-10-28T185622-154191"
+      ]
+    },
+    {
+      "name": "regression-rest",
+      "command": "node scripts/sandbox-postgres-session.mjs run task-resource-writers thin-room-entry thin-room-resources thin-room-results task-graph-conversation-target feishu-startup-task-cleanup acpx-interaction-events task-graph-worktree task-graph-integration-retry",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-regression-rest.log",
+      "sha256": "ca1b38485522a466d4986ef3d46a4a2d9194807acfb7392b25fbcc752364d921",
+      "signals": [
+        "100 historical writers and a 5.1s process observation pass the default 5s transaction boundary",
+        "Supplemental writers serialize overlapping roots; baseline conflicts, actual exit, aliases and read sharing verified",
+        "alpha: card/native identity, new session, completed-but-live writer, cross-session mutex, automatic claim defer passed",
+        "alpha: implement/acceptance/exhausted/completed use normal writable runtime",
+        "beta: card/native identity, new session, completed-but-live writer, cross-session mutex, automatic claim defer passed",
+        "beta: implement/acceptance/exhausted/completed use normal writable runtime",
+        "Arbitrary task IDs and real declared service startup/cleanup: project tools, approved tester source/extra writes, read-only override, actual sandbox test output and source receipt passed",
+        "Migration: missing provenance preserved, exact default restored from verified task, dry-run unchanged, atomic rollback, idempotent second apply, user edits retained",
+        "Room review: multi-repository inputs, stale card rejection, exhausted continuation, failed/approved publication, successor once passed",
+        "Room self-test preserves the configured human gate; only its actual approval releases the successor",
+        "Actual automatic and Feishu room entry: shared durable result intake, duplicate callback, immutable receipt, no ordinary commit/recollection, exclusive graph/handover routing and automatic C -> D delivery passed. Room A -> B self-verification, final committed source, concurrent duplicate publication and exhausted history preservation passed.",
+        "Same-model roles are distinct; quoted message stays bound to its original session across queueing and duplicate arrival",
+        "Feishu startup preserves graph writers, legacy graph bindings, review owners, live native processes and pending work; unowned stale continuation cleanup remains idempotent",
+        "Structured harness output remains output: JUnit permissions, readonly reports and quoted prompts do not create approval cards",
+        "task graph worktree lifecycle checks passed",
+        "Integration preserves conflict evidence; stale/CAS retries reverify both deliveries, fencing prevents lost-owner publication, branch changes and budget exhaustion remain explicit",
+        "[inner] shared phase lifecycle: PASS; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 0"
+      ]
+    },
+    {
+      "name": "build",
+      "command": "node scripts/sandbox-postgres-session.mjs run platform-build",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-build.log",
+      "sha256": "1e664b13d64991646cab03b5eee32d670b4077764fe7e5b3ad6ef5d31fca50b8",
+      "signals": [
+        " ✓ Compiled successfully",
+        " ✓ Generating static pages (35/35)",
+        "[inner] shared phase lifecycle: PASS; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 0"
+      ]
+    },
+    {
+      "name": "final",
+      "command": "node scripts/sandbox-postgres-session.mjs run task-graph-agent-commit room-member-admission acpx-run-selection task-graph-conversation-delivery task-resource-access feishu-chat-card-runtime feishu-turn-card",
+      "status": "first five suites pass including both new E2Es; card test incorrectly counts prior Graph fixtures in shared schema, rerun separately in cards passes",
+      "exitCode": 1,
+      "log": "output/integration-605-final.log",
+      "sha256": "2515ceee24092e14c9baefa252dda26bee3f278a6c7c30f210cda3c0c82b6775",
+      "signals": [
+        "PASS delivered: platform business commands=0, platform commits=0",
+        "PASS human: platform business commands=0, platform commits=0",
+        "PASS architecture: platform business commands=0, platform commits=0",
+        "PASS plain: platform business commands=0, platform commits=0",
+        "PASS working: platform business commands=0, platform commits=0",
+        "PASS blocked: platform business commands=0, platform commits=0",
+        "PASS failed: platform business commands=0, platform commits=0",
+        "PASS dirty: platform business commands=0, platform commits=0",
+        "PASS staged: platform business commands=0, platform commits=0",
+        "PASS missing-sha: platform business commands=0, platform commits=0",
+        "PASS wrong-sha: platform business commands=0, platform commits=0",
+        "PASS duplicate: platform business commands=0, platform commits=0",
+        "PASS foreign-branch: platform business commands=0, platform commits=0",
+        "PASS wrong-identity: platform business commands=0, platform commits=0",
+        "PASS room: platform business commands=0, platform commits=0",
+        "PASS restart: platform business commands=0, platform commits=0",
+        "PASS restart-failed: platform business commands=0, platform commits=0",
+        "PASS restart-blocked: platform business commands=0, platform commits=0",
+        "PASS cross-process local Kimi/remote WPI, same-member exclusion, terminal projection, replay",
+        "PASS same-directory writer conflict before harness execution",
+        "PASS identical request race and alternate delivery replay",
+        "PASS same harness/display name, different bound members; failure preserves peer",
+        "PASS trusted resume binding and native-session exclusion across members",
+        "PASS forged member and unowned native identity rejected",
+        "PASS liveness cleanup, startup failure, legitimate retry once; surviving member preserved",
+        "PASS active TaskRun selection: multiple, explicit member, terminal selection, pending, idle",
+        "Actual writer exit fences uncertain delivery; unknown steering is never replayed, rejected input stays queued, failed bound turns retain explicit recovery context, concurrent reconciliation is idempotent.",
+        "task-resource-access tests passed",
+        "[inner] shared phase lifecycle: FAIL; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 1，详见 output/sandbox-postgres-runs/2026-10-28T185713-208852"
+      ]
+    },
+    {
+      "name": "cards",
+      "command": "node scripts/sandbox-postgres-session.mjs run feishu-chat-card-runtime feishu-turn-card",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-cards.log",
+      "sha256": "215aa719f6d6971fdc63c874958ebf7e1c38834b0ea4e40ca4c2fa102f4228a7",
+      "signals": [
+        "Chat-only runtime: lost receipt, PATCH retry, original-card finalization, two turns, graph isolation and restart PASS (Feishu transport simulated)",
+        "Durable cards: reverse completion, no second receipt, late deltas, lost response, failed PATCH, restart, recipient and topic isolation passed",
+        "[inner] shared phase lifecycle: PASS; evidence.json includes SQL and cleanup evidence",
+        "[run] 沙箱退出码 0"
+      ]
+    },
+    {
+      "name": "types",
+      "command": "npx tsc --noEmit --incremental false",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signals": []
+    },
+    {
+      "name": "long-files",
+      "command": "npm run check:long-files",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-long-files.log",
+      "sha256": "cca5604ffb20a84073ade177a9d2bb800ae7ddaa35cbde5cba7aad7c0c125516",
+      "signals": [
+        "No files at or above 1000 lines."
+      ]
+    },
+    {
+      "name": "workflow",
+      "command": "npm run workflow:validate -- --preflight docs/605_HANDOVER_20261028_603与604集成部署.md",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-workflow.log",
+      "sha256": "a97afc43927957cf10a6e6e4a3c7e434c6bc8f0294f02c42f1c38f512de634dd",
+      "signals": [
+        "PASS docs/605_HANDOVER_20261028_603与604集成部署.md action=none"
+      ]
+    },
+    {
+      "name": "steering",
+      "command": "npm run test:live-room-steering",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-steering.log",
+      "sha256": "859472875762eb0616c495f545118ecb9d4f7ecaa76596245c6f8d44d5a6f7cc",
+      "signals": [
+        "Live Room steering: receipts, fallback, generation/run/session guards, cleanup and dedup passed"
+      ]
+    },
+    {
+      "name": "queue",
+      "command": "npm run test:live-room-queue",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-queue.log",
+      "sha256": "e3b36102fe244c4d8c51b2d94adad3b35404e4bb0800c66a7ad23fa380b1e626",
+      "signals": [
+        "live room queue-return checks passed"
+      ]
+    },
+    {
+      "name": "harness",
+      "command": "npm run test:acpx-harness-options",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "output/integration-605-harness.log",
+      "sha256": "1d7745feba297a5d844a797061ccf2f56b1843d0cb25633067a81db720bf15c0",
+      "signals": [
+        "acpx harness options tests passed"
+      ]
+    }
+  ],
+  "isolatedDatabaseEvidence": [
+    {
+      "path": "output/sandbox-postgres-runs/2026-10-28T185035-91540/evidence.json",
+      "startedAt": "2026-10-28T10:50:36.524Z",
+      "finishedAt": "2026-10-28T10:54:24.451Z",
+      "suites": [
+        "task-graph-agent-commit",
+        "room-member-admission"
+      ],
+      "steps": [
+        {
+          "name": "isolated-write",
+          "ok": true
+        },
+        {
+          "name": "regression-suite",
+          "ok": true,
+          "exitCode": 0
+        },
+        {
+          "name": "suite-schema-cleanup",
+          "ok": true
+        }
+      ],
+      "cleanup": {
+        "lifecycleClosed": true,
+        "portClosed": true,
+        "directoryRemoved": true
+      }
+    },
+    {
+      "path": "output/sandbox-postgres-runs/2026-10-28T185157-104500/evidence.json",
+      "startedAt": "2026-10-28T10:51:58.005Z",
+      "finishedAt": "2026-10-28T10:52:14.277Z",
+      "suites": [
+        "task-graph-conversation-delivery"
+      ],
+      "steps": [
+        {
+          "name": "isolated-write",
+          "ok": true
+        },
+        {
+          "name": "regression-suite",
+          "ok": false,
+          "exitCode": 1
+        },
+        {
+          "name": "suite-schema-cleanup",
+          "ok": true
+        }
+      ],
+      "cleanup": {
+        "lifecycleClosed": true,
+        "portClosed": true,
+        "directoryRemoved": true
+      }
+    },
+    {
+      "path": "output/sandbox-postgres-runs/2026-10-28T185516-135021/evidence.json",
+      "startedAt": "2026-10-28T10:55:17.548Z",
+      "finishedAt": "2026-10-28T10:55:51.926Z",
+      "suites": [
+        "acpx-run-selection",
+        "task-graph-conversation-delivery",
+        "graph-writer-scope",
+        "task-graph-writer-ownership",
+        "task-resource-runtime",
+        "task-resource-runtime-safety",
+        "task-resource-writers",
+        "thin-room-entry",
+        "thin-room-resources",
+        "thin-room-results",
+        "task-graph-conversation-target",
+        "feishu-startup-task-cleanup",
+        "acpx-interaction-events",
+        "task-graph-worktree",
+        "task-graph-integration-retry"
+      ],
+      "steps": [
+        {
+          "name": "isolated-write",
+          "ok": true
+        },
+        {
+          "name": "regression-suite",
+          "ok": false,
+          "exitCode": 1
+        },
+        {
+          "name": "suite-schema-cleanup",
+          "ok": true
+        }
+      ],
+      "cleanup": {
+        "lifecycleClosed": true,
+        "portClosed": true,
+        "directoryRemoved": true
+      }
+    },
+    {
+      "path": "output/sandbox-postgres-runs/2026-10-28T185547-144237/evidence.json",
+      "startedAt": "2026-10-28T10:55:48.774Z",
+      "finishedAt": "2026-10-28T10:56:44.476Z",
+      "suites": [
+        "platform-build"
+      ],
+      "steps": [
+        {
+          "name": "isolated-write",
+          "ok": true
+        },
+        {
+          "name": "regression-suite",
+          "ok": true,
+          "exitCode": 0
+        },
+        {
+          "name": "suite-schema-cleanup",
+          "ok": true
+        }
+      ],
+      "cleanup": {
+        "lifecycleClosed": true,
+        "portClosed": true,
+        "directoryRemoved": true
+      }
+    },
+    {
+      "path": "output/sandbox-postgres-runs/2026-10-28T185624-154283/evidence.json",
+      "startedAt": "2026-10-28T10:56:25.067Z",
+      "finishedAt": "2026-10-28T10:59:30.370Z",
+      "suites": [
+        "task-resource-writers",
+        "thin-room-entry",
+        "thin-room-resources",
+        "thin-room-results",
+        "task-graph-conversation-target",
+        "feishu-startup-task-cleanup",
+        "acpx-interaction-events",
+        "task-graph-worktree",
+        "task-graph-integration-retry"
+      ],
+      "steps": [
+        {
+          "name": "isolated-write",
+          "ok": true
+        },
+        {
+          "name": "regression-suite",
+          "ok": true,
+          "exitCode": 0
+        },
+        {
+          "name": "suite-schema-cleanup",
+          "ok": true
+        }
+      ],
+      "cleanup": {
+        "lifecycleClosed": true,
+        "portClosed": true,
+        "directoryRemoved": true
+      }
+    },
+    {
+      "path": "output/sandbox-postgres-runs/2026-10-28T185713-208852/evidence.json",
+      "startedAt": "2026-10-28T10:57:14.606Z",
+      "finishedAt": "2026-10-28T11:01:15.537Z",
+      "suites": [
+        "task-graph-agent-commit",
+        "room-member-admission",
+        "acpx-run-selection",
+        "task-graph-conversation-delivery",
+        "task-resource-access",
+        "feishu-chat-card-runtime",
+        "feishu-turn-card"
+      ],
+      "steps": [
+        {
+          "name": "isolated-write",
+          "ok": true
+        },
+        {
+          "name": "regression-suite",
+          "ok": false,
+          "exitCode": 1
+        },
+        {
+          "name": "suite-schema-cleanup",
+          "ok": true
+        }
+      ],
+      "cleanup": {
+        "lifecycleClosed": true,
+        "portClosed": true,
+        "directoryRemoved": true
+      }
+    },
+    {
+      "path": "output/sandbox-postgres-runs/2026-10-28T190208-260814/evidence.json",
+      "startedAt": "2026-10-28T11:02:09.790Z",
+      "finishedAt": "2026-10-28T11:02:34.817Z",
+      "suites": [
+        "feishu-chat-card-runtime",
+        "feishu-turn-card"
+      ],
+      "steps": [
+        {
+          "name": "isolated-write",
+          "ok": true
+        },
+        {
+          "name": "regression-suite",
+          "ok": true,
+          "exitCode": 0
+        },
+        {
+          "name": "suite-schema-cleanup",
+          "ok": true
+        }
+      ],
+      "cleanup": {
+        "lifecycleClosed": true,
+        "portClosed": true,
+        "directoryRemoved": true
+      }
+    }
+  ],
+  "notes": [
+    "No production database test mutations; model and SSH leaves are fixtures, not live bot calls.",
+    "Next build emitted dynamic-route prerender notice for /api/acpx/harness-options, compiled and exited 0.",
+    "Known resource-concurrency and session-reset failures already reproduced at exact same baseline by 604; see HANDOVER.",
+    "GitNexus reports critical shared-runner impact (36 callers); source navigation plus writer/resource/chat regressions verify actual paths."
+  ]
+}

@@ -1,3 +1,4 @@
+import { refreshSessionActivity } from './acpx/session-activity';
 import type { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 import { observeTaskRunExit, taskRunExitMatches } from './task-graph/task-run-exit-proof';
@@ -33,7 +34,7 @@ export async function cleanupFeishuOwnedStaleTaskRuns(taskRunId?: string) {
     const owner = metadata(candidate.controlMetadata);
     // A live supervisor may still be finalizing after its harness release. Leave it alone.
     if ('graphWriter' in owner && (await observeGraphWriter(owner.graphWriter)).kind !== 'exited') continue;
-    const proof = 'graphWriter' in owner ? await observeTaskRunExit(candidate.id) : undefined;
+    const proof = 'graphWriter' in owner || 'roomAdmission' in owner ? await observeTaskRunExit(candidate.id) : undefined;
     await prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${candidate.taskId} FOR UPDATE`;
       if (candidate.taskSessionId) await tx.$queryRaw`SELECT id FROM "TaskSession" WHERE id = ${candidate.taskSessionId} FOR UPDATE`;
@@ -41,15 +42,14 @@ export async function cleanupFeishuOwnedStaleTaskRuns(taskRunId?: string) {
       const run = await tx.taskRun.findUnique({ where: { id: candidate.id }, include: { participants: { where: { status: 'running' } } } });
       if (!run || run.status !== 'running' || await graphOwnsRun(tx, run)) return;
       const owner = metadata(run.controlMetadata);
-      if ('graphWriter' in owner) {
+      if ('graphWriter' in owner || 'roomAdmission' in owner) {
         if (!await taskRunExitMatches(tx, run.id, proof)) return;
         const now = new Date();
         const reason = 'Runtime interrupted before run finalization; previous writer exit confirmed';
         await tx.taskRunParticipant.updateMany({ where: { taskRunId: run.id, status: { in: ['pending', 'running', 'waiting_for_input'] } },
           data: { status: 'interrupted', completedAt: now, error: reason } });
         await tx.taskRun.update({ where: { id: run.id }, data: { status: 'interrupted', activityState: 'stalled', completedAt: now, error: reason } });
-        if (run.taskSessionId) await tx.taskSession.updateMany({ where: { id: run.taskSessionId, activeRunId: run.id },
-          data: { activeRunId: null, status: 'active', attentionState: 'needs_review', summary: reason } });
+        if (run.taskSessionId) await refreshSessionActivity(tx, run.taskId, run.taskSessionId);
         return;
       }
       if (processMayBeAlive(owner.activeLocalHarnessPid) || run.participants.some(participant => processMayBeAlive(metadata(participant.controlMetadata).childPid))) return;
@@ -62,6 +62,7 @@ export async function cleanupFeishuOwnedStaleTaskRuns(taskRunId?: string) {
           : { status: 'failed', completedAt: new Date(), error: 'Stale: process killed before session started' } });
       }
       await tx.taskRun.updateMany({ where: { id: run.id, status: 'running', updatedAt: run.updatedAt }, data: { status: 'completed', completedAt: new Date() } });
+      if (run.taskSessionId) await refreshSessionActivity(tx, run.taskId, run.taskSessionId);
     });
   }
 }

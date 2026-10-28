@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { selectActiveTaskRun } from '../src/lib/acpx/run-selection';
+const kimi = { id: 'kimi', status: 'running' };
+const wpi = { id: 'wpi', status: 'waiting_for_input' };
+const ended = { id: 'old', status: 'completed' };
+assert.deepEqual(selectActiveTaskRun([kimi, wpi, ended]), { hasActiveRuns: true, controlRun: null });
+assert.equal(selectActiveTaskRun([kimi, wpi], 'wpi').controlRun, wpi);
+assert.equal(selectActiveTaskRun([kimi, wpi, ended], 'old').controlRun, null);
+assert.equal(selectActiveTaskRun([ended, kimi], 'old').controlRun, kimi);
+assert.deepEqual(selectActiveTaskRun([ended]), { hasActiveRuns: false, controlRun: null });
+const pending = { id: 'queued-start', status: 'pending' };
+assert.deepEqual(selectActiveTaskRun([pending]), { hasActiveRuns: true, controlRun: pending });
+assert.equal(selectActiveTaskRun([pending, kimi]).controlRun, null);
+console.log('PASS active TaskRun selection: multiple, explicit member, terminal selection, pending, idle');

@@ -1,3 +1,5 @@
+import { bindRoomAdmission, assertRoomRunAvailable, type RoomRunBinding } from './room-admission';
+import { lockSessionActivity, refreshSessionActivity } from './session-activity';
 import { publishRoomResult } from '../task-graph/room-result-publication';
 import { captureRoomResultSource } from '../task-graph/result-source';
 import { resolveCompletionOwner, taskRunCompletionOwner } from './completion-owner';
@@ -20,7 +22,7 @@ import { DEFAULT_ACPX_PERMISSION_CONFIG, getLocalHarnessPermissionSupport } from
 import { executeParticipant } from './runner-participant';
 import { stringifyJson } from './runner-metadata';
 import { getParticipantContinuationKey } from './session-tracking';
-import { ensureTaskSession, setTaskSessionActiveRun } from './session';
+import { ensureTaskSession } from './session';
 import type { AcpxRunRequest, TaskRunStatus } from './types';
 
 export class AcpxRunStartupError extends Error {
@@ -55,6 +57,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   const usesGraphWriter = Boolean(request.graphAssociation || request.graphExecution || request.graphReview);
   const graphWriter = usesGraphWriter && supportedWriter ? await createGraphWriter() : undefined;
   if (request.graphExecution && request.graphReview) throw new Error('A TaskRun cannot bind implementation and review simultaneously');
+  let roomAdmission: RoomRunBinding | undefined;
   const createRun = (tx: Pick<Prisma.TransactionClient, 'taskRun'>) => tx.taskRun.create({
     data: {
       taskId: request.taskId,
@@ -66,6 +69,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       watchdogConfig: stringifyJson(request.watchdogConfig ?? null),
       controlMetadata: stringifyJson({
         ...(graphWriter ? { graphWriter } : {}),
+        ...(roomAdmission ? { roomAdmission } : {}),
         ...(reviewCandidates ? { reviewCandidates } : {}),
         workingDirectory: request.workingDirectory || process.cwd(),
         ...(request.graphReview ? { graphReview: request.graphReview } : {}),
@@ -132,8 +136,8 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     : request.graphReview ? (await prisma.taskGraphExecution.findMany({ where: { nodeId: request.graphReview.nodeId }, select: { id: true } })).map(job => job.id) : request.graphAssociation?.executionIds || [];
   const resourceExit = await resourceContinuationExit(request);
   const startRun = () => prisma.$transaction(async tx => {
+    await lockWriterAdmission(tx);
     if (usesGraphWriter) {
-      await lockWriterAdmission(tx);
       await assertWorkspaceWriterAvailable(tx, {
         taskId: request.taskId, nodeId: request.graphAssociation?.nodeId || request.graphReview?.nodeId, directory: request.workingDirectory,
         executionClaim: request.graphExecution, reviewClaim: request.graphReview,
@@ -146,9 +150,8 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${request.taskId} FOR UPDATE`;
     if (request.resourceContinuation && (await tx.task.findUniqueOrThrow({ where: { id: request.taskId } })).currentTaskSessionId !== taskSession.id) throw new Error('原任务 Session 已改变');
     await tx.$queryRaw`SELECT id FROM "TaskSession" WHERE id = ${taskSession.id} FOR UPDATE`;
-    if (!graphExecution && !request.graphReview && await tx.taskRun.count({
-      where: { taskSessionId: taskSession.id, status: { in: ['pending', 'running', 'waiting_for_input'] } },
-    })) throw new Error('Session already has an active run');
+    roomAdmission = await bindRoomAdmission(tx, request);
+    await assertRoomRunAvailable(tx, request, roomAdmission);
     await assertGraphResetComplete(tx, conversationExecutions, request.participants);
     const created = await createRun(tx);
     if (graphExecution) {
@@ -160,15 +163,16 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     await bindTaskRunResult(tx, request, created.id);
     const completionOwner = await resolveCompletionOwner(request.taskId, tx);
     const bound = await tx.taskRun.findUniqueOrThrow({ where: { id: created.id } });
-    await tx.taskRun.update({ where: { id: created.id }, data: { controlMetadata: stringifyJson({ ...JSON.parse(bound.controlMetadata || '{}'), completionOwner }) } });
-    await reserveResourceContinuation(tx, request, created.id, resourceExit);
+      await tx.taskRun.update({ where: { id: created.id }, data: { controlMetadata: stringifyJson({ ...JSON.parse(bound.controlMetadata || '{}'), completionOwner }) } });
+      await reserveResourceContinuation(tx, request, created.id, resourceExit);
+    await refreshSessionActivity(tx, request.taskId, taskSession.id);
     return created;
   }, { timeout: 25_000 });
 
   const waitForWriter = async () => {
     for (;;) {
       try { return await startRun(); } catch (error) {
-        if (!(error instanceof WorkspaceWriterBusy) || error.observation !== 'alive' || request.graphExecution || request.graphReview) throw error;
+        if (request.roomDelivery || !(error instanceof WorkspaceWriterBusy) || error.observation !== 'alive' || request.graphExecution || request.graphReview) throw error;
         await new Promise(resolve => setTimeout(resolve, 250));
       }
     }
@@ -187,7 +191,6 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   const participantResults: Array<Awaited<ReturnType<typeof executeParticipant>>> = [];
   try {
     await request.streamCallbacks?.onRunStarted?.(taskRun.id);
-    await setTaskSessionActiveRun(taskSession.id, taskRun.id);
 
     await publishTaskRunEvent({
       taskId: request.taskId,
@@ -242,11 +245,11 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     await prisma.$transaction(async tx => {
+      await lockSessionActivity(tx, request.taskId, taskSession.id);
       await tx.taskRunParticipant.updateMany({ where: { taskRunId: taskRun.id, status: { in: ['pending', 'running', 'waiting_for_input'] } },
         data: { status: 'failed', activityState: 'stalled', completedAt: new Date(), error: detail } });
       await tx.taskRun.update({ where: { id: taskRun.id }, data: { status: 'failed', activityState: 'stalled', completedAt: new Date(), error: detail, summary: detail } });
-      await tx.taskSession.updateMany({ where: { id: taskSession.id, activeRunId: taskRun.id },
-        data: { activeRunId: null, status: 'failed', attentionState: 'error', summary: detail } });
+      await refreshSessionActivity(tx, request.taskId, taskSession.id);
     });
     throw new AcpxRunStartupError(taskRun.id, detail, error);
   } finally {
@@ -272,7 +275,9 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     }`
   );
 
-  await prisma.taskRun.update({
+  await prisma.$transaction(async tx => {
+    await lockSessionActivity(tx, request.taskId, taskSession.id);
+  await tx.taskRun.update({
     where: { id: taskRun.id },
     data: {
       status: runStatus,
@@ -290,19 +295,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     },
   });
 
-  await prisma.taskSession.update({
-    where: { id: taskSession.id },
-    data: {
-      status: runStatus === 'completed' ? 'active' : 'failed',
-      attentionState:
-        runStatus === 'completed'
-          ? 'normal'
-          : runStatus === 'interrupted' || runStatus === 'stopped'
-          ? 'needs_review'
-          : 'error',
-      summary: summaryLines.join('\n'),
-      activeRunId: null,
-    },
+    await refreshSessionActivity(tx, request.taskId, taskSession.id);
   });
 
   await publishTaskRunEvent({

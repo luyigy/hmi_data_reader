@@ -33,11 +33,15 @@ async function main() {
     await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed' } });
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'claimed', claimToken: 'owner', taskRunId: taskRun.id, childTaskId: childTask.id,
       dispatchMetadata: { progress: { ...initialExecutionProgress(), phase: 'implement', candidateCommit: 'a'.repeat(40), worker: writer, taskRunId: taskRun.id } } } });
+    const sibling = await prisma.taskRun.create({ data: { taskId: childTask.id, taskSessionId: session.id, status: 'running' } });
+    await prisma.taskSession.update({ where: { id: session.id }, data: { activeRunId: null } });
     await receiveGraphTaskMessage({ taskId: childTask.id, actorId: 'user', sourceId: 'unknown', content: 'Use size42' });
     let sends = 0;
     detach = registerConversationSteering(job.id, taskRun.id, async () => { sends++; return 'unknown'; });
     await deliverConversationSteering(); await deliverConversationSteering();
     assert.equal(sends, 1, 'Unknown native delivery is never blindly resent');
+    await prisma.taskRun.delete({ where: { id: sibling.id } });
+    await prisma.taskSession.update({ where: { id: session.id }, data: { activeRunId: taskRun.id } });
     assert.equal((await conversationInputs(job.id)).length, 0, 'Unknown delivery is reserved, not reported as unsent');
     await assert.rejects(sealConversationTurn(job.id, 'owner', 'a'.repeat(40)), /steering delivery is unknown/);
     assert.equal((await observeTaskRunWriter(taskRun.id)).kind, 'alive');

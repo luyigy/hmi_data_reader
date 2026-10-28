@@ -276,9 +276,9 @@ export async function deliverConversationSteering() {
         const original = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId } });
         await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
         const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
-        const run = await tx.taskRun.findUnique({ where: { id: target.taskRunId }, include: { taskSession: true } });
-        if (!run || !['running', 'waiting_for_input'].includes(run.status) ||
-          run.taskSession && run.taskSession.activeRunId !== run.id) return null;
+        const run = await tx.taskRun.findUnique({ where: { id: target.taskRunId } });
+        // A multi-run Session has no singleton pointer; exact execution/target ownership below is authoritative.
+        if (!run || !['running', 'waiting_for_input'].includes(run.status)) return null;
         const progress = executionProgress(job.dispatchMetadata);
         const owned = job.status === 'claimed' && job.taskRunId === run.id && progress?.phase === 'implement'
           || progress?.review?.kind === 'running' && progress.review.taskRunId === run.id

@@ -16,7 +16,7 @@ export const useTaskChatActions = (state: TaskChatState, derived: TaskChatDerive
     setPermissionConfigNotice, conversationMode, timelineContainerRef,
   } = state;
   const { canContinueSelectedSession, selectedTargetLabel, activeParticipantLabel,
-    continuationParticipantLabel, controlRunId, activeRunSummary } = derived;
+    continuationParticipantLabel, controlRunId, hasActiveRuns } = derived;
   const handlePermissionProfileChange = (
     profile: AcpxPermissionConfig['profile']
   ) => {
@@ -145,6 +145,11 @@ export const useTaskChatActions = (state: TaskChatState, derived: TaskChatDerive
     overrideContent?: string
   ) => {
     if (!taskRoom || !task) {
+      return;
+    }
+
+    if (action !== 'continue_session' && hasActiveRuns && !controlRunId) {
+      setControlError('有多个活动 Run，请先选择要控制的 Run。');
       return;
     }
 
@@ -286,12 +291,12 @@ export const useTaskChatActions = (state: TaskChatState, derived: TaskChatDerive
       return;
     }
 
-    if (!activeRunSummary && canContinueSelectedSession) {
+    if (!hasActiveRuns && canContinueSelectedSession) {
       await handleAcpxControl('continue_session', 'immediate');
       return;
     }
 
-    if (!activeRunSummary) {
+    if (!hasActiveRuns) {
       await handleExecuteTask(messageInput.trim() || undefined);
       return;
     }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import { selectActiveTaskRun } from '@/lib/acpx/run-selection';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import { getLocalHarnessPermissionSupport, type AcpxPermissionSupportSummary } from '@/lib/acpx/permissions';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
@@ -350,12 +351,8 @@ export const useTaskChatDerived = (state: TaskChatState) => {
   }, [messageTargetParticipantKey, messageTargetType, taskRoomTargetOptions]);
 
 
-  const activeRunSummary = (
-    task?.currentTaskSession?.activeRunId
-      ? runSummaries.find((run) => run.id === task.currentTaskSession?.activeRunId) ?? null
-      : null
-  ) ?? runSummaries.find((run) => run.status === 'running' || run.status === 'waiting_for_input') ?? null;
-  const canExecute = !!task && task.status !== 'running' && !activeRunSummary;
+  const { hasActiveRuns, controlRun: activeRunSummary } = selectActiveTaskRun(runSummaries, selectedRun?.id);
+  const canExecute = !!task && task.status !== 'running' && !hasActiveRuns;
   const controlRunId = activeRunSummary?.id ?? null;
   const controlRunCanInterrupt =
     activeRunSummary?.status === 'running' || activeRunSummary?.status === 'waiting_for_input'
@@ -367,11 +364,11 @@ export const useTaskChatDerived = (state: TaskChatState) => {
       : false;
   const controlRunLabel = activeRunSummary
     ? `当前控制目标：Run ${runSummaries.findIndex((run) => run.id === activeRunSummary.id) >= 0 ? runSummaries.length - runSummaries.findIndex((run) => run.id === activeRunSummary.id) : 'active'}（${activeRunSummary.status}）`
-    : '当前还没有可控制的 Run';
+    : hasActiveRuns ? '有多个活动 Run，请先选择要控制的 Run' : '当前还没有可控制的 Run';
   const selectedRunLabel = selectedRun
     ? `当前查看：Run ${runSummaries.findIndex((run) => run.id === selectedRun.id) >= 0 ? runSummaries.length - runSummaries.findIndex((run) => run.id === selectedRun.id) : 'selected'}（${selectedRun.status}）`
     : '当前查看：Task Room';
-  const selectedRunIsActive = !!selectedRun && selectedRun.id === activeRunSummary?.id;
+  const selectedRunIsActive = !!selectedRun && ['pending', 'running', 'waiting_for_input'].includes(selectedRun.status);
   const primarySendLabel = task?.executionMode === 'acpx'
     ? conversationMode === 'chat'
       ? '发送到对话'
@@ -379,12 +376,12 @@ export const useTaskChatDerived = (state: TaskChatState) => {
     : '发送到 Task Room';
   const composerBehaviorHint = task?.executionMode === 'acpx'
     ? conversationMode === 'chat'
-      ? activeRunSummary
+      ? hasActiveRuns
         ? `聊天模式下，消息会先写入 task room。当前 active run 仍在执行时，它不会被原地接管；participant target 也只是供后续读取。`
         : canContinueSelectedSession
         ? `聊天模式下会优先继续 ${continuationParticipantLabel || '当前会话'}；如果没有可续接会话，就会直接拉起一个新的 agent run 来回复。`
         : '聊天模式下如果没有 active run，主按钮会直接拉起新的 agent run 来回复，而不是只把消息留在 task room。'
-      : activeRunSummary
+      : hasActiveRuns
       ? `执行模式下只会控制 active run。当前已有 active run，不能再启动新 run；如需介入，请使用打断或停止。`
       : '执行模式下会把当前输入先写入 task room，再基于最近对话上下文启动新的 run。'
     : null;
@@ -396,7 +393,7 @@ export const useTaskChatDerived = (state: TaskChatState) => {
     selectedRunPermissionConfig, selectedRunWorkflowPermissionSnapshot,
     draftPermissionSupport, selectedRunPermissionSupport, draftPermissionStatusItems,
     selectedRunPermissionStatusItems, taskRoomTargetOptions, selectedTargetLabel,
-    selectedTargetParticipantSpec, targetDeliveryHint, activeRunSummary, canExecute,
+    selectedTargetParticipantSpec, targetDeliveryHint, activeRunSummary, hasActiveRuns, canExecute,
     controlRunId, controlRunCanInterrupt, controlRunCanStop, controlRunLabel,
     selectedRunLabel, selectedRunIsActive, primarySendLabel, composerBehaviorHint,
   };
