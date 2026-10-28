@@ -7,6 +7,7 @@
 返回结构同 extract_families.tact_injection。
 """
 import re
+from pathlib import Path
 
 from .common import _anchor_match  # noqa: F401
 from .b_and_r_page_observations import b_and_r_page_observations
@@ -54,7 +55,7 @@ def _row_values(cluster, rng, parse):
     return out
 
 
-def extract_injection_b_and_r(toks: list[dict], template: dict) -> dict:
+def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path | None = None) -> dict:
     warnings: list[str] = []
     sc = template["sections"]
     vr = template["value_ranges"]
@@ -185,5 +186,9 @@ def extract_injection_b_and_r(toks: list[dict], template: dict) -> dict:
             "vp_switch_position_mm": vp_pos_token,
             "vp_switch_time_s": vp_time_token,
         }
-        detail["page_observations"] = b_and_r_page_observations(fields, template, source_tokens)
+        detail["page_observations"] = b_and_r_page_observations(
+            fields, template, source_tokens,
+            stage_tokens={"injection": inj_tokens.get("velocity", []),
+                          "holding": hold_tokens.get("velocity", [])},
+            image_path=image_path)
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}

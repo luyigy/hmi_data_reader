@@ -20,7 +20,7 @@ _EXTRACTORS = {
 }
 for _family in ("tact", "fanuc", "zizes", "keba", "b_and_r", "kaiming", "est", "trd6", "arburg"):
     _EXTRACTORS[f"{_family}.injection_metering"] = (
-        f"{_family}_injection", f"extract_injection_{_family}", "tokens", False, ("injection_metering",))
+        f"{_family}_injection", f"extract_injection_{_family}", "tokens", _family == "b_and_r", ("injection_metering",))
 for _family, _module in (("keba", "keba"), ("b_and_r", "b_and_r"), ("fanuc", "fanuc"),
                           ("kaiming", "kaiming_temperature"), ("est", "est_temperature"),
                           ("trd6", "trd6_temperature")):
@@ -36,6 +36,32 @@ for _family, _function in (("industrial_chiller", "extract_mold_temp_industrial_
                             ("omron_e5cc", "extract_mold_temp_omron_e5cc"),
                             ("mold_thermoregulator", "extract_mold_temp_thermoregulator")):
     _EXTRACTORS[f"{_family}.mold_temp"] = ("mold_temp_devices", _function, "tokens", False, ("mold_temp",))
+
+# Compatibility routes for templates that predate extractor_id. New pages declare
+# their extractor_id in the template and never add a branch to extract_page_fields.
+_LEGACY_ROUTES = {
+    **{("injection_metering", family.upper()): f"{family}.injection_metering"
+       for family in ("tact", "fanuc", "zizes", "keba", "b_and_r", "kaiming", "est", "trd6", "arburg")},
+    ("injection_metering", "DEMAG"): "demag",
+    **{("temperature", family.upper()): f"{family}.temperature"
+       for family in ("tact", "keba", "b_and_r", "fanuc", "kaiming", "est", "trd6")},
+    ("temperature", "DEMAG"): "demag",
+    **{(page, "FANUC"): f"fanuc.{page}" for page in ("molding_monitor", "waveform", "mold_temp")},
+    ("hot_runner_temp", "TACT"): "tact.hot_runner_temp",
+    **{("mold_temp", family.upper()): f"{family}.mold_temp"
+       for family in ("industrial_chiller", "omron_e5cc", "mold_thermoregulator")},
+}
+
+
+def legacy_extractor_id(template: dict) -> str | None:
+    """Resolve historical family/page templates through the same controlled registry."""
+    if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
+        return "tact5.process_settings"
+    page = template.get("page")
+    family = template.get("ui_family")
+    if page == "injection_metering":
+        return _LEGACY_ROUTES.get((page, str(family).upper()))
+    return _LEGACY_ROUTES.get((page, family)) or _LEGACY_ROUTES.get(("temperature", family))
 
 
 def capabilities() -> dict:

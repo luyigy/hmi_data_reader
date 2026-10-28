@@ -46,7 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_ui import find_page, find_ui_family  # noqa: E402
 from contract import attach_contract  # noqa: E402
 from extract_generic import extract_generic  # noqa: E402
-from extractor_registry import capabilities, extract_registered, template_error  # noqa: E402
+from extractor_registry import capabilities, extract_registered, legacy_extractor_id, template_error  # noqa: E402
 from extract_families.common import _anchor_hits  # noqa: E402
 
 TEMPLATES_DIR = Path("templates")
@@ -216,40 +216,12 @@ def merge_variant_lines(base_lines: list[dict], variant_lines: list[dict]) -> tu
     return merged, stats
 
 
-from extract_families.tact_temperature import extract_temperature_tact  # noqa: E402
-
-
-# ---------------------------------------------------------------- 家族提取器（026 S7 拆出）
-from extract_families.keba import extract_temperature_keba  # noqa: E402
-from extract_families.b_and_r import extract_temperature_b_and_r  # noqa: E402
-from extract_families.fanuc import extract_temperature_fanuc  # noqa: E402
-from extract_families.demag import extract_demag  # noqa: E402
-from extract_families.tact_injection import extract_injection_tact  # noqa: E402
-from extract_families.fanuc_injection import extract_injection_fanuc  # noqa: E402
-from extract_families.zizes_injection import extract_injection_zizes  # noqa: E402
-from extract_families.keba_injection import extract_injection_keba  # noqa: E402
-from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
-from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
-from extract_families.kaiming_temperature import extract_temperature_kaiming  # noqa: E402
-from extract_families.est_temperature import extract_temperature_est  # noqa: E402
-from extract_families.est_injection import extract_injection_est  # noqa: E402
-from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
-from extract_families.trd6_temperature import extract_temperature_trd6  # noqa: E402
-from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
-from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
-from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
-from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
-from extract_families.fanuc_mold_temp import extract_mold_temp_fanuc  # noqa: E402
-from extract_families.mold_temp_devices import (  # noqa: E402
-    extract_mold_temp_industrial_chiller, extract_mold_temp_omron_e5cc,
-    extract_mold_temp_thermoregulator, is_lcd_pv_set)
+from extract_families.mold_temp_devices import is_lcd_pv_set  # noqa: E402
 
 
 def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dict] | None = None,
                         meta: dict | None = None, image_path: Path | None = None) -> dict:
     """Select one extractor for all Reader entry points; callers prepare their own OCR evidence."""
-    page = template.get("page")
-    ui = template.get("ui_family")
     error = template_error(template)
     if error:
         return dict(fields=None, heater_columns=0, warnings=[error], detail={})
@@ -268,43 +240,11 @@ def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dic
                 raise
             return dict(fields=None, heater_columns=0, warnings=["PAGE_EXTRACTOR_MISSING"], detail={})
         return module.extract(ocr_lines or [], template, meta or {}, image_path=image_path)
-    if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
-        from extract_families.tact5_process import extract_tact5
-        return extract_tact5(ocr_lines or [], template, meta or {}, image_path=image_path)
-    if page == "injection_metering":
-        extractors = {
-            "TACT": extract_injection_tact, "DEMAG": extract_demag,
-            "FANUC": extract_injection_fanuc, "ZIZES": extract_injection_zizes,
-            "KEBA": extract_injection_keba, "B_AND_R": extract_injection_b_and_r,
-            "KAIMING": extract_injection_kaiming, "EST": extract_injection_est,
-            "TRD6": extract_injection_trd6, "ARBURG": extract_injection_arburg,
-        }
-        extractor = extractors.get(str(ui).upper())
-        if extractor:
-            return (extractor(toks, template, image_path=image_path) if ui == "DEMAG"
-                    else extractor(toks, template))
-    if page == "molding_monitor" and ui == "FANUC":
-        return extract_molding_monitor_fanuc(toks, template)
-    if page == "waveform" and ui == "FANUC":
-        return extract_waveform_fanuc(toks, template)
-    if page == "hot_runner_temp" and ui == "TACT":
-        return extract_hot_runner_tact(toks, template, image_path=image_path)
-    if page == "mold_temp":
-        mold_extractors = {
-            "FANUC": extract_mold_temp_fanuc, "OMRON_E5CC": extract_mold_temp_omron_e5cc,
-            "MOLD_THERMOREGULATOR": extract_mold_temp_thermoregulator,
-            "INDUSTRIAL_CHILLER": extract_mold_temp_industrial_chiller,
-        }
-        extractor = mold_extractors.get(ui)
-        if extractor:
-            return extractor(toks, template)
-    temperature_extractors = {
-        "TACT": extract_temperature_tact, "KEBA": extract_temperature_keba,
-        "B_AND_R": extract_temperature_b_and_r, "FANUC": extract_temperature_fanuc,
-        "DEMAG": extract_demag, "KAIMING": extract_temperature_kaiming,
-        "EST": extract_temperature_est, "TRD6": extract_temperature_trd6,
-    }
-    return temperature_extractors.get(ui, extract_temperature)(toks, template)
+    legacy_id = legacy_extractor_id(template)
+    if legacy_id:
+        return extract_registered(toks, {**template, "extractor_id": legacy_id},
+                                  ocr_lines=ocr_lines, meta=meta, image_path=image_path)
+    return extract_temperature(toks, template)
 
 
 # ---------------------------------------------------------------- 主流程

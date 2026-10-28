@@ -5,6 +5,9 @@ import sys
 from hashlib import sha256
 from pathlib import Path
 
+import cv2
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -15,6 +18,88 @@ from page_template_registry import registered_page_templates
 import extract_fields
 
 PID = "b_and_r.injection_holding.multi_stage_position_time"
+
+
+def test_z050_legacy_and_registered_routes_share_image_adapter(tmp_path):
+    from extractor_registry import capabilities
+
+    package = export_page_package(PID, "0.1.1")
+    template = package["template"]
+    fixture = json.loads((ROOT / "tests/fixtures/b_and_r_z050_rank01_ocr.json").read_text())
+    width, height = fixture["screen_size"]
+    tokens = [dict(text=row["text"], x=(row["bbox"][0] + row["bbox"][2]) / (2 * width),
+                   y=(row["bbox"][1] + row["bbox"][3]) / (2 * height),
+                   bbox=row["bbox"], conf=row["confidence"], line_index=index)
+              for index, row in enumerate(fixture["lines"])]
+    image = np.full((height, width, 3), 220, dtype=np.uint8)
+    for row in fixture["lines"]:
+        x0, y0, x1, y1 = map(int, row["bbox"])
+        if row["text"] not in {"17.0", "12.0", "10.0", "5.0", "8.0", "0.0"}:
+            continue
+        if not (900 <= y0 <= 920 or 1340 <= y0 <= 1352):
+            continue
+        image[y0:y1, x0:x1] = 240
+        image[y0:y1:2, x0:x1] = 190 if row["text"] == "0.0" else 25
+    photo = tmp_path / "z050.png"
+    cv2.imwrite(str(photo), image)
+    legacy = extract_fields.extract_page_fields(tokens, template, image_path=photo)
+    registered = extract_fields.extract_page_fields(
+        tokens, {**template, "extractor": "registered_extractor", "extractor_id": "b_and_r.injection_metering"},
+        image_path=photo)
+    assert registered == legacy
+    observations = legacy["detail"]["page_observations"]["fields"]
+    assert sum(row["state"] == "enabled" for row in observations) == 18
+    assert all(row["state_basis"] == "grayscale_stage_boundary" for row in observations if row["stage"])
+    without_image = extract_fields.extract_page_fields(tokens, template)["detail"]["page_observations"]["fields"]
+    assert all(row["state"] == "unknown" for row in without_image if row["stage"])
+    assert any(entry["extractor_id"] == "b_and_r.injection_metering" and entry["image_support"]
+               for entry in capabilities()["extractors"])
+
+
+def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_path):
+    from extract_families.b_and_r_page_observations import b_and_r_page_observations
+
+    template = export_page_package(PID, "0.1.1")["template"]
+    fields = {
+        "injection_stages": 3,
+        "injection_velocity_pct": [17, 12, 10],
+        "injection_pressure_bar": [100, 115, 91],
+        "injection_position_mm": [42, 21, 0],
+        "holding_stages": 3,
+        "holding_velocity_pct": [5, 5, 8],
+        "holding_pressure_bar": [33, 32, 30],
+        "holding_time_s": [2.2, 2, 1],
+        "vp_switch_position_mm": 15.8,
+        "vp_switch_time_s": 2.35,
+    }
+    image = np.full((200, 500, 3), 220, dtype=np.uint8)
+    stage_tokens = {}
+    for section, y in (("injection", 40), ("holding", 120)):
+        tokens = []
+        for stage in range(1, 5):
+            x = 400 - stage * 90
+            box = [x, y, x + 50, y + 25]
+            image[y:y + 25, x:x + 50] = 240
+            image[y:y + 25:2, x:x + 50] = 25 if stage <= 3 else 190
+            tokens.append({"text": "0.0" if stage == 4 else "5.0", "bbox": box, "conf": .99})
+        stage_tokens[section] = tokens
+    image_path = tmp_path / "z050.png"
+    cv2.imwrite(str(image_path), image)
+    source_tokens = {source: stage_tokens["injection" if source.startswith("injection_") else "holding"][:3]
+                     for source in ("injection_velocity_pct", "injection_pressure_bar", "injection_position_mm",
+                                    "holding_velocity_pct", "holding_pressure_bar", "holding_time_s")}
+    observed = b_and_r_page_observations(fields, template, source_tokens,
+                                         stage_tokens=stage_tokens, image_path=image_path)
+    staged = [row for row in observed["fields"] if row["stage"]]
+    assert len(staged) == 18
+    assert all(row["state"] == "enabled" and row["state_basis"] == "grayscale_stage_boundary"
+               for row in staged)
+    assert observed["visual_stage_counts"] == {"injection": 3}
+
+    cv2.imwrite(str(image_path), np.full_like(image, 220))
+    unverified = b_and_r_page_observations(fields, template, source_tokens,
+                                           stage_tokens=stage_tokens, image_path=image_path)
+    assert all(row["state"] == "unknown" for row in unverified["fields"] if row["stage"])
 
 
 def test_z050_page_routes_exports_and_matches_original_image_truth():
