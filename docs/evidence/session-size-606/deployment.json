@@ -1,0 +1,142 @@
+{
+  "sourceCommit": "ad30fe6714bbeffba837c395f35f18c86ad2ab18",
+  "finishedAt": "2026-10-28T12:17:50.776Z",
+  "nativeExited": true,
+  "beforeServices": {
+    "agent-platform-remote-runner-gateway.service": {
+      "MainPID": "1299193",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-remote-runner-gateway.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "d7cb784417df4ff4a0310c362fcffc1e"
+    },
+    "agent-platform-dev.service": {
+      "MainPID": "277195",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-dev.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "1f2ad10717314a9f8b0a655d3401a217"
+    },
+    "agent-platform-task-graph.service": {
+      "MainPID": "277196",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "e7e5c08916c44017aced6f7d2d53ff4f"
+    },
+    "agent-platform-task-graph-feishu.service": {
+      "MainPID": "277197",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "b5cc3b61d0f247a6bbb83034a50054c4"
+    },
+    "agent-platform-feishu.service": {
+      "MainPID": "277200",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "769f664b7d6d45f18c3ca1329a1d996b"
+    },
+    "agent-platform-scheduled-jobs.service": {
+      "MainPID": "277204",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-scheduled-jobs.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "9d02ca291ddc4063af9a8ba2ece4e549"
+    }
+  },
+  "afterServices": {
+    "agent-platform-remote-runner-gateway.service": {
+      "MainPID": "642832",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-remote-runner-gateway.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "b9a556871e4141b2abef733b15c9f057"
+    },
+    "agent-platform-dev.service": {
+      "MainPID": "642833",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-dev.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "8c33e0c40bc84f7e882376695d09922a"
+    },
+    "agent-platform-task-graph.service": {
+      "MainPID": "642834",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "06ef0392fc6b4a0d9b9317603b6ab21c"
+    },
+    "agent-platform-task-graph-feishu.service": {
+      "MainPID": "642840",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-task-graph-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "fc7880a66c884a2ba1ac76b2a613f125"
+    },
+    "agent-platform-feishu.service": {
+      "MainPID": "642842",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-feishu.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "cd36668aa84a4c0f990fbe5e5fb2f6ce"
+    },
+    "agent-platform-scheduled-jobs.service": {
+      "MainPID": "642848",
+      "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/agent-platform-scheduled-jobs.service",
+      "WorkingDirectory": "/data1/code/agent-platform-v2",
+      "KillMode": "control-group",
+      "ActiveState": "active",
+      "InvocationID": "a6d4462b658a4a87a0805f93e8f56420"
+    }
+  },
+  "health": {
+    "ok": true,
+    "status": "healthy",
+    "timestamp": "2026-10-28T12:17:48.783Z"
+  },
+  "smoke": {
+    "observedAt": "2026-10-28T12:17:49.294Z",
+    "wwPi": {
+      "totalBytes": 15900692,
+      "files": 9,
+      "footer": [
+        "会话记录：15.16 MiB · 本轮新增：未知（磁盘历史，非上下文占用；采样 2026-10-28T12:17:50.533Z）",
+        "⚠️ 会话记录已超过提醒阈值 10 MiB，建议保存交接并重置当前 Agent 会话。"
+      ]
+    },
+    "kimi": {
+      "totalBytes": 326690
+    },
+    "antigravity": {
+      "totalBytes": 901120
+    },
+    "localPi": {
+      "totalBytes": 58614
+    },
+    "gatewayHealth": true,
+    "runnerDownloadSha256": "913ee1b5ec956987d7e934e9e5f32e9abeb3ba8eecc7685a82539374a85a13a4",
+    "windowsRunner": "Old remote process not replaced; maintenance access pending"
+  },
+  "reconnectedNodes": [
+    {
+      "id": "cmttnm2g50005hxwg93mvqr1j",
+      "name": "desktop-78hk9dd-b2ea3685",
+      "lastSeen": "2026-10-28T12:17:43.490Z"
+    }
+  ],
+  "approvedSnapshotsUnchanged": true,
+  "approvedSnapshotCount": 6
+}
