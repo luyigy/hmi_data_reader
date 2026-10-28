@@ -28,6 +28,7 @@ export interface KimiCodeConfig {
   taskEnvironment?: Record<string, string>;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
+  onSessionStarted?: (sessionId: string) => Promise<void> | void;
   model?: string;
   prompt?: string;
   sessionId?: string;
@@ -316,6 +317,7 @@ const runKimiCodeCommand = async ({
   taskEnvironment,
   streamCallbacks,
   onSpawn,
+  onSessionStarted,
   model,
   sessionId,
 }: {
@@ -332,6 +334,7 @@ const runKimiCodeCommand = async ({
   taskEnvironment?: Record<string, string>;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
+  onSessionStarted?: (sessionId: string) => Promise<void> | void;
   model?: string;
   sessionId?: string;
 }): Promise<{ output: string; sessionId?: string }> => {
@@ -372,7 +375,15 @@ const runKimiCodeCommand = async ({
   });
   onSpawn?.(child);
 
-  return new Promise((resolve, reject) => {
+  let sessionWrites = Promise.resolve();
+  let notifiedSession: string | undefined;
+  const notifySession = (id?: string) => {
+    if (!id || id === notifiedSession) return;
+    notifiedSession = id;
+    sessionWrites = sessionWrites.then(() => onSessionStarted?.(id));
+    void sessionWrites.catch(() => {});
+  };
+  try { return await new Promise<{ output: string; sessionId?: string }>((resolve, reject) => {
     let stdout = '';
     let stderr = '';
     let stdoutBuffer = '';
@@ -428,6 +439,7 @@ const runKimiCodeCommand = async ({
       for (const line of lines) {
         if (line.trim()) {
           processKimiCodeJsonLine(line.trim(), state, workspaceRoot || workingDirectory, streamCallbacks);
+          notifySession(state.sessionId);
           if (state.subagentLimitExceeded) {
             child.kill('SIGTERM');
             fail(state.structuredError!);
@@ -457,6 +469,7 @@ const runKimiCodeCommand = async ({
           streamCallbacks
         );
       }
+      notifySession(state.sessionId);
       cleanup();
       if (code === 0 && !state.structuredError) {
         settled = true;
@@ -473,7 +486,7 @@ const runKimiCodeCommand = async ({
         || `Kimi Code exited with code ${code ?? 'unknown'}`
       );
     });
-  });
+  }); } finally { await sessionWrites; }
 };
 
 export const executeKimiCodeTask = async (
@@ -496,6 +509,7 @@ export const executeKimiCodeTask = async (
       taskEnvironment: config.taskEnvironment,
       streamCallbacks: config.streamCallbacks,
       onSpawn: config.onSpawn,
+      onSessionStarted: config.onSessionStarted,
       model: config.model,
       sessionId: config.sessionId,
     });

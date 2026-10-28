@@ -207,7 +207,7 @@ async function welcomeMeansConnected(): Promise<void> {
   writeFileSync(fakePi, '#!/bin/sh\necho "provider auth failed" >&2\nexit 1\n');
   chmodSync(fakePi, 0o755);
 
-  const messages: Array<{ type?: string; runId?: string; node?: string; harnesses?: string[]; workspace?: string; requestId?: string; success?: boolean; error?: string }> = [];
+  const messages: Array<{ type?: string; runId?: string; node?: string; harnesses?: string[]; workspace?: string; requestId?: string; success?: boolean; error?: string; sessionSize?: { totalBytes: number; deltaBytes?: number } }> = [];
   let gatewayClient: GatewayClient | undefined;
   const wss = new WebSocketServer({ noServer: true });
   const server = createServer((_req, res) => { res.writeHead(404).end(); });
@@ -249,6 +249,29 @@ async function welcomeMeansConnected(): Promise<void> {
     );
     assert.equal(messages.find((message) => message.type === 'complete' && message.runId === 'failed-run')?.error,
       'provider auth failed', 'completion exposes Pi stderr instead of a generic exit code');
+
+    writeFileSync(fakePi, `#!${process.execPath}
+const fs = require('fs'), path = require('path');
+const args = process.argv.slice(2), dir = args[args.indexOf('--session-dir') + 1];
+fs.mkdirSync(dir, {recursive:true});
+const file = path.join(dir, 'native.jsonl');
+if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify({type:'session',id:'fixture-native'})+'\\n');
+fs.appendFileSync(file, JSON.stringify({type:'message',id:'entry'})+'\\n');
+console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'done'}]}}));
+`);
+    const collect = async (runId: string, continuation: boolean) => {
+      gatewayClient?.send(JSON.stringify({ type: 'run', runId, taskId: 'size-task', prompt: 'go', continue: continuation }));
+      await waitForLine(() => messages.map(message => JSON.stringify(message)),
+        line => line.includes('"type":"complete"') && line.includes(`"runId":"${runId}"`), 5000, 'native size result');
+      return messages.find(message => message.type === 'complete' && message.runId === runId)!;
+    };
+    const firstSize = (await collect('size-first', false)).sessionSize;
+    assert.ok(firstSize && firstSize.totalBytes > 0);
+    assert.equal(firstSize.deltaBytes, firstSize.totalBytes);
+    const secondSize = (await collect('size-resume', true)).sessionSize;
+    assert.ok(secondSize);
+    assert.equal(secondSize.deltaBytes, secondSize.totalBytes - firstSize.totalBytes);
+    console.log('Remote standalone runner: real native JSONL file totals and resume delta passed');
 
     gatewayClient?.send(JSON.stringify({ type: 'set_workspace', requestId: 'invalid', workspace: path.join(home, 'missing') }));
     await waitForLine(

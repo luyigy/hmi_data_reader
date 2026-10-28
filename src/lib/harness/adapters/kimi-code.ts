@@ -1,3 +1,5 @@
+import { withSessionSizeAdapter } from '../session-size';
+import { readKimiSessionBytes } from '../../real-agents/session-size-readers';
 import path from 'node:path';
 import type { HarnessAdapter, HarnessExecuteArgs } from '../types';
 
@@ -17,7 +19,7 @@ const INVALID_KIMI_CONTINUATION_PATTERNS = [
   /Session ".+" was created under a different directory\./i,
 ];
 
-export const kimiCodeHarnessAdapter: HarnessAdapter = {
+export const kimiCodeHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
   type: 'kimi-code',
   displayName: 'Kimi Code CLI',
 
@@ -51,13 +53,11 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       permissionProfile: context.permissionConfig?.profile,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
+      onSessionStarted: id => context.onSessionStarted?.({ sessionId: id, sessionKind: 'kimi_session' }),
       model: context.model,
       runtimeHome: context.runtimeHome,
       taskEnvironment: context.taskEnvironment,
     });
-    if (result.sessionId) {
-      await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
-    }
     const telemetry = result.success ? await collectTelemetry(result.sessionId, context, startedAt) : undefined;
     return {
       ...result,
@@ -82,15 +82,13 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       permissionProfile: context.permissionConfig?.profile,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
+      onSessionStarted: id => context.onSessionStarted?.({ sessionId: id, sessionKind: 'kimi_session' }),
       model: context.model,
       runtimeHome: context.runtimeHome,
       taskEnvironment: context.taskEnvironment,
       prompt: continuationMessage,
       sessionId,
     });
-    if (result.sessionId) {
-      await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
-    }
     const telemetry = result.success ? await collectTelemetry(result.sessionId, context, startedAt) : undefined;
     return {
       ...result,
@@ -141,4 +139,4 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
   isInvalidContinuationError(message) {
     return INVALID_KIMI_CONTINUATION_PATTERNS.some((pattern) => pattern.test(message));
   },
-};
+}, { read: (id, args) => readKimiSessionBytes(id, args.context.runtimeHome ? path.join(args.context.runtimeHome, '.kimi-code') : undefined) });

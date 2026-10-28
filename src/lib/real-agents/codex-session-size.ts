@@ -1,3 +1,4 @@
+import { withNativeSessionSize } from './native-session-size';
 import { open, readdir, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -34,47 +35,15 @@ export async function readCodexSessionBytes(location: { root: string; file: stri
   } catch { return null; }
 }
 
-export async function withCodexSessionSize<T>(scope: {
+export function withCodexSessionSize<T>(scope: {
   executionId?: string; sessionId?: string; codexHome?: string; ephemeral?: boolean;
   onSample?: (sample: SessionSizeSample) => Promise<void> | void;
 }, run: (onSession: (id: string) => Promise<void>) => Promise<T>): Promise<T> {
-  if (!scope.executionId || scope.ephemeral || !scope.onSample) return run(async () => {});
-  let sessionId = scope.sessionId;
-  let location = sessionId ? await findCodexSessionFile(sessionId, scope.codexHome) : null;
-  let baseline = sessionId && location ? await readCodexSessionBytes(location, sessionId) : null;
-  let fresh = !scope.sessionId;
-  let bound = false;
-  let timer: ReturnType<typeof setInterval> | undefined;
-  let pending = Promise.resolve();
-  const sample = () => {
-    pending = pending.then(async () => {
-      if (!bound || !sessionId) return;
-      location ??= await findCodexSessionFile(sessionId, scope.codexHome);
-      const size = location ? await readCodexSessionBytes(location, sessionId) : null;
-      if (!size) return;
-      if (fresh && !baseline) baseline = { bytes: 0, identity: size.identity };
-      if (baseline && (baseline.identity !== size.identity || size.bytes < baseline.bytes)) {
-        baseline = null;
-        fresh = false;
-      }
-      const deltaBytes = baseline && baseline.identity === size.identity && size.bytes >= baseline.bytes
-        ? size.bytes - baseline.bytes : undefined;
-      await scope.onSample!({ executionId: scope.executionId!, sessionId, totalBytes: size.bytes,
-        ...(deltaBytes === undefined ? {} : { deltaBytes }), observedAt: Date.now() });
-    }).catch(() => { console.warn('Session size telemetry unavailable'); });
-    return pending;
-  };
-  try {
-    return await run(async id => {
-      if (sessionId && sessionId !== id) { baseline = null; location = null; fresh = false; }
-      sessionId = id;
-      bound = true;
-      await sample();
-      timer ??= setInterval(() => { void sample(); }, 30_000);
-      timer.unref();
-    });
-  } finally {
-    clearInterval(timer);
-    await sample();
-  }
+  let currentId: string | undefined;
+  let location: Awaited<ReturnType<typeof findCodexSessionFile>> = null;
+  return withNativeSessionSize({ ...scope, read: async id => {
+    if (currentId !== id) { currentId = id; location = null; }
+    location ??= await findCodexSessionFile(id, scope.codexHome);
+    return location ? readCodexSessionBytes(location, id) : null;
+  } }, run);
 }

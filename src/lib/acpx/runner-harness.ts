@@ -1,3 +1,4 @@
+import { normalizeSessionSize } from '../session-size';
 import { graphResourceJobs } from '../task-graph/graph-association';
 import { recordResourceMountPlan, recordResourceSession, ResourceApplicationError } from '../task-resources/mount-plan';
 import { assertResourceUseActive, withResourceProcessGuard } from '../task-resources/process-guard';
@@ -415,7 +416,13 @@ export const executeViaRemoteSshHarness = async (
     const nodeName = participant.gatewayId.slice('remote-node:'.length);
     const remoteWorkspace = await getRemoteNodeWorkspace(nodeName);
     if (!remoteWorkspace) throw new Error(`Remote runner has not announced a workspace: ${nodeName}`);
+    const runtime = await beginHarnessRuntimeExecution(participantId);
     return executeRemoteRunnerTask({
+      onSessionSize: async (sessionId, size) => {
+        const sample = normalizeSessionSize({ ...(size && typeof size === 'object' ? size : {}), executionId: runtime.id, sessionId, observedAt: Date.now() });
+        if (!sample) return;
+        if (await persistSessionSize(runtime, sample, { sessionKind: 'pi_session_dir' })) await callbacks.onSessionSize?.(sample);
+      },
       nodeName,
       taskId: request.taskId,
       cwd: remoteWorkspace,

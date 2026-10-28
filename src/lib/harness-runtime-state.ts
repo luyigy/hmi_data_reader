@@ -122,16 +122,16 @@ export async function persistHarnessRuntimeState(execution: RuntimeExecution, va
   }
 }
 
-export async function persistSessionSize(execution: RuntimeExecution, value: unknown) {
+export async function persistSessionSize(execution: RuntimeExecution, value: unknown, remoteBinding?: { sessionKind: 'pi_session_dir' }) {
   const sample = normalizeSessionSize(value);
   if (!sample || sample.executionId !== execution.id || sample.observedAt < execution.startedAt || sample.observedAt > Date.now()) return;
   let accepted = false;
   await updateRuntimeMetadata(execution.participantId, data => {
     const current = data.runtimeExecution as RuntimeExecution | undefined;
     const previous = normalizeSessionSize(data.sessionSize);
-    accepted = current?.id === execution.id && current.completedAt === undefined && data.lastSessionId === sample.sessionId
+    accepted = current?.id === execution.id && current.completedAt === undefined && (!!remoteBinding || data.lastSessionId === sample.sessionId)
       && (!previous || previous.observedAt <= sample.observedAt);
-    return accepted ? { sessionSize: sample } : null;
+    return accepted ? { sessionSize: sample, ...(remoteBinding ? { lastSessionId: sample.sessionId, lastSessionKind: remoteBinding.sessionKind } : {}) } : null;
   });
   return accepted;
 }

@@ -41,6 +41,7 @@ export async function executeRemoteRunnerTask(options: {
   continuation?: boolean;
   timeout: number;
   streamCallbacks?: HarnessStreamCallbacks;
+  onSessionSize?: (sessionId: string, size: unknown) => Promise<void>;
   onControl?: (control: { pid?: number; kill: (signal?: NodeJS.Signals | number) => boolean }) => void;
 }): Promise<RemoteRunnerResult> {
   const startedAt = Date.now();
@@ -117,6 +118,10 @@ export async function executeRemoteRunnerTask(options: {
     result = await consumeEvent(buffer + decoder.decode()) || result;
     if (piBuffer.trim()) await consumePiLine(piBuffer);
     if (!result) throw new Error('Remote runner closed without a completion result');
+    if (typeof result.sessionDir === 'string' && result.sessionSize) {
+      try { await options.onSessionSize?.(result.sessionDir, result.sessionSize); }
+      catch { console.warn('Remote session size telemetry unavailable'); }
+    }
     if (result.success !== true) throw new Error(typeof result.error === 'string' ? result.error : 'Remote runner failed');
     if (piError) throw new Error(sanitizePreview(piError, { workspaceRoot: options.cwd }));
     if (!(typeof result.output === 'string' && result.output.trim()) && !lastAssistantText.trim()) {

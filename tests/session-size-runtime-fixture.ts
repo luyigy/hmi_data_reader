@@ -65,6 +65,13 @@ export async function verifySessionSizeRuntime() {
     assert.equal(read()?.totalBytes, first.totalBytes + Buffer.byteLength('resumed output\n'));
     metadata.runtimeExecution = { ...execution, completedAt: Date.now() };
     assert.equal(await persistSessionSize(execution, { ...read()!, observedAt: Date.now() }), false, 'completed executions reject late samples');
+    const previous = execution;
+    execution = await beginHarnessRuntimeExecution('participant');
+    const remote = { executionId: execution.id, sessionId: 'C:\\Users\\pi\\sessions\\member', totalBytes: 42, deltaBytes: 2, observedAt: Date.now() };
+    assert.equal(await persistSessionSize(execution, remote, { sessionKind: 'pi_session_dir' }), true);
+    assert.equal(read()?.totalBytes, 42);
+    assert.equal(await persistSessionSize(previous, { ...remote, executionId: previous.id, sessionId: 'stale' }, { sessionKind: 'pi_session_dir' }), false);
+    assert.equal(metadata.lastSessionId, remote.sessionId, 'late remote samples cannot overwrite native identity');
     console.log('Session size runtime: actual Codex adapter start/resume failure paths and metadata CAS/session/execution isolation passed');
   } finally {
     prisma.taskRunParticipant.findUnique = originals.findUnique;

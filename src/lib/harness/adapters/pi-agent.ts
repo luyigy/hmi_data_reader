@@ -1,3 +1,6 @@
+import { resolvePiAgentSessionDir } from '../../real-agents/pi-agent';
+import { withSessionSizeAdapter } from '../session-size';
+import { readPiSessionBytes } from '../../real-agents/session-size-readers';
 import type { HarnessAdapter } from '../types';
 
 async function loadPiAgent() {
@@ -11,7 +14,7 @@ const INVALID_PI_CONTINUATION_PATTERNS = [
   /Stored session working directory does not exist/i,
 ];
 
-export const piAgentHarnessAdapter: HarnessAdapter = {
+export const piAgentHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
   type: 'pi-agent',
   displayName: 'Pi Agent',
 
@@ -59,6 +62,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
 
   async resume({ context, sessionId, continuationMessage }) {
     const { resumePiAgentSession } = await loadPiAgent();
+    await context.onSessionStarted?.({ sessionId, sessionKind: 'pi_session_dir' });
     const result = await resumePiAgentSession({
       executionId: context.executionId,
       sessionDir: sessionId,
@@ -154,4 +158,4 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
   isInvalidContinuationError(message) {
     return INVALID_PI_CONTINUATION_PATTERNS.some((pattern) => pattern.test(message));
   },
-};
+}, { read: id => readPiSessionBytes(id), initialSessionId: ({ task, context }) => resolvePiAgentSessionDir(context.sessionKey || `${context.executionBackend}:${task.id}`) });

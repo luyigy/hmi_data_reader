@@ -30,6 +30,7 @@ export interface RemoteNodeRunResult {
   filesModified?: string[];
   sessionDir?: string;
   error?: string;
+  sessionSize?: unknown;
 }
 
 interface PendingRun {
@@ -149,6 +150,7 @@ export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage):
         output: typeof message.output === 'string' ? message.output : '',
         error: typeof message.error === 'string' ? message.error : undefined,
         sessionDir: typeof message.sessionDir === 'string' ? message.sessionDir : undefined,
+        sessionSize: message.sessionSize,
         filesModified: Array.isArray(message.filesModified)
           ? message.filesModified.filter((value): value is string => typeof value === 'string')
           : [],

@@ -1,3 +1,5 @@
+import { withSessionSizeAdapter } from '../session-size';
+import { readAntigravitySessionBytes } from '../../real-agents/session-size-readers';
 import type { HarnessAdapter, HarnessExecuteArgs, NormalizedContextUsage } from '../types';
 
 const ANTIGRAVITY_COMPLETION_CONTRACT = `Antigravity completion contract:
@@ -50,7 +52,7 @@ async function run({ task, context }: HarnessExecuteArgs, sessionId?: string, pr
   };
 }
 
-export const antigravityHarnessAdapter: HarnessAdapter = {
+export const antigravityHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
   type: 'antigravity',
   displayName: 'Antigravity CLI',
 
@@ -93,4 +95,4 @@ export const antigravityHarnessAdapter: HarnessAdapter = {
       writableRoots: local ? 'applied' : 'recorded_only',
     };
   },
-};
+}, { read: id => readAntigravitySessionBytes(id) });

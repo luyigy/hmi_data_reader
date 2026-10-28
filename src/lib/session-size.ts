@@ -42,7 +42,7 @@ export function sessionSizeThresholds(env: Record<string, string | undefined> = 
 }
 
 export function formatSessionSize(sample: SessionSizeSample | null | undefined) {
-  if (!sample) return ['会话记录大小：未采集（当前仅支持本机 Codex 原生记录）'];
+  if (!sample) return ['会话记录大小：未采集（原生记录尚不可用或当前执行端未提供采样）'];
   const mib = (bytes: number) => (bytes / 1024 ** 2).toFixed(2);
   const { warnMiB, strongMiB } = sessionSizeThresholds();
   const size = sample.totalBytes / 1024 ** 2;

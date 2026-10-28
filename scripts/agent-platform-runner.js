@@ -158,6 +158,37 @@ const spawnPi = (piArgs, cwd) => {
   }
 };
 
+// Keep this collector self-contained: remote installation distributes this one runner file.
+function piSessionBytes(sessionDir) {
+  try {
+    if (!path.isAbsolute(sessionDir) || fs.lstatSync(sessionDir).isSymbolicLink()) return null;
+    const root = fs.realpathSync(sessionDir), info = fs.statSync(root);
+    const names = fs.readdirSync(root).filter(name => name.endsWith('.jsonl'));
+    if (names.length > 10000) return null;
+    const files = {};
+    for (const name of names) {
+      const file = path.join(root, name);
+      if (fs.lstatSync(file).isSymbolicLink() || path.dirname(fs.realpathSync(file)) !== root) return null;
+      const fd = fs.openSync(file, 'r');
+      try {
+        const st = fs.fstatSync(fd), buffer = Buffer.alloc(65536);
+        if (!st.isFile()) return null;
+        const header = JSON.parse(buffer.subarray(0, fs.readSync(fd, buffer, 0, buffer.length, 0)).toString('utf8').split('\n')[0]);
+        if (header.type !== 'session' || typeof header.id !== 'string' || !header.id) return null;
+        files[name] = { bytes: st.size, identity: `${st.dev}:${st.ino}` };
+      } finally { fs.closeSync(fd); }
+    }
+    return { bytes: Object.values(files).reduce((sum, file) => sum + file.bytes, 0), identity: `${info.dev}:${info.ino}`, files };
+  } catch { return null; }
+}
+
+function piSizeDelta(before, after, fresh) {
+  if (!after) return undefined;
+  const same = before && before.identity === after.identity && after.bytes >= before.bytes &&
+    Object.entries(before.files).every(([name, file]) => after.files[name]?.identity === file.identity && after.files[name].bytes >= file.bytes);
+  return { totalBytes: after.bytes, ...(same ? { deltaBytes: after.bytes - before.bytes } : !before && fresh ? { deltaBytes: after.bytes } : {}) };
+}
+
 function run(ws, message) {
   const runId = message.runId;
   if (typeof runId !== 'string' || children.has(runId)) return;
@@ -168,12 +199,16 @@ function run(ws, message) {
   }
   const sessionDir = typeof message.sessionDir === 'string' && message.sessionDir
     ? message.sessionDir : sessionDirFor(message.taskId);
+  let freshDirectory = false;
+  try { fs.lstatSync(sessionDir); } catch (error) { freshDirectory = error.code === 'ENOENT'; }
+  const sizeBefore = piSessionBytes(sessionDir);
+  const sessionSize = () => piSizeDelta(sizeBefore, piSessionBytes(sessionDir), !message.continue && freshDirectory);
   const piArgs = ['--mode', 'json', '--tools', tools, '--session-dir', sessionDir];
   if (message.continue) piArgs.push('--continue'); else piArgs.push('-p');
   piArgs.push(String(message.prompt || ''));
   let child;
   try { child = spawnPi(piArgs, cwd); } catch (error) {
-    send(ws, { type: 'complete', runId, success: false, error: error.message, sessionDir });
+    send(ws, { type: 'complete', runId, success: false, error: error.message, sessionDir, sessionSize: sessionSize() });
     return;
   }
   children.set(runId, child);
@@ -198,7 +233,7 @@ function run(ws, message) {
     if (finished) return;
     finished = true;
     children.delete(runId);
-    send(ws, { type: 'complete', runId, success: false, error: error.message, sessionDir });
+    send(ws, { type: 'complete', runId, success: false, error: error.message, sessionDir, sessionSize: sessionSize() });
   });
   child.once('exit', (code, signal) => {
     if (finished) return;
@@ -208,7 +243,7 @@ function run(ws, message) {
     send(ws, {
       type: 'complete', runId, success: code === 0, output,
       error: code === 0 ? undefined : stderr.trim() || `pi exited with ${signal || `code ${code}`}`,
-      sessionDir, filesModified: [],
+      sessionDir, filesModified: [], sessionSize: sessionSize(),
     });
   });
 }
