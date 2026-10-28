@@ -24,6 +24,18 @@ GitNexus results should support engineering decisions, not replace understanding
 
 ## 任务图工作流
 
+### 2026-10-28 机台阈值项目 HANDOVER 接续例外
+
+用户在 Feishu DM 08a216 明确要求 `tb-feishu-alarm` 使用旧 PLAN 审批卡和 HANDOVER 接续，替代此前误发的任务图卡。
+此例外仅覆盖该项目 `docs/005_PLAN_20261028_阈值卡片接续实施.md` 及后续 HANDOVER，优先于本节默认任务图要求。
+
+- 原任务图提议已撤回，未启动任何 Slice；既有 Issues 保留为参考，不再驱动本包。
+- 注册独立 `tb-feishu-alarm/workflow-watcher`，使用 `semi_auto + implement`。首片只由真人 PLAN 审批卡批准，后续每 Session 一片，成功 next_slice、失败 blocked、S04 完成 await_acceptance。
+- 监控及实施分支为 `implementation/machine-limits-handover-20261028`。首次消费从本次准备提交开始，只处理新 PLAN/HANDOVER，不重放历史；不更改其他项目 cursor/pending。
+- 本群主工作目录为 tb-feishu-alarm，本机 Codex 为实施者，scada 按 watcher extraReadOnlyPaths 只读挂载；不新增房间多 workspace 功能。
+- 不自动合并 master、发布生产或代选生产阈值；具体范围、自测与现场条件以该 PLAN 为准。
+
+
 ### 2026-10-27 588 PLAN 的薄平台聊天室 HANDOVER 接续例外（最新）
 
 用户在 Feishu DM 08a216 要求 Codex 与 antigravity 讨论定稿，提交真实 PLAN 审批卡，

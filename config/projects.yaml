@@ -77,3 +77,30 @@ projects:
         enabled: true
         mode: active
         config: {}
+  - id: tb-feishu-alarm
+    name: 机台阈值与飞书报警
+    path: /data1/code/tb-feishu-alarm
+    ref: refs/heads/implementation/machine-limits-handover-20261028
+    feishu:
+      chat_id: oc_bb599d4608ff895a5dfae3d1fb49107a
+      approver_open_ids:
+        - ou_16b82bdefeb4944108d62068e88a2f0c
+    jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "* * * * *"
+        enabled: true
+        mode: active
+        config:
+          active_side_effects_enabled: true
+          coding_bot_chat_id: oc_bb599d4608ff895a5dfae3d1fb49107a
+          coding_bot_chat_type: group
+          coding_bot_app_id: cli_a8e5326f4e7f901c
+          contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: .
+          initial_cursor_commit: f251e85e4a1f74d52147c2a9f2ebd4c0188cc830
+          workflow_autonomy: semi_auto
+          execution_policy:
+            preset: workspace
+            extraReadOnlyPaths:
+              - /data1/code/scada
