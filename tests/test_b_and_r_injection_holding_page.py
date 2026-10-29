@@ -102,6 +102,35 @@ def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_pat
     assert all(row["state"] == "unknown" for row in unverified["fields"] if row["stage"])
 
 
+def test_z050_holding_two_active_stages_with_only_three_visible_cells(tmp_path):
+    from extract_families.b_and_r_page_observations import b_and_r_page_observations
+
+    template = export_page_package(PID, "0.1.1")["template"]
+    fields = {
+        "holding_stages": 2,
+        "holding_velocity_pct": [5, 2],
+        "holding_pressure_bar": [35, 45],
+        "holding_time_s": [1.5, 1],
+    }
+    image = np.full((100, 400, 3), 220, dtype=np.uint8)
+    tokens = []
+    for stage, x in enumerate((300, 200, 100), 1):
+        box = [x, 30, x + 50, 60]
+        image[30:60, x:x + 50] = 240
+        image[30:60:2, x:x + 50] = 25 if stage <= 2 else 190
+        tokens.append({"text": "0.0" if stage == 3 else str(fields["holding_velocity_pct"][stage - 1]),
+                       "bbox": box, "conf": .99})
+    image_path = tmp_path / "holding.png"
+    cv2.imwrite(str(image_path), image)
+    source_tokens = {source: tokens[:2] for source in
+                     ("holding_velocity_pct", "holding_pressure_bar", "holding_time_s")}
+    observed = b_and_r_page_observations(fields, template, source_tokens,
+                                         stage_tokens={"holding": tokens}, image_path=image_path)
+    assert len(observed["fields"]) == 6
+    assert all(row["state"] == "enabled" and row["state_basis"] == "grayscale_stage_boundary"
+               for row in observed["fields"])
+
+
 def test_z050_page_routes_exports_and_matches_original_image_truth():
     fixture = json.loads((ROOT / "tests/fixtures/b_and_r_z050_rank01_ocr.json").read_text())
     package = export_page_package(PID, "0.1.1")

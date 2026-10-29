@@ -22,7 +22,7 @@ SCALARS = {
 
 def _visual_active_count(tokens: list[dict], gray) -> int | None:
     """Accept a single clear bright-to-gray boundary in the speed value row."""
-    if gray is None or len(tokens) < 4 or any(token.get("conf", 0) < .8 for token in tokens):
+    if gray is None or len(tokens) < 3 or any(token.get("conf", 0) < .8 for token in tokens):
         return None
     contrasts = [bbox_grayscale_contrast(gray, token.get("bbox")) for token in tokens]
     if any(value is None for value in contrasts):
