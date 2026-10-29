@@ -13,6 +13,16 @@ access 可为 read 或 write；一次列出已知缺项。平台生成补充授�
 当前已有权限内的依赖安装和测试直接执行，不重复申请。工具不存在或安装失败须报告实际错误。
 `;
 
+export function resourceInstructions(permission: AcpxRunRequest['permissionConfig']): string {
+  if (permission?.profile === 'full_access') return `
+本次运行已获 Full Access，仓库外目录访问已在当前权限范围内。不要仅因目录位于仓库外而提交资源申请或等待补充审批。
+在用户授权的任务范围内直接完成必要读取与验证；任务明确的只读输入、受控资源和禁止修改范围仍须遵守。
+如果先前资源申请已被平台判定为“已在当前授权范围内”，无需等待审批卡，也不要把它当作阻塞。
+工具不存在或操作实际失败时报告真实错误，不把依赖缺失误报为目录待授权。
+`;
+  return resourceRequestInstructions;
+}
+
 export function parseResourceRequest(output: string): { purpose: string; resources: ResourceInput[] } | null {
   const source = output.trim();
   // Only a whole-message envelope is a command. Prose, quotes and code examples are conversation.
@@ -43,6 +53,7 @@ export function parseResourceRequest(output: string): { purpose: string; resourc
 
 export async function submitRunnerResourceRequest(args: {
   request: AcpxRunRequest; taskRunId: string; participantId: string; participant: AcpxParticipantRequest; output: string; protocolOutput?: string | null;
+  onResolved?: (message: string) => void | Promise<void>;
 }): Promise<string> {
   const proposal = parseResourceRequest(args.protocolOutput === undefined ? args.output : args.protocolOutput || '');
   const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: args.taskRunId }, include: { task: true } });
@@ -51,14 +62,20 @@ export async function submitRunnerResourceRequest(args: {
   let approval = typeof existingId === 'string' ? await getResourceApproval(existingId) : undefined;
   if (!approval && proposal) {
     const binding = await resourceTaskBinding(run.taskId);
-    const { streamCallbacks: _callbacks, resourceContinuation: _continuation, ...launch } = args.request;
+    const launch = { ...args.request };
+    delete launch.streamCallbacks;
+    delete launch.resourceContinuation;
     const result = await requestResourceAccess({
       launch: { ...launch, taskSessionId: run.taskSessionId || undefined, participants: [args.participant] },
       source: { taskRunId: args.taskRunId, participantId: args.participantId }, ...proposal,
       requesterOpenId: binding?.senderOpenId || `platform:${run.task.ownerUserId || run.taskId}`,
       requesterChatId: binding?.chatId || '',
     });
-    if (result.kind === 'covered') return args.output.replace(/<resource-request>[\s\S]*?<\/resource-request>/g, '所申请目录已在当前授权范围内，无须重复申请。');
+    if (result.kind === 'covered') {
+      const note = '所申请目录已在当前授权范围内，无须重复申请或等待审批卡。';
+      await args.onResolved?.(note);
+      return args.output.replace(/<resource-request>[\s\S]*?<\/resource-request>/g, note);
+    }
     approval = result.approval;
     await prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM "TaskRun" WHERE id = ${run.id} FOR UPDATE`;
@@ -70,6 +87,7 @@ export async function submitRunnerResourceRequest(args: {
   if (!approval) return args.output;
   const note = approval.status === 'denied' ? `资源申请 ${approval.id} 已被拒绝，保留当前工作。`
     : `资源申请 ${approval.id} 已提交。批准后平台挂载目录并继续本会话。`;
+  await args.onResolved?.(note);
   if (args.request.graphExecution) return `TASK_GRAPH_IMPLEMENTATION ${JSON.stringify({ status: 'blocked', blockerKind: 'permission_required', note })}`;
   if (args.request.graphReview) return `${args.request.graphReview.phase === 'architecture' ? 'TASK_GRAPH_ARCH_REVIEW' : 'TASK_GRAPH_REVIEW'} ${JSON.stringify({ approved: false, failureKind: 'blocked_require_human', note })}`;
   return note;

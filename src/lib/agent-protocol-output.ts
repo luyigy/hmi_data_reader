@@ -13,9 +13,12 @@ export class AgentProtocolOutput {
     });
   }
 
+  finalMessage(): { id: string; text: string } | undefined {
+    const finals = Array.from(this.messages.entries()).filter(([, message]) => message.phase === 'final_answer');
+    return finals.length === 1 ? { id: finals[0][0], text: finals[0][1].text } : undefined;
+  }
+
   finalOutput(legacyOutput: string): string | null {
-    if (!this.messages.size) return legacyOutput;
-    const finals = Array.from(this.messages.values()).filter(message => message.phase === 'final_answer');
-    return finals.length === 1 ? finals[0].text : null;
+    return this.messages.size ? this.finalMessage()?.text ?? null : legacyOutput;
   }
 }

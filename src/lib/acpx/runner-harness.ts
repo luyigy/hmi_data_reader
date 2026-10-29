@@ -2,7 +2,7 @@ import { normalizeSessionSize } from '../session-size';
 import { graphResourceJobs } from '../task-graph/graph-association';
 import { recordResourceMountPlan, recordResourceSession, ResourceApplicationError } from '../task-resources/mount-plan';
 import { assertResourceUseActive, withResourceProcessGuard } from '../task-resources/process-guard';
-import { resourceRequestInstructions, submitRunnerResourceRequest } from '../task-resources/runner-protocol';
+import { resourceInstructions, submitRunnerResourceRequest } from '../task-resources/runner-protocol';
 import { AgentProtocolOutput } from '../agent-protocol-output';
 import { resourcesForRun, markResourceRunEffective } from '../task-resources/runtime';
 import type { HarnessExecutionContext, HarnessSandbox } from '../harness/types';
@@ -18,7 +18,6 @@ import { graphMaterialPathsForTask } from '../task-graph/conversation-materials'
 import { graphDependencyPaths } from '../task-graph/dependency-paths';
 import { prepareGraphHarnessRuntime } from '../task-graph/harness-runtime';
 import path from 'node:path';
-import { prisma } from '../prisma';
 import { existsSync } from 'node:fs';
 import { agentCommitGitAccess } from '../task-graph/agent-commit';
 import { linkedWorktreeGitDirectories } from '../real-agents/git-worktree-paths';
@@ -150,7 +149,7 @@ export const executeViaLocalHarness = async (
   const isGraph = graphJobs.length > 0;
   const inputs = isGraph ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only', true) : null;
   const resourceAccess = await resourcesForRun({ ...request, participants: [participant] }, taskRunId, participantId, inputs?.manifests);
-  task.description += (participant.harnessType === 'codex' ? resourceRequestInstructions : '') + resourceAccess.instructions;
+  task.description += (participant.harnessType === 'codex' ? resourceInstructions(permissionConfig) : '') + resourceAccess.instructions;
   if (isGraph && request.workingDirectory && !existsSync(request.workingDirectory)) {
     throw new Error('任务工作区已清理或不可用。历史回复和提交仍保留；继续实施请创建后续任务工作区。');
   }
@@ -369,7 +368,13 @@ export const executeViaLocalHarness = async (
 
   return {
     output: await submitRunnerResourceRequest({ request, taskRunId, participantId, participant,
-      output: result.output || `${adapter.displayName} completed`, protocolOutput: protocol.finalOutput(result.output || '') }),
+      output: result.output || `${adapter.displayName} completed`, protocolOutput: protocol.finalOutput(result.output || ''),
+      // Replace only an accepted resource result. Ordinary replies and quoted protocol examples retain their native final.
+      onResolved: message => callbacks.onStdoutChunk?.(message, {
+        id: protocol.finalMessage()?.id || `platform-resource-result:${participantId}`,
+        phase: 'final_answer', operation: 'replace',
+      }),
+    }),
     filesModified: result.filesModified ?? [],
     executionTime: result.executionTime,
     liveStreaming: result.liveStreaming ?? false,
