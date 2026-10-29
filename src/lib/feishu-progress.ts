@@ -204,11 +204,17 @@ export class FeishuProgressTracker {
     return this.renderCard(false, summary, success);
   }
 
-  /** Send a final summary card (replacing the progress card) and return the message id */
-  async finalize(summary: string, success: boolean): Promise<string | null> {
+  /** Stop progress updates without choosing the durable card's terminal result. */
+  async stop(): Promise<void> {
     this.finalized = true;
     clearTimeout(this.flushTimer);
     await this.flushPromise.catch(() => undefined);
+    clearTimeout(this.flushTimer);
+  }
+
+  /** Send a final summary card (replacing the progress card) and return the message id */
+  async finalize(summary: string, success: boolean): Promise<string | null> {
+    await this.stop();
     const card = this.buildFinalCard(summary, success);
     if (this.publisher) { this.progressMsgId = await this.publisher(card, true); return this.progressMsgId; }
 

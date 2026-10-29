@@ -69,9 +69,10 @@ async function main() {
     const conflictOwner = launch((await delivery(0)).id);
     assert.equal((await conflictOwner.next('started')).kind, 'started');
     const conflict = launch((await delivery(2)).id);
-    assert.match((await conflict.next('error')).error, /Workspace write conflict/);
+    assert.equal((await conflict.next('started')).kind, 'started', 'Kimi and Codex share the writable room directory');
+    conflict.finish(); assert.equal((await conflict.next('done')).kind, 'done');
     conflictOwner.finish(); assert.equal((await conflictOwner.next('done')).kind, 'done');
-    console.log('PASS same-directory writer conflict before harness execution');
+    console.log('PASS Kimi and Codex run concurrently in the same writable directory');
 
     const readOnly = { profile: 'dev_local', sandboxMode: 'read-only', networkAccess: 'restricted', approvalPolicy: 'never', writableRoots: [] };
     for (const member of [members[0], members[2], members[3]]) await prisma.liveRoomMember.update({ where: { id: member.id }, data: { acpxPermissionConfig: JSON.stringify(readOnly) } });

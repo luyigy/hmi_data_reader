@@ -226,13 +226,17 @@ export const attachLiveRoomProgress = async ({
   return {
     streamCallbacks,
     progressTracker,
-    dispose: async (summary: string, success: boolean) => {
+    dispose: async (summary: string, success: boolean, options: { finalize?: boolean } = {}) => {
       clearInterval(heartbeatTimer);
       clearTimeout(thinkingTimer);
       lastThinkingPostedAt = 0;
       enqueueThinkingUpdate('');
       clearTimeout(thinkingTimer);
       await flushPromise.catch(() => undefined);
+      if (options.finalize === false) {
+        await progressTracker?.stop();
+        return;
+      }
       const view = reply.view(summary);
       await progressTracker?.setReplyContent(view.latest, view.process, '', view.processEntries).catch(() => undefined);
       await progressTracker?.finalize(success ? view.final : summary, success).catch(error => console.error('[LiveRoom] final card queued:', error));

@@ -106,9 +106,13 @@ export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayNa
   return {
     streamCallbacks,
     progressTracker,
-    dispose: async (summary: string, success: boolean) => {
+    dispose: async (summary: string, success: boolean, options: { finalize?: boolean } = {}) => {
       clearInterval(heartbeatTimer);
       enqueue('', true);
+      if (options.finalize === false) {
+        try { await writes.drain(); } finally { await progressTracker?.stop(); }
+        return;
+      }
       await writes.drain();
       if (!success) {
         response = /^\s*[{[]/.test(summary) ? '执行失败，请查看任务室运行记录。' : summary;

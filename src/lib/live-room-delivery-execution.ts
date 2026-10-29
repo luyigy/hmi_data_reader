@@ -421,6 +421,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     await progress.dispose(summary, success);
   };
 
+  try {
   const workflowPermissionSnapshot = readWorkflowPermissionSnapshot(
     sourceMetadata?.workflowPermissionSnapshot,
     sourceTask.workingDirectory || process.cwd(),
@@ -489,8 +490,6 @@ export const executeLiveRoomReplyViaAcpx = async ({
       },
     }),
   });
-
-  try {
 
   let acpxResult = await runLiveRoomAcpxAttempt({
     sourceTask,
@@ -675,6 +674,8 @@ export const executeLiveRoomReplyViaAcpx = async ({
     footnotes,
   };
   } finally {
-    await disposeProgress(`${targetMember.displayName} 执行失败`, false);
+    // Delivery owns errors thrown before a TaskRun result; cleanup must not seal its card first.
+    if (!progressDisposed) await progress.dispose('', false, { finalize: false })
+      .catch(error => console.error('[LiveRoom] progress cleanup failed:', error));
   }
 };

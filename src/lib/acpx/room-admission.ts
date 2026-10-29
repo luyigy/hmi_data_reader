@@ -103,8 +103,13 @@ export async function assertRoomRunAvailable(tx: Prisma.TransactionClient, reque
       const local = host(participant) === 'local';
       const a = await writeRoots(request.workingDirectory || process.cwd(), request.permissionConfig, local);
       const resources = metadata.resources as { writableRoots?: string[] } | undefined;
-      const b = await writeRoots(typeof metadata.workingDirectory === 'string' ? metadata.workingDirectory : '/',
-        metadata.permissionConfig as AcpxRunRequest['permissionConfig'], local, resources?.writableRoots);
+      const participantResources = oldMetadata.resources as { writableRoots?: string[] } | undefined;
+      const protectedRoots = [...(resources?.writableRoots || []), ...(participantResources?.writableRoots || [])];
+      // Trusted local room members may collaborate in one base workspace. Explicit resource reservations remain exclusive.
+      const b = local && binding && prior
+        ? await Promise.all(protectedRoots.map(canonical))
+        : await writeRoots(typeof metadata.workingDirectory === 'string' ? metadata.workingDirectory : '/',
+          metadata.permissionConfig as AcpxRunRequest['permissionConfig'], local, protectedRoots);
       if (a.some(left => b.some(right => left === '*' || right === '*' || overlap(left, right)))) throw new Error(`Workspace write conflict with active run ${run.id}`);
     }
   }

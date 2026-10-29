@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { prisma } from '../src/lib/prisma';
 import { ensureTaskSession } from '../src/lib/acpx/session';
-import type { AcpxPermissionConfig } from '../src/lib/acpx/types';
+import { assertRoomRunAvailable } from '../src/lib/acpx/room-admission';
+import { lockWriterAdmission } from '../src/lib/task-graph/writer-admission';
+import type { AcpxPermissionConfig, AcpxRunRequest } from '../src/lib/acpx/types';
 
 const children: ChildProcess[] = [];
 function launch(deliveryId: string) {
@@ -38,7 +40,7 @@ function launch(deliveryId: string) {
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL!).searchParams.get('schema')!, /^task_graph_test_/);
   const root = mkdtempSync(path.join(tmpdir(), 'local-room-concurrency-'));
-  const tasks: string[] = [], rooms: string[] = [];
+  const tasks: string[] = [], rooms: string[] = [], graphs: string[] = [];
   const permission: AcpxPermissionConfig = {
     profile: 'full_access', sandboxMode: 'danger-full-access', networkAccess: 'enabled',
     approvalPolicy: 'on-request', writableRoots: [],
@@ -99,12 +101,35 @@ async function main() {
     ] as const) {
       const target = await room(directory, [...writableRoots]);
       const attempt = await delivery(target);
-      const rejected = await launch(attempt.id).next('error');
-      assert.match(rejected.error || '', /Workspace write conflict/);
-      assert.equal(await prisma.taskRun.count({ where: { taskId: target.taskId } }), 0, label);
-      assert.equal((await prisma.liveRoomDelivery.findUniqueOrThrow({ where: { id: attempt.id } })).deliveryStatus, 'failed');
-      console.log(`PASS ${label} still blocked before native execution`);
+      const worker = launch(attempt.id);
+      const started = await worker.next('started');
+      assert.equal(started.kind, 'started', `${label}: ${started.error}`);
+      worker.finish(); assert.equal((await worker.next('done')).kind, 'done');
+      assert.equal((await prisma.liveRoomDelivery.findUniqueOrThrow({ where: { id: attempt.id } })).deliveryStatus, 'delivered');
+      console.log(`PASS ordinary rooms share ${label}`);
     }
+
+    // A graph/non-room runner arriving after an ordinary room must still check the workspace.
+    const graphRequest: AcpxRunRequest = { taskId: 'graph-fixture', taskName: 'graph-fixture', workingDirectory: directoryA,
+      orchestrationMode: 'single', permissionConfig: permission,
+      graphExecution: { executionId: 'graph-fixture', claimToken: 'claim', revision: 1 },
+      participants: [{ executionBackend: 'platform_local', gatewayId: 'platform-local', harnessType: 'codex', role: 'implementer' }] };
+    await assert.rejects(prisma.$transaction(async tx => {
+      await lockWriterAdmission(tx); await assertRoomRunAvailable(tx, graphRequest);
+    }), /Workspace write conflict/);
+    const graphRoom = await room(path.join(root, 'graph-worktree'));
+    const graph = await prisma.taskGraphRun.create({ data: { parentTaskId: graphRoom.taskId, version: 1,
+      requestKey: graphRoom.id, snapshotHash: 'fixture', snapshot: {}, nodes: { create: {
+        key: 'T', dependsOn: [], acceptance: 'human', executions: { create: { key: 'repo', repository: root,
+          gitRef: 'refs/heads/main', baseCommit: 'fixture', agentSelector: 'local:codex', status: 'claimed',
+          worktreePath: path.join(root, 'graph-worktree'), claimToken: 'held' } },
+      } } } });
+    graphs.push(graph.id);
+    const protectedAttempt = await delivery(graphRoom);
+    assert.match((await launch(protectedAttempt.id).next('error')).error || '', /Workspace writer .*unknown/);
+    assert.equal(await prisma.taskRun.count({ where: { taskId: graphRoom.taskId } }), 0);
+    await prisma.taskGraphRun.delete({ where: { id: graph.id } }); graphs.pop();
+    console.log('PASS ordinary-first graph admission rejects overlap; graph-first unreleased claim blocks ordinary room');
 
     // Extra resources belonging to an existing run still reserve their write scope.
     const owner = active.find(run => run.taskId === b.taskId)!;
@@ -137,6 +162,7 @@ async function main() {
   } finally {
     for (const child of children) if (child.exitCode === null) child.kill('SIGTERM');
     await Promise.all(children.filter(child => child.exitCode === null).map(child => new Promise(resolve => child.once('exit', resolve))));
+    await prisma.taskGraphRun.deleteMany({ where: { id: { in: graphs } } });
     await prisma.liveRoom.deleteMany({ where: { id: { in: rooms } } });
     await prisma.task.deleteMany({ where: { id: { in: tasks } } });
     await prisma.$disconnect();
