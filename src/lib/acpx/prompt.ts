@@ -26,9 +26,9 @@ export const withFeishuBotContactInstructions = (message: string) => `${message}
 export const isGraphStageRequest = (request: AcpxRunRequest) => Boolean(request.graphExecution || request.graphReview);
 
 export function harnessContinuationInput(request: AcpxRunRequest, participant: AcpxParticipantRequest, prepared: string,
-  context?: { capabilityInstructions: string; longFileContext?: LongFileRuntimeContext | null }) {
+  context?: { capabilityInstructions: string; resourceInstructions?: string; longFileContext?: LongFileRuntimeContext | null }) {
   return isGraphStageRequest(request) || !participant.continuationMessage ? prepared : withLongFileRuntimeContext(
-    withFeishuBotContactInstructions(participant.continuationMessage + (context?.capabilityInstructions || '')), context?.longFileContext);
+    withFeishuBotContactInstructions(participant.continuationMessage + (context?.capabilityInstructions || '') + (context?.resourceInstructions || '')), context?.longFileContext);
 }
 
 const stripLeadingMention = (content: string): string => {

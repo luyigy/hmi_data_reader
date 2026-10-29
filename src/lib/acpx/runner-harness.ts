@@ -149,7 +149,8 @@ export const executeViaLocalHarness = async (
   const isGraph = graphJobs.length > 0;
   const inputs = isGraph ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only', true) : null;
   const resourceAccess = await resourcesForRun({ ...request, participants: [participant] }, taskRunId, participantId, inputs?.manifests);
-  task.description += (participant.harnessType === 'codex' ? resourceInstructions(permissionConfig) : '') + resourceAccess.instructions;
+  const resourceContextInstructions = (participant.harnessType === 'codex' ? resourceInstructions(permissionConfig) : '') + resourceAccess.instructions;
+  task.description += resourceContextInstructions;
   if (isGraph && request.workingDirectory && !existsSync(request.workingDirectory)) {
     throw new Error('任务工作区已清理或不可用。历史回复和提交仍保留；继续实施请创建后续任务工作区。');
   }
@@ -346,7 +347,7 @@ export const executeViaLocalHarness = async (
   const authority = await captureStageAuthority(request, taskRunId);
   const result = await withResourceProcessGuard(taskRunId, participantId, resourceAccess.approvalIds, () =>
     executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority,
-      continuationContext: { capabilityInstructions: capabilities.instructions, longFileContext } }));
+      continuationContext: { capabilityInstructions: capabilities.instructions, resourceInstructions: resourceContextInstructions, longFileContext } }));
 
   await metadataWrites;
   if (result.runtimeState && result.sessionId && result.sessionKind) {

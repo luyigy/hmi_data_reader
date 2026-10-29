@@ -26,9 +26,16 @@ async function main() {
   const adapter = getHarnessAdapter('codex')!;
   const original = { execute: adapter.execute, resume: adapter.resume };
   const envelope = `<resource-request>${JSON.stringify({ purpose: 'Verify model import', resources: [{ path: extra, access: 'read' }] })}</resource-request>`;
-  let prompt = '', mode = '';
+  let prompt = '', mode = '', resumeCalls = 0;
   adapter.execute = adapter.resume = async args => {
     prompt = args.task.description || '';
+    const native = `room-resource-native-${args.task.id}`;
+    if ('sessionId' in args) {
+      resumeCalls++;
+      assert.equal(args.sessionId, native, 'second turn resumes the original native Session');
+      assert.equal(args.continuationMessage, prompt);
+    }
+    await args.context.onSessionStarted?.({ sessionId: native, sessionKind: 'codex_thread', threadId: native });
     const stream = args.context.streamCallbacks?.onStdoutChunk;
     if (mode === 'legacy') {
       await stream?.(envelope);
@@ -78,6 +85,20 @@ async function main() {
           assert.match(reply, /已在当前授权范围内/);
           if (mode === 'full') assert.match(prompt, /Full Access[\s\S]*不.*仅因.*仓库外.*申请/);
         }
+      }
+      if (mode === 'full' || mode === 'covered') {
+        const nextMessage = await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: 'Continue verifying the model', metadata: JSON.stringify({ feishuBindingId: binding.id }) } });
+        const nextDelivery = await prisma.liveRoomDelivery.create({ data: { roomMessageId: nextMessage.id, targetMemberId: member.id } });
+        const before = resumeCalls;
+        await processLiveRoomDelivery({ deliveryId: nextDelivery.id, roomId: room.id, roomMessageId: nextMessage.id, targetMemberId: member.id, chainDepth: 0 });
+        const nextResult = await prisma.liveRoomDelivery.findUniqueOrThrow({ where: { id: nextDelivery.id } });
+        assert.equal(nextResult.deliveryStatus, 'delivered', nextResult.fallbackReason || 'resume must complete');
+        assert.equal(resumeCalls, before + 1, 'must exercise adapter.resume, not a new Session');
+        assert.match(prompt, /Continue verifying the model/);
+        if (mode === 'full') assert.match(prompt, /本次运行已获 Full Access[\s\S]*不要仅因目录位于仓库外/, 'resumed native prompt must contain the current permission correction');
+        else assert.match(prompt, /需要当前任务尚未授权的额外目录/, 'restricted resume retains resource approval instructions');
+        const nextCard = await prisma.feishuTurnCard.findFirstOrThrow({ where: { sourceMessageId: nextMessage.id, memberId: member.id } });
+        assert.match(nextCard.cardJson!, /已在当前授权范围内/);
       }
       console.log(`PASS ${mode}: actual Delivery/Runner, durable card, resource policy and buttons`);
     }

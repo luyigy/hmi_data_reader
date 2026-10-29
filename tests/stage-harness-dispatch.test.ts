@@ -63,10 +63,12 @@ async function main() {
   assert.equal(calls.at(-1)?.input.task.description, nextPrompt, 'Same native Session accepts a newly validated stage');
   const ordinary = { ...request, graphExecution: undefined };
   const continuationContext = { capabilityInstructions: '\nCURRENT_CAPABILITY_CLIENT_QUERY_SYNTAX',
+    resourceInstructions: '\nCURRENT_RESOURCE_POLICY\n本轮补充授权目录：只读 /approved/model',
     longFileContext: { projectId: 'chat-project', projectPath: '/source', head: 'a'.repeat(40), threshold: 1000,
       extensions: new Set(['.ts']), excludes: [], baseline: { 'existing-large.ts': 1200 }, offenders: [{ path: 'existing-large.ts', lines: 1200 }] } };
   await executePreparedStageHarness({ ...args, request: ordinary, stageRequest: null, authority: null, continuationContext, participant: { ...participant, resumeSessionId: 'chat' } });
   assert.match(calls.at(-1)?.input.task.description || '', /CURRENT_CAPABILITY_CLIENT_QUERY_SYNTAX/, 'Ordinary Resume retains current capability instructions');
+  assert.match(calls.at(-1)?.input.task.description || '', /CURRENT_RESOURCE_POLICY[\s\S]*只读 \/approved\/model/, 'Ordinary Resume retains current resource policy and approved mounts');
   assert.match(calls.at(-1)?.input.task.description || '', /existing-large\.ts/, 'Ordinary Resume retains current long-file instructions');
   assert.match(calls.at(-1)?.input.task.description || '', /old session: edit source directly/, 'Ordinary chat retains its existing continuation');
   await executePreparedStageHarness({ ...args, request: ordinary, stageRequest: null, authority: null });
