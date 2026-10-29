@@ -1,4 +1,6 @@
 import { piSizeProbeCommand, withRemotePiSessionSize } from './ssh-session-size';
+import { parsePiSessionTelemetry } from '../real-agents/pi-runtime-state';
+import type { HarnessRuntimeState, NormalizedContextUsage } from '../harness/types';
 import { tmpdir } from 'os';
 import { randomUUID } from 'node:crypto';
 import { join } from 'path';
@@ -16,6 +18,7 @@ interface RemoteHarnessTask {
 }
 
 interface RemoteSshExecutionOptions {
+  executionId?: string;
   onSessionSize?: (sessionId: string, size: { totalBytes: number; deltaBytes?: number }) => void | Promise<void>;
   timeout: number;
   harnessType: string;
@@ -46,6 +49,8 @@ interface RemoteSshCommandOptions {
 }
 
 export interface RemoteSshExecutionResult {
+  runtimeState?: HarnessRuntimeState;
+  contextUsage?: NormalizedContextUsage;
   output: string;
   filesModified: string[];
   executionTime: number;
@@ -666,22 +671,31 @@ const executeRemoteSshTaskWithoutTelemetry = async (
 };
 
 export const executeRemoteSshTask = async (task: RemoteHarnessTask, options: RemoteSshExecutionOptions): Promise<RemoteSshExecutionResult> => {
+  const startedAt = Date.now();
   // Resolve once: command, shell fallback, continuation identity and probe share this directory.
   const piSession = options.harnessType === 'pi-agent'
     ? { directory: resolveRemotePiSessionDir(task.id, options.resumeSessionId), nativeId: undefined as string | undefined } : undefined;
   const execute = () => executeRemoteSshTaskWithoutTelemetry(task, options, piSession);
-  if (!piSession || !options.onSessionSize) return execute();
+  if (!piSession || (!options.onSessionSize && !options.executionId)) return execute();
   const sessionId = piSession.directory;
-  return withRemotePiSessionSize({
+  let telemetry: ReturnType<typeof parsePiSessionTelemetry>;
+  const result = await withRemotePiSessionSize({
     execute,
     nativeSessionId: () => piSession.nativeId,
-    publish: size => options.onSessionSize!(sessionId, size),
-    read: async () => {
-      const probe = (windows: boolean) => runRemoteSshCommand({ host: options.host, timeout: 5000, command: piSizeProbeCommand(sessionId, windows) });
+    publish: size => options.onSessionSize?.(sessionId, size),
+    onSessionRecord: (lines, nativeId) => {
+      if (options.executionId) telemetry = parsePiSessionTelemetry(lines, {
+        executionId: options.executionId, sessionDir: sessionId, sessionId: nativeId,
+        startedAt, completedAt: Date.now(),
+      });
+    },
+    read: async nativeId => {
+      const probe = (windows: boolean) => runRemoteSshCommand({ host: options.host, timeout: 5000, command: piSizeProbeCommand(sessionId, windows, nativeId) });
       try { return (await probe(false)).stdout; }
       catch (error) { if (shouldRetryWithPowerShell(error)) return (await probe(true)).stdout; throw error; }
     },
   });
+  return { ...result, ...telemetry };
 };
 
 const runRemoteSshCommand = async ({

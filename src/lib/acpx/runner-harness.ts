@@ -466,13 +466,14 @@ export const executeViaRemoteSshHarness = async (
   }
 
   const runtime = participant.harnessType === 'pi-agent' ? await beginHarnessRuntimeExecution(participantId) : null;
-  return executeRemoteSshTask(
+  const result = await executeRemoteSshTask(
     {
       id: request.taskId,
       name: request.taskName,
       description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
     },
     {
+      executionId: runtime?.id,
       timeout: resolveHarnessTimeout(
         request.watchdogConfig?.maxRuntimeMs,
         DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS
@@ -501,4 +502,14 @@ export const executeViaRemoteSshHarness = async (
       },
     }
   );
+  if (runtime && result.runtimeState && result.sessionId === result.runtimeState.sessionId) {
+    try {
+      await persistPlatformLocalSessionMetadata(taskRunId, participantId, result.sessionKind, result.sessionId);
+      if (result.contextUsage) await persistContextUsage(participantId, result.contextUsage);
+      await persistHarnessRuntimeState(runtime, result.runtimeState);
+    } catch {
+      console.warn('Remote Pi telemetry: could not persist native evidence', participantId);
+    }
+  }
+  return result;
 };
