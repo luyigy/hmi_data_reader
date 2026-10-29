@@ -9,14 +9,18 @@
 import re
 from pathlib import Path
 
+import cv2
+
+from .b_and_r_layout import physical_rows, stage_identity
+from .visual_cells import bordered_cells
 from .common import _anchor_match  # noqa: F401
-from .b_and_r_page_observations import b_and_r_page_observations
+from .b_and_r_page_observations import b_and_r_page_observations, _visual_active_count
 
 NUM = re.compile(r"\d+\.?\d*")
 
 
 def _first_num(text: str) -> float | None:
-    m = NUM.search(text)
+    m = NUM.fullmatch(text.strip())
     return float(m.group()) if m else None
 
 
@@ -50,7 +54,7 @@ def _row_values(cluster, rng, parse):
     lo, hi = rng
     out = []
     for t in cluster:
-        v = parse(t["text"])
+        v = parse(t["text"]) if t else None
         out.append(v if v is not None and lo <= v <= hi else None)
     return out
 
@@ -62,6 +66,9 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
     gap = template["cluster_gap"]
     max_stages = template["max_stages"]
     detail: dict = {}
+    gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE) if image_path is not None else None
+    cells = bordered_cells(gray)
+    row_cells = {}
 
     # 区段头 y（保压切换唯一，反向链式锚定：保压=保压切换之上最近，射胶=保压之上最近）
     y_sw = _section_y(toks, sc["switch"]["header"])
@@ -83,10 +90,12 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
 
     # 射胶表（区段：射胶头 ~ 保压头）
     inj_rows = _value_rows(toks, y_inj + 0.02, y_hold - 0.01, gap)
+    if gray is not None:
+        inj_rows, row_cells["injection"] = physical_rows(
+            inj_rows, cells, (y_inj+.02)*gray.shape[0], (y_hold-.01)*gray.shape[0])
     inj: dict[str, list | None] = {"velocity": None, "pressure": None, "position": None}
     inj_tokens: dict[str, list] = {}
-    expect = [r for r in sc["injection"]["rows"] if r not in sc["injection"]["skip_rows"]]
-    if len(inj_rows) < len(sc["injection"]["rows"]):
+    if len(inj_rows) < (3 if gray is not None else len(sc["injection"]["rows"])):
         warnings.append(f"ROW_COUNT_LOW(injection,{len(inj_rows)})")
     for name, cl in zip(sc["injection"]["rows"], inj_rows):
         if name in sc["injection"]["skip_rows"]:
@@ -97,6 +106,9 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
 
     # 保压表（区段：保压头 ~ 保压切换头）
     hold_rows = _value_rows(toks, y_hold + 0.02, y_sw - 0.01, gap)
+    if gray is not None:
+        hold_rows, row_cells["holding"] = physical_rows(
+            hold_rows, cells, (y_hold+.02)*gray.shape[0], (y_sw-.01)*gray.shape[0])
     hold: dict[str, list | None] = {"velocity": None, "pressure": None, "time": None}
     hold_tokens: dict[str, list] = {}
     if len(hold_rows) < len(sc["holding"]["rows"]):
@@ -106,22 +118,53 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
         hold[name] = _row_values(cl, rng, _first_num)[:max_stages]
         hold_tokens[name] = cl[:max_stages]
 
-    # 有效段
+    detail["physical_rows"] = row_cells
+    detail["raw_rows"] = {"injection": dict(inj), "holding": dict(hold)}
+    identity = {}
+    if gray is not None:
+        identity["injection"] = stage_identity(toks, row_cells.get("injection"), y_inj,
+                                                (gray.shape[1], gray.shape[0]))
+        reference = row_cells["injection"][0][0] if identity["injection"] else None
+        identity["holding"] = stage_identity(toks, row_cells.get("holding"), y_hold,
+                                              (gray.shape[1], gray.shape[0]), reference)
+        if not identity["injection"] and identity["holding"]:
+            identity["injection"] = stage_identity(
+                toks, row_cells.get("injection"), y_inj, (gray.shape[1], gray.shape[0]),
+                row_cells["holding"][0][0])
+        for section, values in (("injection", inj), ("holding", hold)):
+            if not identity[section]:
+                warnings.append(f"STAGE_IDENTITY_UNVERIFIED({section})")
+                for name in values:
+                    values[name] = None
+    detail["stage_identity_verified"] = identity
+    # 数值推断只作候选段数；缺读不得当作零或压紧后续段位。
     n_inj = 0
-    if inj["velocity"] and inj["pressure"]:
+    if (inj["velocity"] and inj["pressure"]
+            and all(v is not None for v in inj["velocity"] + inj["pressure"])):
         for i in range(min(len(inj["velocity"]), len(inj["pressure"]))):
             if (inj["velocity"][i] or 0) > 0 or (inj["pressure"][i] or 0) > 0:
                 n_inj = i + 1
-    if n_inj == 0:
-        warnings.append("STAGES_NOT_FOUND(injection)")
     n_hold = 0
-    if hold["time"]:
+    if hold["time"] and all(v is not None for v in hold["time"]):
         for i, v in enumerate(hold["time"]):
             if (v or 0) > 0:
                 n_hold = i + 1
+
+    detail["numeric_stage_candidates"] = {"injection": n_inj or None, "holding": n_hold or None}
+    verified_cells = {}
+    for section, rows in row_cells.items():
+        count = _visual_active_count(rows[0], gray) if identity.get(section) else None
+        if count is not None and len(rows[0]) == count+1 and len(rows[1]) == len(rows[2]) == count:
+            verified_cells[section] = rows[0]
+            if section == "injection":
+                n_inj = count
+            else:
+                n_hold = count
+    if n_inj == 0:
+        warnings.append("STAGES_NOT_FOUND(injection)")
     if n_hold == 0:
         warnings.append("STAGES_NOT_FOUND(holding)")
-
+    # 缺读不影响图像证实的段数；cut 仍拒绝输出缺值数组。
     # 保压切换（勾选式：位置 mm + 时间 sec）
     def switch_value(label_text, rng):
         hits = [t for t in toks
@@ -177,18 +220,30 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
     if template.get("profile_id") == "b_and_r.injection_holding.multi_stage_position_time":
         detail["page_variant"] = "multi_stage_position_time"
         source_tokens = {
-            "injection_velocity_pct": inj_tokens.get("velocity", [])[:n_inj],
-            "injection_pressure_bar": inj_tokens.get("pressure", [])[:n_inj],
-            "injection_position_mm": inj_tokens.get("position", [])[:n_inj],
-            "holding_velocity_pct": hold_tokens.get("velocity", [])[:n_hold],
-            "holding_pressure_bar": hold_tokens.get("pressure", [])[:n_hold],
-            "holding_time_s": hold_tokens.get("time", [])[:n_hold],
+            "injection_velocity_pct": inj_tokens.get("velocity", []),
+            "injection_pressure_bar": inj_tokens.get("pressure", []),
+            "injection_position_mm": inj_tokens.get("position", []),
+            "holding_velocity_pct": hold_tokens.get("velocity", []),
+            "holding_pressure_bar": hold_tokens.get("pressure", []),
+            "holding_time_s": hold_tokens.get("time", []),
             "vp_switch_position_mm": vp_pos_token,
             "vp_switch_time_s": vp_time_token,
         }
         detail["page_observations"] = b_and_r_page_observations(
             fields, template, source_tokens,
-            stage_tokens={"injection": inj_tokens.get("velocity", []),
-                          "holding": hold_tokens.get("velocity", [])},
+            raw_values={
+                "injection_velocity_pct": inj["velocity"], "injection_pressure_bar": inj["pressure"],
+                "injection_position_mm": inj["position"], "holding_velocity_pct": hold["velocity"],
+                "holding_pressure_bar": hold["pressure"], "holding_time_s": hold["time"]},
+            stage_cells=verified_cells,
             image_path=image_path)
+        # v1 consumers use the largest exposed stage as the final business stage.
+        # Keep full screen facts in extraction evidence without extending that view.
+        detail["raw_page_observations"] = detail["page_observations"]
+        detail["page_observations"] = {
+            **detail["raw_page_observations"],
+            "fields": [row for row in detail["raw_page_observations"]["fields"]
+                       if row["stage"] is None
+                       or row["stage"] <= (fields.get(f"{row['section']}_stages") or 0)],
+        }
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}

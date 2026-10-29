@@ -48,8 +48,9 @@ def test_z050_legacy_and_registered_routes_share_image_adapter(tmp_path):
         image_path=photo)
     assert registered == legacy
     observations = legacy["detail"]["page_observations"]["fields"]
-    assert sum(row["state"] == "enabled" for row in observations) == 18
-    assert all(row["state_basis"] == "grayscale_stage_boundary" for row in observations if row["stage"])
+    assert all(row["state"] == "unknown" for row in observations)
+    # OCR-shaped stripes without physical cell borders cannot verify layout.
+    assert all(row["state_basis"] is None for row in observations if row["stage"])
     without_image = extract_fields.extract_page_fields(tokens, template)["detail"]["page_observations"]["fields"]
     assert all(row["state"] == "unknown" for row in without_image if row["stage"])
     assert any(entry["extractor_id"] == "b_and_r.injection_metering" and entry["image_support"]
@@ -80,7 +81,8 @@ def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_pat
             x = 400 - stage * 90
             box = [x, y, x + 50, y + 25]
             image[y:y + 25, x:x + 50] = 240
-            image[y:y + 25:2, x:x + 50] = 25 if stage <= 3 else 190
+            cv2.putText(image, "5.0", (x + 11, y + 17), cv2.FONT_HERSHEY_SIMPLEX, .4,
+                        (25, 25, 25) if stage <= 3 else (190, 190, 190), 1)
             tokens.append({"text": "0.0" if stage == 4 else "5.0", "bbox": box, "conf": .99})
         stage_tokens[section] = tokens
     image_path = tmp_path / "z050.png"
@@ -89,7 +91,8 @@ def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_pat
                      for source in ("injection_velocity_pct", "injection_pressure_bar", "injection_position_mm",
                                     "holding_velocity_pct", "holding_pressure_bar", "holding_time_s")}
     observed = b_and_r_page_observations(fields, template, source_tokens,
-                                         stage_tokens=stage_tokens, image_path=image_path)
+                                         stage_cells={key: [t["bbox"] for t in value] for key, value in stage_tokens.items()},
+                                         image_path=image_path)
     staged = [row for row in observed["fields"] if row["stage"]]
     assert len(staged) == 18
     assert all(row["state"] == "enabled" and row["state_basis"] == "grayscale_stage_boundary"
@@ -98,7 +101,8 @@ def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_pat
 
     cv2.imwrite(str(image_path), np.full_like(image, 220))
     unverified = b_and_r_page_observations(fields, template, source_tokens,
-                                           stage_tokens=stage_tokens, image_path=image_path)
+                                           stage_cells={key: [t["bbox"] for t in value] for key, value in stage_tokens.items()},
+                                         image_path=image_path)
     assert all(row["state"] == "unknown" for row in unverified["fields"] if row["stage"])
 
 
@@ -117,7 +121,8 @@ def test_z050_holding_two_active_stages_with_only_three_visible_cells(tmp_path):
     for stage, x in enumerate((300, 200, 100), 1):
         box = [x, 30, x + 50, 60]
         image[30:60, x:x + 50] = 240
-        image[30:60:2, x:x + 50] = 25 if stage <= 2 else 190
+        cv2.putText(image, "5.0", (x + 11, 50), cv2.FONT_HERSHEY_SIMPLEX, .4,
+                    (25, 25, 25) if stage <= 2 else (190, 190, 190), 1)
         tokens.append({"text": "0.0" if stage == 3 else str(fields["holding_velocity_pct"][stage - 1]),
                        "bbox": box, "conf": .99})
     image_path = tmp_path / "holding.png"
@@ -125,7 +130,7 @@ def test_z050_holding_two_active_stages_with_only_three_visible_cells(tmp_path):
     source_tokens = {source: tokens[:2] for source in
                      ("holding_velocity_pct", "holding_pressure_bar", "holding_time_s")}
     observed = b_and_r_page_observations(fields, template, source_tokens,
-                                         stage_tokens={"holding": tokens}, image_path=image_path)
+                                         stage_cells={"holding": [t["bbox"] for t in tokens]}, image_path=image_path)
     assert len(observed["fields"]) == 6
     assert all(row["state"] == "enabled" and row["state_basis"] == "grayscale_stage_boundary"
                for row in observed["fields"])

@@ -1,0 +1,17 @@
+{
+  "index_updated": true,
+  "target_add": {
+    "risk": "HIGH",
+    "direct_callers": 1,
+    "processes": 3,
+    "scope": "B&R observation, extraction and verification"
+  },
+  "whole_worktree": {
+    "risk": "CRITICAL",
+    "changed_symbols": 16,
+    "changed_files": 9,
+    "affected_processes": 17,
+    "includes_preexisting_changes": true
+  },
+  "committed": false
+}

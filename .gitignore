@@ -108,3 +108,12 @@ htmlcov/
 
 # Reproducible local review output; source diffs are available from Git itself.
 /artifacts/**/code.diff
+
+# B&R acceptance keeps compact review evidence, not regenerated full responses.
+/artifacts/br_stability/*
+!/artifacts/br_stability/delivery-manifest.json
+!/artifacts/br_stability/gitnexus-summary.json
+!/artifacts/br_stability/matrix.csv
+!/artifacts/br_stability/fault_comparison.json
+!/artifacts/br_stability/model-package-loader-error.json
+!/artifacts/br_stability/model_import_probe.py

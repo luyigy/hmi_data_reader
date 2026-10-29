@@ -1,0 +1,335 @@
+[
+  {
+    "case": "missing_injection_speed_stage2",
+    "kind": "fault injection into frozen OCR on real unmodified photo",
+    "before": {
+      "injection_velocity_pct": [
+        17.0,
+        10.0,
+        0.0
+      ],
+      "injection_pressure_bar": [
+        100.0,
+        115.0,
+        91.0
+      ],
+      "injection_position_mm": [
+        42.0,
+        21.0,
+        0.0
+      ],
+      "injection_stages": 3,
+      "holding_velocity_pct": [
+        5.0,
+        5.0,
+        8.0
+      ],
+      "holding_pressure_bar": [
+        33.0,
+        32.0,
+        30.0
+      ],
+      "holding_time_s": [
+        2.2,
+        2.0,
+        1.0
+      ],
+      "holding_stages": 3,
+      "holding_switch_mode": "位置+时间",
+      "vp_switch_position_mm": 15.8,
+      "vp_switch_time_s": 2.35
+    },
+    "after": {
+      "injection_velocity_pct": null,
+      "injection_pressure_bar": [
+        100.0,
+        115.0,
+        91.0
+      ],
+      "injection_position_mm": [
+        42.0,
+        21.0,
+        0.0
+      ],
+      "injection_stages": 3,
+      "holding_velocity_pct": [
+        5.0,
+        5.0,
+        8.0
+      ],
+      "holding_pressure_bar": [
+        33.0,
+        32.0,
+        30.0
+      ],
+      "holding_time_s": [
+        2.2,
+        2.0,
+        1.0
+      ],
+      "holding_stages": 3,
+      "holding_switch_mode": "位置+时间",
+      "vp_switch_position_mm": 15.8,
+      "vp_switch_time_s": 2.35
+    },
+    "after_raw": {
+      "injection": {
+        "velocity": [
+          17.0,
+          null,
+          10.0,
+          0.0
+        ],
+        "pressure": [
+          100.0,
+          115.0,
+          91.0
+        ],
+        "position": [
+          42.0,
+          21.0,
+          0.0
+        ]
+      },
+      "holding": {
+        "velocity": [
+          5.0,
+          5.0,
+          8.0,
+          0.0
+        ],
+        "pressure": [
+          33.0,
+          32.0,
+          30.0
+        ],
+        "time": [
+          2.2,
+          2.0,
+          1.0
+        ]
+      }
+    }
+  },
+  {
+    "case": "missing_holding_time_stage2",
+    "kind": "fault injection into frozen OCR on real unmodified photo",
+    "before": {
+      "injection_velocity_pct": [
+        17.0,
+        12.0,
+        10.0
+      ],
+      "injection_pressure_bar": [
+        100.0,
+        115.0,
+        91.0
+      ],
+      "injection_position_mm": [
+        42.0,
+        21.0,
+        0.0
+      ],
+      "injection_stages": 3,
+      "holding_velocity_pct": [
+        5.0,
+        5.0
+      ],
+      "holding_pressure_bar": [
+        33.0,
+        32.0
+      ],
+      "holding_time_s": [
+        2.2,
+        1.0
+      ],
+      "holding_stages": 2,
+      "holding_switch_mode": "位置+时间",
+      "vp_switch_position_mm": 15.8,
+      "vp_switch_time_s": 2.35
+    },
+    "after": {
+      "injection_velocity_pct": [
+        17.0,
+        12.0,
+        10.0
+      ],
+      "injection_pressure_bar": [
+        100.0,
+        115.0,
+        91.0
+      ],
+      "injection_position_mm": [
+        42.0,
+        21.0,
+        0.0
+      ],
+      "injection_stages": 3,
+      "holding_velocity_pct": [
+        5.0,
+        5.0,
+        8.0
+      ],
+      "holding_pressure_bar": [
+        33.0,
+        32.0,
+        30.0
+      ],
+      "holding_time_s": null,
+      "holding_stages": 3,
+      "holding_switch_mode": "位置+时间",
+      "vp_switch_position_mm": 15.8,
+      "vp_switch_time_s": 2.35
+    },
+    "after_raw": {
+      "injection": {
+        "velocity": [
+          17.0,
+          12.0,
+          10.0,
+          0.0
+        ],
+        "pressure": [
+          100.0,
+          115.0,
+          91.0
+        ],
+        "position": [
+          42.0,
+          21.0,
+          0.0
+        ]
+      },
+      "holding": {
+        "velocity": [
+          5.0,
+          5.0,
+          8.0,
+          0.0
+        ],
+        "pressure": [
+          33.0,
+          32.0,
+          30.0
+        ],
+        "time": [
+          2.2,
+          null,
+          1.0
+        ]
+      }
+    }
+  },
+  {
+    "case": "missing_whole_injection_pressure_row",
+    "kind": "fault injection into frozen OCR on real unmodified photo",
+    "before": {
+      "injection_velocity_pct": [
+        17.0,
+        12.0,
+        10.0
+      ],
+      "injection_pressure_bar": [
+        42.0,
+        21.0,
+        0.0
+      ],
+      "injection_position_mm": [
+        0.63,
+        1.2,
+        0.33
+      ],
+      "injection_stages": 3,
+      "holding_velocity_pct": [
+        5.0,
+        5.0,
+        8.0
+      ],
+      "holding_pressure_bar": [
+        33.0,
+        32.0,
+        30.0
+      ],
+      "holding_time_s": [
+        2.2,
+        2.0,
+        1.0
+      ],
+      "holding_stages": 3,
+      "holding_switch_mode": "位置+时间",
+      "vp_switch_position_mm": 15.8,
+      "vp_switch_time_s": 2.35
+    },
+    "after": {
+      "injection_velocity_pct": [
+        17.0,
+        12.0,
+        10.0
+      ],
+      "injection_pressure_bar": null,
+      "injection_position_mm": [
+        42.0,
+        21.0,
+        0.0
+      ],
+      "injection_stages": 3,
+      "holding_velocity_pct": [
+        5.0,
+        5.0,
+        8.0
+      ],
+      "holding_pressure_bar": [
+        33.0,
+        32.0,
+        30.0
+      ],
+      "holding_time_s": [
+        2.2,
+        2.0,
+        1.0
+      ],
+      "holding_stages": 3,
+      "holding_switch_mode": "位置+时间",
+      "vp_switch_position_mm": 15.8,
+      "vp_switch_time_s": 2.35
+    },
+    "after_raw": {
+      "injection": {
+        "velocity": [
+          17.0,
+          12.0,
+          10.0,
+          0.0
+        ],
+        "pressure": [
+          null,
+          null,
+          null
+        ],
+        "position": [
+          42.0,
+          21.0,
+          0.0
+        ]
+      },
+      "holding": {
+        "velocity": [
+          5.0,
+          5.0,
+          8.0,
+          0.0
+        ],
+        "pressure": [
+          33.0,
+          32.0,
+          30.0
+        ],
+        "time": [
+          2.2,
+          2.0,
+          1.0
+        ]
+      }
+    }
+  }
+]

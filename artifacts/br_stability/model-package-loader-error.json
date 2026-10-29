@@ -1,0 +1,8 @@
+{
+  "check": "Existing deployed Model load_profiles(package_version=0.1.2, package_page_id=B&R)",
+  "status": "failed",
+  "observed_exception": "HTTPException",
+  "http_status": 502,
+  "detail": "Reader 页面模板不兼容：pinned Reader page package content hash mismatch",
+  "limitation": "Module-level import probe uses existing pinned candidate and review overlay; it does not certify this loader or bypass it for deployment."
+}
