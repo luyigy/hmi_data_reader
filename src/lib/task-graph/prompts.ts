@@ -8,6 +8,8 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     ...(autonomous ? [`批准的验收要求：${JSON.stringify(node.acceptance.checks)}。批准的整票命令：${JSON.stringify(node.acceptance.integrationChecks || [])}。由你自主执行实际验证，平台不会补跑；存在其他已批准 Gate 时仍须等待。`] : []),
     ...(graph.issueSource ? [`关联 Issue：${graph.issueSource.tickets.find((ticket) => ticket.key === node.key)?.ref}。Issue 范围与依赖已由平台校验，使用本次冻结的目标和指令；不要求在沙箱内读取宿主 tracker 凭据。`] : []),
     autonomous ? '只实施当前 ticket 范围，在指定 worktree 自主编码、自测、git add 和 git commit。最终报告完整 commit SHA，交付时工作区必须干净。不要改其他分支或主分支。平台不代提交、不代跑业务测试。' : '只实施当前 ticket 范围。在指定 worktree 编辑代码，汇报改动和实际验证证据。Git 元数据只读，由平台受控提交和集成；不要自行 git add/commit/merge。',
+    '编码前先读取最新代码、前置交付与验证证据，核对当前 ticket 的目标、前置和关键假设；在当前执行记录中简要确定实现方法、修改边界、验证办法与停止条件后再实施。远期实现设想需结合现场复核，不要求新建 PLAN/HANDOVER 或另开审批阶段。',
+    '原目标、权限和验收要求内的实现细化可直接推进；关键假设失效或需要改变目标、扩大权限、降低验收要求、拆并票或改变依赖时，报告影响并按既有授权流程修订路线，不回改批准快照、不自行放行后继。交付证据应说明实际结果、假设变化及对后续 ticket 的影响。',
     '平台默认只读复用源项目已配置的 Python 环境，PATH 自动提供同一解释器和命令。不要另建虚拟环境、pip install --user 或修改共享依赖；缺依赖/版本冲突请明确报告，单独处理项目环境变更。',
     '使用本次任务图替代历史 PLAN/HANDOVER 接力要求；不要创建新的 PLAN/HANDOVER、next_action 或 WORKFLOW_READY。',
     '面向用户的进度每次用一至三句说明已完成什么、当前在做什么、是否需要用户处理；不用源码清单、哈希或审查原文充当进度。最终先给不超过三条的简明结论，详细技术报告写证据文件；结构化结论仍单独保留。',

@@ -25,6 +25,13 @@ GitHub `luyigy/agent-platform-v2` 已发布的工作流 Spec 与五张 tickets �
 
 ## Spec、子任务与阻塞关系
 
+规划粒度遵循 `docs/workflow/PLAN-writing-standard.md`。父 Spec 先说明目标、非目标、路线论证、
+关键假设和整体验收标准；初步 tickets 说明问题、可验证结果、边界、预计前置与未决问题。
+不为发布远期票编造文件清单或实现命令。实施者在每票开始前读取最新现场和前置证据，
+将具体方案记入该次执行记录；交付时说明新事实对后续路线的影响。
+具体实现可在原授权内细化，批准目标和验收标准仍有约束力。已批准的拆并票、依赖、范围或权限
+不能靠编辑 Issue 静默改变；需要按现有路线修订流程生效，不改写历史快照。
+
 - `to-spec` 创建包含完整规格的父 Issue；`to-tickets` 按前置顺序创建独立子 Issue。每张子 Issue 的 Parent 指向父 Issue，Blocked by 提供可点击的完整 blocker 链接。
 - 本轮使用正文受控注释块记录关系，不声称 Gitee 原生提供 GitHub 同款 blocked-by 或 sub-issue API。
 - 注释格式为 `<!-- ap-ticket-v1 {JSON} -->`。JSON 包含 `version: 1`、稳定的 `project`、`sliceKey`、全限定 `parent` 和全限定引用数组 `blockedBy`。父 Spec 的 parent 为 null。

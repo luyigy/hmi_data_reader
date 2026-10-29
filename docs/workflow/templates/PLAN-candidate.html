@@ -20,14 +20,18 @@ return_to: null
   <main>
     <h1>PLAN · {{TITLE}}</h1>
     <section>
+      <h2>目标、路线依据与关键未知</h2>
+      <p>填写目标、非目标、整体验收标准、路线选择依据及假设的推翻条件。</p>
+    </section>
+    <section>
       <h2>S01：待填写</h2>
-      <p>请填写范围与完成标准。</p>
+      <p>请填写范围与完成标准、前置和未决问题。后续切片初定结果，当前片实施前再细化方案。</p>
     </section>
   </main>
   <template>
 <!-- WORKFLOW_PROMPT_START -->
 执行 `{{PLAN_PATH}}` 的 S01；读取目标 HEAD 的 `AGENTS.md`、
-`docs/workflow/workflow-contract.yaml` 和本 PLAN。完成验证、创建下一 HANDOVER、提交后停止。
+`docs/workflow/workflow-contract.yaml` 和本 PLAN。先核对最新现场与前置证据，记录当前片实施方案再编码。完成验证、创建下一 HANDOVER、提交后停止。
 <!-- WORKFLOW_PROMPT_END -->
   </template>
 </body>
