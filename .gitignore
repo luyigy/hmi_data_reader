@@ -49,3 +49,62 @@ docs/*sample*/
 docs/samples*
 docs/feedback_samples
 templates/.page-template.lock
+
+# Local caches, test output and task-run metadata
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.ipynb_checkpoints/
+.coverage
+.coverage.*
+htmlcov/
+.gitnexus/
+.agent-platform/
+*.log
+
+# Local credentials (example configuration can still be versioned)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Model/checkpoint binaries and exported archives
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.pdmodel
+*.pdiparams
+*.pdopt
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+
+# Bulk originals/calibration images stay local; keep JSON/YAML truth and manifests.
+/datasets/**/*.[jJ][pP][gG]
+/datasets/**/*.[jJ][pP][eE][gG]
+/datasets/**/*.[pP][nN][gG]
+/datasets/**/*.[wW][eE][bB][pP]
+/datasets/**/*.[bB][mM][pP]
+/datasets/**/*.[tT][iI][fF]
+/datasets/**/*.[tT][iI][fF][fF]
+/datasets/**/*.[gG][iI][fF]
+/ground_truth/**/*.[jJ][pP][gG]
+/ground_truth/**/*.[jJ][pP][eE][gG]
+/ground_truth/**/*.[pP][nN][gG]
+/ground_truth/**/*.[wW][eE][bB][pP]
+/ground_truth/**/*.[bB][mM][pP]
+/ground_truth/**/*.[tT][iI][fF]
+/ground_truth/**/*.[tT][iI][fF][fF]
+/ground_truth/**/*.[gG][iI][fF]
+
+# One compact, hash-pinned failure photo is an intentional regression fixture.
+!/datasets/b_and_r_stability/live_20261028_v15.jpg
+
+# Reproducible local review output; source diffs are available from Git itself.
+/artifacts/**/code.diff

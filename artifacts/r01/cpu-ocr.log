@@ -1,3 +1,0 @@
-/data1/code/hmi_data_reader/.venv/lib/python3.10/site-packages/paddle/base/framework.py:688: UserWarning: You are using GPU version Paddle, but your CUDA device is not set properly. CPU device will be used by default.
-  warnings.warn(
-real OCR lines 45

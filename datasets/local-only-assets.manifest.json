@@ -1,0 +1,914 @@
+{
+  "purpose": "Local bulk sample images, raw logs and task-run metadata removed from Git tracking; files remain on disk.",
+  "files": 181,
+  "bytes": 306269009,
+  "archive": "output/local-only-assets-20261029.tar",
+  "archive_sha256": "471cc4f58627d86362a5a1433ae2d7cc5f717883af79249cbfa29b37724db987",
+  "entries": [
+    {
+      "path": ".agent-platform/outputs.json",
+      "bytes": 150,
+      "sha256": "aaec62fed0e3d7a3d318534af50536295dc655495578a139f02513dd6fa8e43a"
+    },
+    {
+      "path": "artifacts/r01/additional-regression.log",
+      "bytes": 954,
+      "sha256": "36169fb3b162b402c19262f03ea3417a8dfa884f35a8d34264aa85ce6ead8e8e"
+    },
+    {
+      "path": "artifacts/r01/cpu-ocr.log",
+      "bytes": 253,
+      "sha256": "a8642ebbcfed134fd6b451b30b6965da4e5ae2336a9ffd0f819723328f46dd86"
+    },
+    {
+      "path": "artifacts/r01/current-final-regression-corrected.log",
+      "bytes": 2037,
+      "sha256": "d655c6e12be1a25158f6e9969f844dd0d010564ff561705326fa714c5a2e0638"
+    },
+    {
+      "path": "artifacts/r01/current-final-regression.log",
+      "bytes": 2709,
+      "sha256": "ac2475acdf0561feb9fff695b34f81d08a5fd5a894ce3949654ed17d2d0a5b02"
+    },
+    {
+      "path": "artifacts/r01/current-final-ticket-behavior.log",
+      "bytes": 600,
+      "sha256": "164448cf5c195a75b4675e278aa71a81f01f2bdf20560bcb434105275938c5b1"
+    },
+    {
+      "path": "artifacts/r01/live-ocr.log",
+      "bytes": 8353,
+      "sha256": "6d23bc0360366c447565fdbc4d74cdcd7ee10b4683a61b808a8359098fc210aa"
+    },
+    {
+      "path": "artifacts/r01/resume-ticket-behavior.log",
+      "bytes": 3852,
+      "sha256": "116d5181f4e13d8b8056dbed8d5c5b9800821764a34e2e1e1fe758e38c632a7d"
+    },
+    {
+      "path": "artifacts/r01/reuse-tests.log",
+      "bytes": 1947,
+      "sha256": "e3394d9b1ac7fab65a7498ec04a198e456b6fb9756543140529b66e26dee4612"
+    },
+    {
+      "path": "artifacts/r01/ticket-behavior.log",
+      "bytes": 3852,
+      "sha256": "49fe795bd93c040ed2873123814deab73912659c139d56193f401d19850eaddf"
+    },
+    {
+      "path": "datasets/calibration/b_and_r.temperature.fixed/barrel_B01_f056d349.jpeg",
+      "bytes": 469698,
+      "sha256": "f056d349ce7472cccd09bdd9561b0eed358ae6485c6c3bb9042d5e51bd0f4bce"
+    },
+    {
+      "path": "datasets/calibration/b_and_r.temperature.fixed/barrel_B07_159bb588.jpg",
+      "bytes": 4018036,
+      "sha256": "159bb58865e5a686a717f553b806c728c1ae009321aef6f653d08a266e4290dc"
+    },
+    {
+      "path": "datasets/calibration/b_and_r.temperature.fixed/barrel_B07_a3140d29.jpg",
+      "bytes": 4267987,
+      "sha256": "a3140d29bcbb86bbd62593e5dadc5ba7389505f114144b0451136136ee85eb1a"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z002_ab30f6f6.jpeg",
+      "bytes": 506242,
+      "sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z002_barspez_65f50de2.jpeg",
+      "bytes": 523552,
+      "sha256": "64c0fb77a6b4224c6efb2ea04c81c0265556d854c7f43dd848b2697935433665"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z002_photo_1784721642626.jpeg",
+      "bytes": 607211,
+      "sha256": "6219a638df0d10f67b839c7ca520ce1b402d20ffd2e0c62a5d6bd0e38c13b589"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z005_06b7efe8.jpeg",
+      "bytes": 478336,
+      "sha256": "ff7e51049624c00b64d7c4a12f27be5e7703bcb97097e7994c5fbe397f46e938"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z005_2e22f85a.jpeg",
+      "bytes": 489348,
+      "sha256": "ebfab180de48b76938c75a8dea9ac12131a945379924b22b397dd518dd4f6a15"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z005_cac666e7.jpeg",
+      "bytes": 244305,
+      "sha256": "c753ddf7b40479b455e3a8485977c85b2fee7cdff16ecb87df84871e5a045969"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z005_db2cf983.jpeg",
+      "bytes": 526981,
+      "sha256": "6d32ed6e8ffeafe0c902ad875b5b84bf1f62f0a0454f940ec8be0c64193b8b6f"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z005_e3bde860.jpeg",
+      "bytes": 610414,
+      "sha256": "e5a477220eb0781b3c5945c4d76587ded942c282cd7863c8e5d9bcced0a0966d"
+    },
+    {
+      "path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z005_f29c52c4.jpeg",
+      "bytes": 462138,
+      "sha256": "4cbb3bba62009d2889d026121da02657d357c263c9d09ac99f85ba8573d30b14"
+    },
+    {
+      "path": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_b24ff33d.jpg",
+      "bytes": 4672593,
+      "sha256": "b24ff33d96516a2b4d2f3642aa85abb23984f3a04cba9d61ecca70567d1467c9"
+    },
+    {
+      "path": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.jpg",
+      "bytes": 2841785,
+      "sha256": "e54f3633e56de2890122d0e5365a1ba600bb175705e2883cae049e4e7a3a05a5"
+    },
+    {
+      "path": "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_3ce4cae5.jpg",
+      "bytes": 4348380,
+      "sha256": "3ce4cae55a17f3ef6782eaf9b868c31b6cba236b7aa12dc3d01260210e6c30cd"
+    },
+    {
+      "path": "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_9835fbea.jpg",
+      "bytes": 3892921,
+      "sha256": "9835fbead6b71317cf4df4d8140915271991ef2204363b2f0e284a43d6fe4b53"
+    },
+    {
+      "path": "datasets/calibration/hot_system.hot_runner_temp.single_zone/hr_A09_5114279d.jpg",
+      "bytes": 2522612,
+      "sha256": "5114279d9326fc2800b50a70402d2c88b32f58af77221917ad364637db845b87"
+    },
+    {
+      "path": "datasets/calibration/hot_system.hot_runner_temp.single_zone/hr_A09_aca9d8c5.jpg",
+      "bytes": 2391524,
+      "sha256": "aca9d8c57f43d5b52ef545eb44834acc4ce2614cb8549f61f7953191d566794f"
+    },
+    {
+      "path": "datasets/calibration/hot_system.hot_runner_temp.single_zone/hr_A09_f3b3f06d.jpg",
+      "bytes": 3001965,
+      "sha256": "f3b3f06d1bdad16474c5318aa6ee866e0d4ad7e53fb8cb30e9456f3e5f2c2316"
+    },
+    {
+      "path": "datasets/calibration/industrial_chiller.mold_temp.lcd_pv_set/mt_slide_B03_2f1215de.jpg",
+      "bytes": 3284331,
+      "sha256": "2f1215de720b99f70b4deb075156aa9a3b9da83a6b508eb00a3566702428ca36"
+    },
+    {
+      "path": "datasets/calibration/industrial_chiller.mold_temp.lcd_pv_set/mt_slide_B03_527d7e25.jpg",
+      "bytes": 1387836,
+      "sha256": "527d7e25b02d68f6d94edf5fdc3eb9ebee02aba7f4f1c4f0bea527c8dd312e39"
+    },
+    {
+      "path": "datasets/calibration/industrial_chiller.mold_temp.lcd_pv_set/mt_slide_B03_7061d0f3.jpg",
+      "bytes": 1713300,
+      "sha256": "7061d0f3e1262676d9307b6832fdc8154adc2a44896ab7053fbefb338c9b29b6"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A02_0e857c55.jpeg",
+      "bytes": 874600,
+      "sha256": "0e857c555b247abc8af2b96885fddf92a54c3c7a994f23daba5e8bf78f4c042a"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A02_15d33262.jpg",
+      "bytes": 3656454,
+      "sha256": "15d33262bb24e695d4f2212360e910c049ec5ce5c4eaa0a6a83406ba56b37c49"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A02_d8b6f05a.jpg",
+      "bytes": 2518436,
+      "sha256": "d8b6f05a858c450d02f4c6c5965f170b60941650ab30855ac9675185dbf1f017"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A06_b09bc5b1.jpeg",
+      "bytes": 463985,
+      "sha256": "b09bc5b12bea225d16c6d1e5d65903f74d421c64e77067e76676e037c3acec70"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A09_5fe352e2.jpeg",
+      "bytes": 1077392,
+      "sha256": "5fe352e2e6b66b0b4dbb96017f9155cea4efd01881252961187da530bd7e0456"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A09_e64fe222.jpeg",
+      "bytes": 416165,
+      "sha256": "e64fe22240d0b3780c44e974ca487d0eb01aa94b8e66779802823137cca0bf2e"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B07_7d0896ce.jpg",
+      "bytes": 1062776,
+      "sha256": "7d0896ce1da10b89266b51167a49334cd10f58e643084e7c9e2f18596f07808d"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B07_f9456f86.jpeg",
+      "bytes": 388093,
+      "sha256": "f9456f861ed626e128a599a3136423c372cced01bb2c1472d1adfbcd3337e117"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_Z002_03f69c58.jpeg",
+      "bytes": 4754342,
+      "sha256": "03f69c584c4a8f8f7275ee44fcfed7ea92727792fbf8f37f191c7453c7a15284"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_A02_a9c2dee3.jpeg",
+      "bytes": 890659,
+      "sha256": "a9c2dee3c88332b189c53fa66c57dc47d15b1f1abdbe6da90427ec9f2f84c292"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_A02_f384426f.jpg",
+      "bytes": 2780165,
+      "sha256": "f384426ff34d96c9b26eb8d1ce76544052e62664389c084672d5fa251992b200"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B02_95685b65.jpeg",
+      "bytes": 763840,
+      "sha256": "95685b65ea2fba181d6d0132fee670c98094f466b928186bbb88f89f99d82768"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_Z002_147e73a9.jpeg",
+      "bytes": 3725747,
+      "sha256": "147e73a9076e9cf9f889ab32b91730971a4472cbe5bbe75582803d21218e22bd"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_slide_B05_1ec3c1ab.jpg",
+      "bytes": 2230152,
+      "sha256": "1ec3c1ab0f9e39af02c91db4ebd0c47a4215aa274f476c9e1d46dd7429f1bce1"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_front_A11_82258780.jpg",
+      "bytes": 1935900,
+      "sha256": "822587808a6eedaeba90f65f2bbf5fde43a13adc2ba6ab01667411a19dc119de"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_front_Z023_5a45acaa.jpeg",
+      "bytes": 1397501,
+      "sha256": "5a45acaa19bd23753221c1e96cdf525f379080e52cadf2c27670b6efda6c5766"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_front_Z036_80ad7d4c.jpeg",
+      "bytes": 2596471,
+      "sha256": "80ad7d4c3f2fef871abc3780a291a05d93560a7accdd220777327ee22c694396"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_rear_A11_10af110c.jpg",
+      "bytes": 1931337,
+      "sha256": "10af110c34bf8e85dcb5e578fd331ce93da6bb90f2cc627bf30db328031f6b59"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_rear_Z023_0ff56552.jpeg",
+      "bytes": 2450718,
+      "sha256": "0ff56552c97c6a8da544bfc8b241ccf816ac049babb21badc33f984258ae473f"
+    },
+    {
+      "path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_slide_B12_af783ea3.jpg",
+      "bytes": 2303843,
+      "sha256": "af783ea368687302ba4099d734780ba095cbf32b7e118ac6fe0d483b6271175b"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_front_A04_f69799e9.jpg",
+      "bytes": 1967561,
+      "sha256": "f69799e9c58747a3ac488072f60054d920df86f85c71592d2d89f521e5fa42d5"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_front_B07_657ff3dd.jpg",
+      "bytes": 2590885,
+      "sha256": "657ff3dd065ded96adf829ee245d8dc8fd9f3047577dec8ff5eceae3d756416f"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_front_Z015_0f555f22.jpeg",
+      "bytes": 4789019,
+      "sha256": "0f555f2203ea4f3d36af054e6a7cb01d27a5f83c084456506614eb978a77314d"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_rear_A04_051f4f39.jpg",
+      "bytes": 1975835,
+      "sha256": "051f4f393e414acc8cb539d45fdc1ec056e781c411174216ffc022161710fb26"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_rear_A04_c3272b43.jpg",
+      "bytes": 1739064,
+      "sha256": "c3272b43f98a5bfb08bc2d5c06bf0cedc2896e1d14d76d532ace1452bda0b82d"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_rear_B07_83558101.jpg",
+      "bytes": 3345270,
+      "sha256": "83558101e7a00411e9dd8cd5282c796b352163077ca9b29637ce2419e90d02ed"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_rear_B07_fd01ca17.jpg",
+      "bytes": 1964486,
+      "sha256": "fd01ca170c4424e28ed0a0924beb2507947bc07d870e9bc4b81a7822391cfa00"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_rear_Z015_7c614b3d.jpeg",
+      "bytes": 1148424,
+      "sha256": "7c614b3d2fe50a64c31a973e79f7d640dab36546e349711109c37b312187b82f"
+    },
+    {
+      "path": "datasets/calibration/omron_e5cc.mold_temp.single_loop/mt_slide_A09_02a08adb.jpg",
+      "bytes": 3042591,
+      "sha256": "02a08adb60e791a3fc3c744d842770bc4180970ade617f9eb7fc280cf8062adc"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_A06_01c1a438.jpg",
+      "bytes": 3290124,
+      "sha256": "01c1a4380033b40a727b666d3170dd4757b0c09ef06a00fe8c7491d957456ac8"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_A06_458f23df.jpg",
+      "bytes": 2969206,
+      "sha256": "458f23dff4a89edd91683c1f8999dbc6b38cb410bde8dc6902092b6236b0a572"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_A06_4b52c362.jpg",
+      "bytes": 3036540,
+      "sha256": "4b52c362f930ed526548ab9aaff6c71457f3ecf0026be680afb8d4e203b4391f"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z001_20fc1378.jpeg",
+      "bytes": 1735626,
+      "sha256": "20fc13782694811834be42125933ae4afb6d341ca78c989c1b191939e07378f3"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z001_3404cbc1.jpeg",
+      "bytes": 1194277,
+      "sha256": "3404cbc19da559386334a45a4c51e0989b5c3385010700c3147f4af3f9b866a8"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z001_aa0e8e4a.jpeg",
+      "bytes": 4008873,
+      "sha256": "aa0e8e4abdc0d8c1876c8b960c7992408962ff562917dea8b86c0ad76aa60ac5"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z017_86265ce6.jpeg",
+      "bytes": 4138983,
+      "sha256": "86265ce6cfba4cc5798188d850e8b54dfb55078d316b18bd494d981fea5d161d"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z023_a39d60f1.jpeg",
+      "bytes": 4542997,
+      "sha256": "a39d60f167bb581d30b347cfc4ac4cdd2453bf513e9f79bada4bf8407d3cb242"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z023_bd09c033.jpeg",
+      "bytes": 1575291,
+      "sha256": "bd09c033af90217e05e5ef4bd71c13a84fe7ed4509d2813750f9b04acd943b72"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z048_0242ebe8.jpeg",
+      "bytes": 2065203,
+      "sha256": "0242ebe866796173a7a8f530c7b3d6e128539295ef5013dc8f9b1043a773cc6f"
+    },
+    {
+      "path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_Z048_73038151.jpeg",
+      "bytes": 2224755,
+      "sha256": "73038151f5b467e6fe6473f614ff27756ffd8db7e3da26ca93fbdeff6e904506"
+    },
+    {
+      "path": "datasets/holdout/b_and_r.temperature.fixed/barrel_A01_3bd6585d.jpeg",
+      "bytes": 1144574,
+      "sha256": "3bd6585d7482e306721cca5c669614fca8ee93f66f3ca987a32f425801866571"
+    },
+    {
+      "path": "datasets/holdout/b_and_r.temperature.fixed/barrel_B02_42b0649f.jpeg",
+      "bytes": 970610,
+      "sha256": "42b0649f8ec3be1627c3526faddc4c161216f4e0800853c6ab83d8cd72174bb6"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_A01_9da8a3a9.jpeg",
+      "bytes": 802906,
+      "sha256": "9da8a3a96ff6b234fd941377a9ed7489e2791a25e1ec135ddcc5c9129420516e"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_A02_59cd552b.jpeg",
+      "bytes": 1105275,
+      "sha256": "59cd552b3d02aab40a22a52ddc0f156575acc8d0917d397ac441330ef227c700"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_A06_169be854.jpeg",
+      "bytes": 592623,
+      "sha256": "169be85481f0e72b25b94cf6af88c6768d5f4b264b3a47ae2696245e0862a3dc"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_A06_3c146c62.jpeg",
+      "bytes": 635264,
+      "sha256": "3c146c621caec0a8a6a0d3e9eaacc6e3b350adb550869319b88a00941a115dff"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_A06_956c1cdb.jpeg",
+      "bytes": 1337146,
+      "sha256": "956c1cdb06f80c8b1917f2d6df8dd36ea292759312dfac2fb12c67bfa16899e8"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_A07_5a80a90e.jpeg",
+      "bytes": 514198,
+      "sha256": "5a80a90e01b3e0de4bc9b80e566e0948f0c951413cb53746188a1ebe389902e9"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_A07_bf3c8fcb.jpeg",
+      "bytes": 1277620,
+      "sha256": "bf3c8fcb28e6f272de363a8aea707c58d38638dd3ef4f55ac80b3c0f9554005c"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_B07_425763bb.jpeg",
+      "bytes": 979086,
+      "sha256": "425763bbbb8842ad1b13385bb75f7851a647e6502a0e97072c96a15b4743fa3d"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_B07_bad59147.jpeg",
+      "bytes": 615796,
+      "sha256": "bad591476f7357270712094fa77dbdd3f6df977f2cc886810569e17066d76ad4"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_B09_74baa34d.jpeg",
+      "bytes": 986139,
+      "sha256": "74baa34d3cf1c3e1ff1e715f92f9620f01b1c958fac1e84a75efab65c103ce8a"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_B09_8741e7e2.jpeg",
+      "bytes": 482704,
+      "sha256": "8741e7e2a006674625682a8397a938c6401fb29127e6a9806015c6763d87a388"
+    },
+    {
+      "path": "datasets/holdout/demag.temperature.screen_order_5/barrel_B10_ad86e701.jpeg",
+      "bytes": 495680,
+      "sha256": "ad86e7010964e590d4917847ed7cbe2d12d62238f587a881c222fc0e321c30b5"
+    },
+    {
+      "path": "datasets/holdout/fanuc.temperature.rightmost5/barrel_A09_56323296.jpeg",
+      "bytes": 1115976,
+      "sha256": "563232963c648d523f6fc7087249d80c8807c5a6ab4c6b64e82211ae7b629d94"
+    },
+    {
+      "path": "datasets/holdout/fanuc.temperature.rightmost5/barrel_A09_9aae0b4a.jpeg",
+      "bytes": 523586,
+      "sha256": "9aae0b4a7da01f91ee50776d1b9d6f7ddd089083b3061d503f6c35f664ea36cb"
+    },
+    {
+      "path": "datasets/holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_front_A01_89cda55a.jpeg",
+      "bytes": 1024059,
+      "sha256": "89cda55a9aa09cb3fcd88b1f61ad2a37c41d01f8e8aeefb08cb4a6dcf3408a1c"
+    },
+    {
+      "path": "datasets/holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_rear_B01_4693f9af.jpeg",
+      "bytes": 461195,
+      "sha256": "4693f9af6470320176e5e49684e6886629f8649ced7dad3308a55a94aeb95b1a"
+    },
+    {
+      "path": "datasets/holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_rear_B03_b7c0e25c.jpeg",
+      "bytes": 268604,
+      "sha256": "b7c0e25c8f02051c37495baf2ec21fa1f56bbb6ec1f01f8613d58eef893631ae"
+    },
+    {
+      "path": "datasets/holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_slide_B03_1cda0b75.jpg",
+      "bytes": 1605939,
+      "sha256": "1cda0b75369406699534d787a9f04c2993be4ea28b498887316922ed35c237b9"
+    },
+    {
+      "path": "datasets/holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_slide_B03_abdcdcb5.jpeg",
+      "bytes": 287872,
+      "sha256": "abdcdcb5a303d1b7a76a54a07d9d34ae761692e7bf3dc9f6863de6fb542fa850"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A01_a93a1380.jpeg",
+      "bytes": 323881,
+      "sha256": "a93a138078306927cb59a03d3cc872fb6ce3a47363105626cc7ae328a8a08a73"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A06_bb2c56a0.jpeg",
+      "bytes": 1136205,
+      "sha256": "bb2c56a08a42a747afe1a79d3244e22f485b06d06afd8976a54b26834f23bde2"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A07_6c3e3983.jpeg",
+      "bytes": 425103,
+      "sha256": "6c3e3983c44712576fb64b224e797d1ca72f8293462dfafe92a97013a5c20644"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A07_ed84c514.jpeg",
+      "bytes": 1104919,
+      "sha256": "ed84c514d740d7792b6680903c7664bdf9d7a32947ce4004cb3d110ee306d8cf"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B09_9d592e00.jpeg",
+      "bytes": 1058510,
+      "sha256": "9d592e0067e01d0ec7812a0bc2585cc01d8b8cf6f2dcccbd1aec0aa0dba454c5"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B09_ea486c69.jpeg",
+      "bytes": 332208,
+      "sha256": "ea486c695b58b96e1967cdd97546bbdba5413317668fa0397b6ff3b305933f1b"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_Z002_19a55ac8.jpeg",
+      "bytes": 385003,
+      "sha256": "19a55ac827fcbf370d2778028c5404e4712ab983eb13d474d952ddd3e68c0b55"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_A01_b358413f.jpeg",
+      "bytes": 323164,
+      "sha256": "b358413fa1b35a144b065db725a81d8b947286d25675f722d29c277d8f99cf8d"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B02_9a6703e1.jpeg",
+      "bytes": 426945,
+      "sha256": "9a6703e1fafd3c8d032108a6382ac0e51e9478b52266d8ef4c17dde016b78d80"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B07_2ad661e6.jpeg",
+      "bytes": 387472,
+      "sha256": "2ad661e6d5acea1fc096b2c400f32bdb289f4b57ad391f8ee65c4a950c55b1ae"
+    },
+    {
+      "path": "datasets/holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B09_1bb042d4.jpeg",
+      "bytes": 360437,
+      "sha256": "1bb042d46e6c8919791cf7395bc38c7e688409caa83a9a7eb4be8ca4f4660b8e"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_front_A06_33004d1b.jpeg",
+      "bytes": 379592,
+      "sha256": "33004d1b72e65c18df2bc2c0b3c483b780e67f38c7111f3c5e1266d7a0a05db0"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_front_B01_a12bcc5c.jpeg",
+      "bytes": 439605,
+      "sha256": "a12bcc5c0c804d0c674e785c0c4a439f90d2bc54d5b298df21ca7f8b17134a93"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_front_B02_b7da7f18.jpeg",
+      "bytes": 765846,
+      "sha256": "b7da7f18df3c67dde64461c12357b7c8f14cb9420b564323467265e281a19334"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_front_B03_b338a188.jpg",
+      "bytes": 1575969,
+      "sha256": "b338a188e11e9ab6bad0bd3dd4acad44959952d8296e8968f963ee37c5448880"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_front_B03_ec84a740.jpeg",
+      "bytes": 330945,
+      "sha256": "ec84a740d3c7b569fb6e005248a799fbb0b97c1b24f86850f1dfaafee1da2447"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_front_Z015_727d2a37.jpeg",
+      "bytes": 464466,
+      "sha256": "727d2a37299bcab714f82d96f09c3f17ba65c33addab175a6a45c6f24331e438"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_rear_A06_1f7505fb.jpeg",
+      "bytes": 394439,
+      "sha256": "1f7505fbf2cc765032b244fcf7daa67bb46b738cef2389dd063a7a33afee296e"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_rear_A09_1e26fd11.jpeg",
+      "bytes": 451582,
+      "sha256": "1e26fd11bf5a70e1a4380df5c28256b37d42d314663f89fd7ea80d27566858a2"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_rear_B07_19ca92a7.jpg",
+      "bytes": 1367879,
+      "sha256": "19ca92a77dd6227166100bafeb23536a01ede08a7ff3a149b210bca2da4bf5cb"
+    },
+    {
+      "path": "datasets/holdout/omron_e5cc.mold_temp.single_loop/mt_rear_B10_1b8f30c8.jpeg",
+      "bytes": 423703,
+      "sha256": "1b8f30c8ee1f38dccfedb29ac61fb78a5acb81317e47d421dd7a24941d1b8742"
+    },
+    {
+      "path": "datasets/holdout/tact.hot_runner_temp.digital_sv/hr_A01_95011b1b.jpeg",
+      "bytes": 1202934,
+      "sha256": "95011b1bf472fc765c48df40ffdca337ddbe253b709784f07061abb07c83806d"
+    },
+    {
+      "path": "datasets/holdout/tact.hot_runner_temp.digital_sv/hr_B03_54b7a68e.jpeg",
+      "bytes": 477101,
+      "sha256": "54b7a68e78ef2a4ad97c263dbd9fed3b9dd08bf8860278d99305652db68614f6"
+    },
+    {
+      "path": "datasets/holdout/tact.hot_runner_temp.digital_sv/hr_B03_cbc3a592.jpeg",
+      "bytes": 1181702,
+      "sha256": "cbc3a59276c59e0a5ed1fa60bee91897cbe3874309f3a4804c0a251b3a041258"
+    },
+    {
+      "path": "datasets/holdout/tact.hot_runner_temp.digital_sv/hr_Z001_a6561aaf.jpeg",
+      "bytes": 1208593,
+      "sha256": "a6561aaff132bd9f3a4a00ca5265cd2b3bc4d6f3563e716aaf9170eaad9ab804"
+    },
+    {
+      "path": "datasets/r05/b_and_r.metering.three_stage/acceptance.jpg",
+      "bytes": 411166,
+      "sha256": "4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91"
+    },
+    {
+      "path": "datasets/r05/b_and_r.metering.three_stage/development.jpg",
+      "bytes": 5390849,
+      "sha256": "ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163"
+    },
+    {
+      "path": "datasets/r05/b_and_r.metering.three_stage/independent.jpg",
+      "bytes": 2543965,
+      "sha256": "9344107611dd2456d406368dc51d8d331cf8036c95199d12d88a07af359c85c3"
+    },
+    {
+      "path": "datasets/r6_arburg/decimal-diagnostic.jpg",
+      "bytes": 4655400,
+      "sha256": "08334385027f4ad9df058aa33ccc7b638a5a78743ec12e4d6fea8bb962fba175"
+    },
+    {
+      "path": "datasets/r6_arburg/development.jpg",
+      "bytes": 4243548,
+      "sha256": "ae58e75cd7263a785e71693140081ba820ee094393ffb531d87ba51c5dffa32a"
+    },
+    {
+      "path": "datasets/r6_arburg/injection-regression.jpg",
+      "bytes": 4198958,
+      "sha256": "bd93d2fd5739c0bed76decadcf061e47e691b0dbd9d6d2b0843040d6b7b94800"
+    },
+    {
+      "path": "datasets/r6_arburg/retained.jpg",
+      "bytes": 4020952,
+      "sha256": "3f8a26b1109fd45f8699229a4b4339476a48a9bf59c02fa9532dfb7278c584d8"
+    },
+    {
+      "path": "datasets/r6_bole/cropped-layout.jpg",
+      "bytes": 4360223,
+      "sha256": "a9b6de684ae93c312a1c8cb7b8eb22eeee1ce6bcf2d903cd05ab0318b3e5cf1c"
+    },
+    {
+      "path": "datasets/r6_demag/demag.injection_metering.machine_configuration/acceptance.jpg",
+      "bytes": 5730031,
+      "sha256": "ef5b16d2afe0d763ce96d10c1f0c1e3b14f1971ab448ebd016d5f23ce4cf4e9a"
+    },
+    {
+      "path": "datasets/r6_demag/demag.injection_metering.machine_configuration/development.jpg",
+      "bytes": 2620819,
+      "sha256": "975b3225a8fa294e8f0e9a59fc749dd5103042df47e47dda91882dfc0988bfc7"
+    },
+    {
+      "path": "datasets/r6_demag/demag.injection_metering.machine_configuration/holdout.jpg",
+      "bytes": 7098427,
+      "sha256": "80f918b9bb67ac4b418ae7a4852f9bfa440e0cb1aec2d464824284c8bc7b65e1"
+    },
+    {
+      "path": "datasets/r6_demag/demag.injection_metering.machine_configuration/reserved.jpg",
+      "bytes": 6130214,
+      "sha256": "e7ecaf17fac5022206a6d34639ce11e029df1ec61d66ab60f49c9d946fe531f5"
+    },
+    {
+      "path": "datasets/r6_demag/regression/metering.jpg",
+      "bytes": 3856639,
+      "sha256": "7ed023604f22a12b70accf7df69e6fce664d41226a4417abd138a9fb8f8a2c83"
+    },
+    {
+      "path": "datasets/r6_demag/regression/metering_physical_cells/pressure_1.jpg",
+      "bytes": 5357774,
+      "sha256": "91547bba4fd1d3ed3b65d2e5b912f6a929818e6dcd33c29dc628581173954a09"
+    },
+    {
+      "path": "datasets/r6_demag/regression/metering_physical_cells/pressure_2.jpg",
+      "bytes": 4643226,
+      "sha256": "e180c6e512bbfcaf04f42c0a71a4e28872123ae30cda835d12aaf30dd7acf6af"
+    },
+    {
+      "path": "datasets/r6_demag/regression/unsupported_optimization.jpg",
+      "bytes": 5061312,
+      "sha256": "be0aa864607f91f8b73d386b72883655a701b22126200af1687bc0b7ab1944c2"
+    },
+    {
+      "path": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/TACT5_reczz28QojrlL6Cy.jpg",
+      "bytes": 600076,
+      "sha256": "0cd723749ef8ed4003671057f682c7072d09247cbfce4ae29ae833abc3f9dd9a"
+    },
+    {
+      "path": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/TACT5_reczz28QojrlL6pf.jpg",
+      "bytes": 1027814,
+      "sha256": "2d2c0a99fa46bd2c26c358f61eb2fa420103b23f22ccb733d890be94047d18e6"
+    },
+    {
+      "path": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/development/Z078_20260910_shebao.jpg",
+      "bytes": 562411,
+      "sha256": "3f0cd45905b1b33b2f837b19f23003c26a563976bdde02988ef6ea4ddc18dc9d"
+    },
+    {
+      "path": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z077_20260903_shebao.jpg",
+      "bytes": 1038743,
+      "sha256": "64811508ad33945be129b4dfc461c0cacd187c70661be2adfd76647cf0cfcb83"
+    },
+    {
+      "path": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z077_20260921_metering.jpg",
+      "bytes": 570185,
+      "sha256": "d58e56ae94e6d26748c18d6de0d4800dc4814d5da0e94178fe7c73dacc8e3847"
+    },
+    {
+      "path": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z078_20260904_shebao.jpg",
+      "bytes": 1299206,
+      "sha256": "42e865ac94832bb8155a49b9c3daf33666e034fd95c5678ac7fb851daf1edf01"
+    },
+    {
+      "path": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/regression/Z078_20260912_shebao.jpg",
+      "bytes": 1083559,
+      "sha256": "a66a157ade0d4f5b531ef0cee2dd6ea703a5c02c87192df76f8613f02822dd73"
+    },
+    {
+      "path": "datasets/r6_yizumi/development.jpg",
+      "bytes": 641584,
+      "sha256": "a4c8615afdc328aa9e11bf8ade34258335532827defcdb3e9ffa727127e8f771"
+    },
+    {
+      "path": "datasets/r6_yizumi/metering_development.jpg",
+      "bytes": 622367,
+      "sha256": "940532639e474921b1b45feda2bbe833a0f388721e8026fd850de5db7865df02"
+    },
+    {
+      "path": "datasets/r6_yizumi/metering_retained.jpg",
+      "bytes": 4418823,
+      "sha256": "901cf2b0f377eb191b1409c054c6878fb848ebc8ed73bceb99883aada4852053"
+    },
+    {
+      "path": "datasets/r6_yizumi/retained.jpg",
+      "bytes": 5212719,
+      "sha256": "9fbfb0844b7114e44c131d5e3b21368de5df183a7cd2eb868dd23bf9409f6bd7"
+    },
+    {
+      "path": "datasets/regression/demag.injection_metering.multi_stage_holding/holding_Z002_1785755259328.jpeg",
+      "bytes": 538446,
+      "sha256": "575c5d362766c9b80d4f07af5440844ecba2ea4c47bf866221f33004083752c6"
+    },
+    {
+      "path": "datasets/regression/demag.injection_metering.multi_stage_holding/holding_Z002_e4d130e8.jpeg",
+      "bytes": 454511,
+      "sha256": "421dca7e9fd1c4f3d3add9e1d4778b1fddf2f5fcc9ca54733d878aeb603bba23"
+    },
+    {
+      "path": "datasets/regression/omron_e5cc.mold_temp.single_loop/mt_front_A04_cad69193.jpg",
+      "bytes": 1932452,
+      "sha256": "cad69193c08d4cfe574d9094907948072c03ad3d91cda7d11db5a7dfbcabe9ab"
+    },
+    {
+      "path": "ground_truth/bole_BR/射胶保压_20260807180631_13_32.jpg",
+      "bytes": 130386,
+      "sha256": "ab8c9bcb7e06bab421f6c4d4dba2eae84acea6ebeea2085b56311db9b9e0e9c2"
+    },
+    {
+      "path": "ground_truth/bole_BR/射胶保压_20260807180632_14_32.jpg",
+      "bytes": 286550,
+      "sha256": "745f7aa3b5c0464b9f770cde9e9974c64d3d6f8fe30138389b823d1177a0682e"
+    },
+    {
+      "path": "ground_truth/bole_BR/温度_20260807180630_12_32.jpg",
+      "bytes": 107165,
+      "sha256": "6ffe95e70f878e910927957b897d1c04daa6ac728792cc9c4a2690d81698cc47"
+    },
+    {
+      "path": "ground_truth/bole_est/EST1/photo_1775045991369.JPEG",
+      "bytes": 750770,
+      "sha256": "ed57ead83639fdc49a5f3595110375fa0177bada89015a24885c796b0784ca60"
+    },
+    {
+      "path": "ground_truth/bole_est/EST1/photo_1775046001600.JPEG",
+      "bytes": 861869,
+      "sha256": "885e18f480255a86288a29a956c7f8e07a6c27af5c988dd6529ef5d368624dc2"
+    },
+    {
+      "path": "ground_truth/bole_est/EST1/photo_1775046019216.JPEG",
+      "bytes": 592007,
+      "sha256": "a1edc4349fb62fafdfc85f97a47ac061c8cd0bf5552175b37222de41ac808bc4"
+    },
+    {
+      "path": "ground_truth/bole_est/EST1/photo_1775046032796.JPEG",
+      "bytes": 647498,
+      "sha256": "f90684f3090270d30e76f40e84a9763e79794d520864c67373a2211799392228"
+    },
+    {
+      "path": "ground_truth/bole_est/EST2/Luban_17750312370458dfdad7b-5664-4fd6-9d32-35cb6a8f0ade.jpeg",
+      "bytes": 1165584,
+      "sha256": "40ca9342260d4abab3d218d804d4a612c138750b3c832fefc567859ccd04d0b9"
+    },
+    {
+      "path": "ground_truth/bole_est/EST2/Luban_17750312447933d93f198-2093-4e12-a43f-7fa56a7b80cf.jpeg",
+      "bytes": 1044050,
+      "sha256": "5f9f675b7465c1d97c5246e1c85af0a831afbf924b851f693f95ff5db255a032"
+    },
+    {
+      "path": "ground_truth/bole_est/EST2/Luban_177503125664711fdc6e3-7b1e-40b3-b90b-6ff2a8e8aeee.jpeg",
+      "bytes": 1251349,
+      "sha256": "a0837289dc62db794585b4564492821c188aa1e60ac6eb67bbc3719a83f248f4"
+    },
+    {
+      "path": "ground_truth/bole_est/EST2/Luban_1775031270479feaa3644-985f-4b12-93b3-c275b9bbe27c.jpeg",
+      "bytes": 1171193,
+      "sha256": "bd716e77c9091650fc61b17785e47dc721dc25c8bb0e992a075508824e051f70"
+    },
+    {
+      "path": "ground_truth/bole_est/EST3/射出保压_20260807180627_9_32.jpg",
+      "bytes": 156955,
+      "sha256": "28021303b02e05d665510aa6b1e44dfdeb633dbd033f2dd54487dd007d119e1a"
+    },
+    {
+      "path": "ground_truth/bole_est/EST3/温度_20260807180628_10_32.jpg",
+      "bytes": 169605,
+      "sha256": "6aa6c3c3ec4888d37fd3b8fdcf18a662651a9691bc25936eacfce0b46333b0b1"
+    },
+    {
+      "path": "ground_truth/bole_est/EST3/熔胶_20260807180626_8_32.jpg",
+      "bytes": 155720,
+      "sha256": "8abb1c5edbdd95d62a0705da43ad8379e1dc7a5b35e0181e6e10b651f2209e36"
+    },
+    {
+      "path": "ground_truth/demag_holding/holding_Z002_1785755259328.jpeg",
+      "bytes": 538446,
+      "sha256": "575c5d362766c9b80d4f07af5440844ecba2ea4c47bf866221f33004083752c6"
+    },
+    {
+      "path": "ground_truth/demag_holding/holding_Z002_ab30f6f6.jpeg",
+      "bytes": 506242,
+      "sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676"
+    },
+    {
+      "path": "ground_truth/demag_holding/holding_Z002_barspez_65f50de2.jpeg",
+      "bytes": 523552,
+      "sha256": "64c0fb77a6b4224c6efb2ea04c81c0265556d854c7f43dd848b2697935433665"
+    },
+    {
+      "path": "ground_truth/demag_holding/holding_Z002_e4d130e8.jpeg",
+      "bytes": 454511,
+      "sha256": "421dca7e9fd1c4f3d3add9e1d4778b1fddf2f5fcc9ca54733d878aeb603bba23"
+    },
+    {
+      "path": "ground_truth/demag_holding/holding_Z002_photo_1784721642626.jpeg",
+      "bytes": 607211,
+      "sha256": "6219a638df0d10f67b839c7ca520ce1b402d20ffd2e0c62a5d6bd0e38c13b589"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_06b7efe8.jpeg",
+      "bytes": 478336,
+      "sha256": "ff7e51049624c00b64d7c4a12f27be5e7703bcb97097e7994c5fbe397f46e938"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_1763640666457.jpg",
+      "bytes": 4746091,
+      "sha256": "f19a389b8632a0d26253a374dd12493bf9fbeb522f285a0544f3a93255fbdfcd"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_1764159858550.jpg",
+      "bytes": 7033576,
+      "sha256": "cc277c7b42906ed2e0caa22e0437555cae2ee6473a23a01849814c37de82fa4e"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_2025-11-07_20.20.08.jpg",
+      "bytes": 3502331,
+      "sha256": "a0c19723f4350e6feace38ee525c93b2b2c7e4d6964f680bb0d63d5ac1b040b5"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_2e22f85a.jpeg",
+      "bytes": 489348,
+      "sha256": "ebfab180de48b76938c75a8dea9ac12131a945379924b22b397dd518dd4f6a15"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_cac666e7.jpeg",
+      "bytes": 244305,
+      "sha256": "c753ddf7b40479b455e3a8485977c85b2fee7cdff16ecb87df84871e5a045969"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_db2cf983.jpeg",
+      "bytes": 526981,
+      "sha256": "6d32ed6e8ffeafe0c902ad875b5b84bf1f62f0a0454f940ec8be0c64193b8b6f"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_e3bde860.jpeg",
+      "bytes": 610414,
+      "sha256": "e5a477220eb0781b3c5945c4d76587ded942c282cd7863c8e5d9bcced0a0966d"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_f29c52c4.jpeg",
+      "bytes": 462138,
+      "sha256": "4cbb3bba62009d2889d026121da02657d357c263c9d09ac99f85ba8573d30b14"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_image (1).jpg",
+      "bytes": 5038957,
+      "sha256": "19563b7ae48eb6fc82ba31353b83acf82210d4f39d0f1aeb8667ef218931255c"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_image (2).jpg",
+      "bytes": 6854318,
+      "sha256": "8e73e54996708a7dc4f714b925c48192c1fac8748514f57b00f132e60d2ff8f4"
+    },
+    {
+      "path": "ground_truth/demag_holding_z005/holding_Z005_image.jpg",
+      "bytes": 4682397,
+      "sha256": "992ceea27c48be8969f7c52997347f73d6f1630b9ab4490fc9e0007d70fcdcc2"
+    },
+    {
+      "path": "ground_truth/hot_runner/photo1.jpg",
+      "bytes": 586932,
+      "sha256": "255ae5d168ddc9d1dee2309ea87c62a7d58b3f92d7dcf08bff8b850ac902fdd3"
+    },
+    {
+      "path": "ground_truth/hot_runner/photo2.jpg",
+      "bytes": 560980,
+      "sha256": "d15c506271e7394a25a5e63e752dab5f0ef45c082bc71ce7d44bddb53f3aadca"
+    }
+  ]
+}
