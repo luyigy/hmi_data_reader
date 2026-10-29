@@ -1,5 +1,6 @@
 import { piSizeProbeCommand, withRemotePiSessionSize } from './ssh-session-size';
 import { tmpdir } from 'os';
+import { randomUUID } from 'node:crypto';
 import { join } from 'path';
 import { promises as fs } from 'fs';
 import type { ChildProcess } from 'child_process';
@@ -68,6 +69,7 @@ export interface RemoteSshProbeResult {
 }
 
 interface PiJsonEvent {
+  id?: string;
   type?: string;
   toolName?: string;
   args?: unknown;
@@ -108,7 +110,7 @@ const slugify = (value: string) =>
     .slice(0, 120) || 'default';
 
 const resolveRemotePiSessionDir = (taskId: string, resumeSessionId?: string) =>
-  resumeSessionId?.trim() || `${DEFAULT_REMOTE_PI_SESSION_DIR}/acpx-${slugify(taskId)}`;
+  resumeSessionId?.trim() || `${DEFAULT_REMOTE_PI_SESSION_DIR}/acpx-${slugify(taskId)}-${randomUUID()}`;
 
 const toUnixShellPathExpr = (value: string) => {
   if (value.startsWith('~/')) {
@@ -161,19 +163,19 @@ const getRemoteExecutableName = (harnessType: string) => {
 const buildRemoteCommand = (
   harnessType: string,
   workingDirectory?: string | null,
-  taskId = 'default',
   resumeSessionId?: string,
   shellMode: 'unix' | 'powershell' = 'unix',
   model?: string,
-  reasoningEffort?: string
+  reasoningEffort?: string,
+  piSessionDir?: string
 ) => {
   if (shellMode === 'powershell') {
-    return buildRemotePowerShellCommand(harnessType, workingDirectory, taskId, resumeSessionId, model, reasoningEffort);
+    return buildRemotePowerShellCommand(harnessType, workingDirectory, resumeSessionId, model, reasoningEffort, piSessionDir);
   }
 
   const quotedCwd = workingDirectory ? `cd ${shellQuote(workingDirectory)} && ` : '';
   const executable = getRemoteExecutableName(harnessType);
-  const remotePiSessionDir = resolveRemotePiSessionDir(taskId, resumeSessionId);
+  const remotePiSessionDir = piSessionDir || '';
   const preflight = [
     'echo __ACPX_REMOTE_COMMAND_START__ >&2',
     `${quotedCwd}echo "__ACPX_PREFLIGHT_PWD__=$(pwd)" >&2`,
@@ -278,6 +280,7 @@ export const processPiJsonLine = (line: string, callbacks?: HarnessStreamCallbac
         : undefined;
     return {
       resolvedText,
+      nativeSessionId: event.type === 'session' && typeof event.id === 'string' ? event.id.trim() || undefined : undefined,
       errorMessage,
       plainText: undefined as string | undefined,
     };
@@ -296,10 +299,10 @@ const isLegacyPiTextToolCall = (output: string) =>
 const buildRemotePowerShellCommand = (
   harnessType: string,
   workingDirectory?: string | null,
-  taskId?: string,
   resumeSessionId?: string,
   model?: string,
-  reasoningEffort?: string
+  reasoningEffort?: string,
+  piSessionDir?: string
 ) => {
   const prelude = [
     `$ErrorActionPreference = 'Stop'`,
@@ -309,7 +312,7 @@ const buildRemotePowerShellCommand = (
 
   let script: string;
   const executable = getRemoteExecutableName(harnessType);
-  const remotePiSessionDir = resolveRemotePiSessionDir(taskId || 'default', resumeSessionId);
+  const remotePiSessionDir = piSessionDir || '';
   if (harnessType === 'codex') {
     const overrides = `${model ? ` --model ${powerShellQuote(model)}` : ''}${reasoningEffort ? ` --config ${powerShellQuote(`model_reasoning_effort="${reasoningEffort}"`)}` : ''}`;
     script = resumeSessionId
@@ -405,7 +408,8 @@ const extractClaudeModifiedFiles = (output: string): string[] => {
 
 const executeRemoteSshTaskWithoutTelemetry = async (
   task: RemoteHarnessTask,
-  options: RemoteSshExecutionOptions
+  options: RemoteSshExecutionOptions,
+  piSession?: { directory: string; nativeId?: string }
 ): Promise<RemoteSshExecutionResult> => {
   const prompt =
     options.resumeSessionId && options.continuationMessage
@@ -507,6 +511,7 @@ const executeRemoteSshTaskWithoutTelemetry = async (
 
             for (const line of lines) {
               const parsed = processPiJsonLine(line, options.streamCallbacks);
+              if (piSession && parsed.nativeSessionId) piSession.nativeId = parsed.nativeSessionId;
               if (parsed.errorMessage !== undefined) piError = parsed.errorMessage;
               if (parsed.resolvedText) {
                 piResolvedText = parsed.resolvedText;
@@ -536,7 +541,7 @@ const executeRemoteSshTaskWithoutTelemetry = async (
     ({ stdout, stderr, timing } = await runRemoteSshCommand({
       timeout: options.timeout,
       host: options.host,
-      command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'unix', options.model, options.reasoningEffort),
+      command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId, 'unix', options.model, options.reasoningEffort, piSession?.directory),
       stdin: prompt,
       streamCallbacks,
       onSpawn: options.onSpawn,
@@ -560,7 +565,7 @@ const executeRemoteSshTaskWithoutTelemetry = async (
       ({ stdout, stderr, timing } = await runRemoteSshCommand({
         timeout: options.timeout,
         host: options.host,
-        command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'powershell', options.model, options.reasoningEffort),
+        command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId, 'powershell', options.model, options.reasoningEffort, piSession?.directory),
         stdin: prompt,
         streamCallbacks,
         onSpawn: options.onSpawn,
@@ -608,6 +613,7 @@ const executeRemoteSshTaskWithoutTelemetry = async (
 
   if (options.harnessType === 'pi-agent' && piStdoutBuffer.trim()) {
     const parsed = processPiJsonLine(piStdoutBuffer.trim(), options.streamCallbacks);
+    if (piSession && parsed.nativeSessionId) piSession.nativeId = parsed.nativeSessionId;
     if (parsed.errorMessage !== undefined) piError = parsed.errorMessage;
     if (parsed.resolvedText) {
       piResolvedText = parsed.resolvedText;
@@ -645,7 +651,7 @@ const executeRemoteSshTaskWithoutTelemetry = async (
         : options.harnessType === 'claude'
         ? claudeSessionId
         : options.harnessType === 'pi-agent'
-        ? resolveRemotePiSessionDir(task.id, options.resumeSessionId)
+        ? piSession?.directory
         : undefined,
     sessionKind:
       options.harnessType === 'codex'
@@ -660,11 +666,15 @@ const executeRemoteSshTaskWithoutTelemetry = async (
 };
 
 export const executeRemoteSshTask = async (task: RemoteHarnessTask, options: RemoteSshExecutionOptions): Promise<RemoteSshExecutionResult> => {
-  const execute = () => executeRemoteSshTaskWithoutTelemetry(task, options);
-  if (options.harnessType !== 'pi-agent' || !options.onSessionSize) return execute();
-  const sessionId = resolveRemotePiSessionDir(task.id, options.resumeSessionId);
+  // Resolve once: command, shell fallback, continuation identity and probe share this directory.
+  const piSession = options.harnessType === 'pi-agent'
+    ? { directory: resolveRemotePiSessionDir(task.id, options.resumeSessionId), nativeId: undefined as string | undefined } : undefined;
+  const execute = () => executeRemoteSshTaskWithoutTelemetry(task, options, piSession);
+  if (!piSession || !options.onSessionSize) return execute();
+  const sessionId = piSession.directory;
   return withRemotePiSessionSize({
     execute,
+    nativeSessionId: () => piSession.nativeId,
     publish: size => options.onSessionSize!(sessionId, size),
     read: async () => {
       const probe = (windows: boolean) => runRemoteSshCommand({ host: options.host, timeout: 5000, command: piSizeProbeCommand(sessionId, windows) });

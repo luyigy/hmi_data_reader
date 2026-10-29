@@ -57,17 +57,22 @@ fs.writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ script, stdin: fs.
 console.log('ok');
 `);
     const prompt = '中文 "one -> two" & | < > % !\n--not-an-option\nC:\\Code\\';
-    for (const resumeSessionId of [undefined, '$HOME/.pi/agent/sessions/existing']) {
-      await executeRemoteSshTask({ id: 'test', name: 'test', description: prompt }, {
+    const freshDirectories: string[] = [];
+    for (const resumeSessionId of [undefined, undefined, '$HOME/.pi/agent/sessions/existing']) {
+      const result = await executeRemoteSshTask({ id: 'test', name: 'test', description: prompt }, {
         host, harnessType: 'pi-agent', timeout: 5_000,
         resumeSessionId, continuationMessage: prompt,
       });
       const captured = JSON.parse(await readFile(capture, 'utf8'));
       assert.ok(captured.stdin.includes(prompt));
+      assert.ok(captured.script.includes(result.sessionId!), 'returned directory must match the PowerShell command');
+      if (resumeSessionId) assert.equal(result.sessionId, resumeSessionId);
+      else freshDirectories.push(result.sessionId!);
       if (resumeSessionId) assert.equal(captured.stdin, prompt);
       assert.doesNotMatch(captured.script, /ReadToEnd|\$prompt/);
       assert.match(captured.script, resumeSessionId ? /--continue$/ : /--session-dir .*$/);
     }
+    assert.notEqual(freshDirectories[0], freshDirectories[1]);
     console.log('Remote SSH Windows fallback checks passed');
   } finally {
     if (originalPath === undefined) delete process.env.PATH;
