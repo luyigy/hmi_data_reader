@@ -8,6 +8,7 @@ import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 import { redactSensitiveText } from '@/lib/redact-sensitive';
+import { kimiServerEnabled, runKimiServer } from './kimi-server';
 
 export const KIMI_CODE_MAX_SUBAGENTS = 3;
 
@@ -30,6 +31,7 @@ export interface KimiCodeConfig {
   onSpawn?: (child: ChildProcess) => void;
   onSessionStarted?: (sessionId: string) => Promise<void> | void;
   model?: string;
+  reasoningEffort?: string;
   prompt?: string;
   sessionId?: string;
 }
@@ -319,6 +321,7 @@ const runKimiCodeCommand = async ({
   onSpawn,
   onSessionStarted,
   model,
+  reasoningEffort,
   sessionId,
 }: {
   prompt: string;
@@ -336,6 +339,7 @@ const runKimiCodeCommand = async ({
   onSpawn?: (child: ChildProcess) => void;
   onSessionStarted?: (sessionId: string) => Promise<void> | void;
   model?: string;
+  reasoningEffort?: string;
   sessionId?: string;
 }): Promise<{ output: string; sessionId?: string }> => {
   if (!workspaceRoot && permissionProfile !== 'full_access') {
@@ -346,6 +350,16 @@ const runKimiCodeCommand = async ({
   if (runtimeHome) { env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = taskEnvironment?.XDG_CACHE_HOME || '/tmp/cache'; env.NPM_CONFIG_CACHE = taskEnvironment?.NPM_CONFIG_CACHE || '/tmp/npm'; env.PYTHONPYCACHEPREFIX = taskEnvironment?.PYTHONPYCACHEPREFIX || '/tmp/python'; env.HOME = runtimeHome; env.KIMI_CODE_HOME = path.join(runtimeHome, '.kimi-code'); }
   const activeHome = runtimeHome ? path.join(runtimeHome, '.kimi-code') : getKimiCodeHome();
   env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(KIMI_CODE_MAX_SUBAGENTS);
+  if (kimiServerEnabled()) {
+    return runKimiServer({
+      binary: getKimiCodeBinary(), env,
+      prompt: `${prompt}\n\nPlatform constraint: create at most ${KIMI_CODE_MAX_SUBAGENTS} SubAgents in total during this run, including Agent and AgentSwarm calls.`,
+      timeout, workingDirectory, workspaceRoot, extraWritableRoots, extraReadOnlyPaths,
+      networkAccess, sandboxMode, permissionProfile, runtimeHome, streamCallbacks,
+      onSpawn, onSessionStarted, model, reasoningEffort, sessionId,
+      configPaths: [runtimeHome || activeHome, ...(runtimeHome ? ['credentials', 'oauth'].map((name) => path.join(activeHome, name)).filter(existsSync).map((entry) => realpathSync(entry)) : [])],
+    });
+  }
   // Prompt mode is implicitly Kimi's fully autonomous `auto` mode; Bubblewrap is the safety boundary.
   const args = [
     '--prompt',
@@ -511,6 +525,7 @@ export const executeKimiCodeTask = async (
       onSpawn: config.onSpawn,
       onSessionStarted: config.onSessionStarted,
       model: config.model,
+      reasoningEffort: config.reasoningEffort,
       sessionId: config.sessionId,
     });
     return {

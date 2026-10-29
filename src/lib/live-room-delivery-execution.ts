@@ -1,3 +1,4 @@
+import { supportsHarnessSteering } from '@/lib/harness/registry';
 import { lockSessionActivity, refreshSessionActivity } from './acpx/session-activity';
 import { graphRoomContext } from './task-graph/room-context';
 import { prepareGraphConversationTask } from './task-graph/conversation-task';
@@ -409,7 +410,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
   const progress = await attachLiveRoomProgress({ room, participant: targetMember, sourceMessage });
   const streamCallbacks: HarnessStreamCallbacks = {
     ...progress.streamCallbacks,
-    onSteeringReady: targetMember.backend === 'platform_local' && ['pi-agent', 'codex', 'antigravity'].includes(targetMember.harnessType || '')
+    onSteeringReady: supportsHarnessSteering(targetMember.harnessType, targetMember.backend)
       && !workflowCompletionGate
       ? (steer) => registerLiveRoomSteering(targetMember.id, room.id, session.id, steer, executionGeneration, sourceMessage.id)
       : undefined,

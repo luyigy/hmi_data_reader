@@ -18,6 +18,8 @@ export const piAgentHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
   type: 'pi-agent',
   displayName: 'Pi Agent',
 
+  supportsSteering: backend => backend === 'platform_local',
+
   async checkAvailability() {
     const { isPiAgentAvailable, getPiAgentVersion } = await loadPiAgent();
     const available = await isPiAgentAvailable();

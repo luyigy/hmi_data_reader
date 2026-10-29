@@ -1,3 +1,4 @@
+import { supportsHarnessSteering } from '@/lib/harness/registry';
 import { SandboxScopeError, type SandboxIdentity } from '../sandbox-manager';
 import { RuntimePreparationError } from '../task-graph/runtime-preflight';
 import { redactSensitiveText } from '../redact-sensitive';
@@ -120,7 +121,7 @@ export const executeParticipant = async (
 
   const callbacks: HarnessStreamCallbacks = {
     onSessionSize: sample => request.streamCallbacks?.onSessionSize?.(sample),
-    onSteeringReady: participant.executionBackend === 'platform_local' && (participant.harnessType === 'pi-agent' || participant.harnessType === 'codex')
+    onSteeringReady: supportsHarnessSteering(participant.harnessType, participant.executionBackend)
       && !request.workflowCompletionGate
       ? request.streamCallbacks?.onSteeringReady : undefined,
     onStdoutChunk: async (chunk, agentMessage) => {

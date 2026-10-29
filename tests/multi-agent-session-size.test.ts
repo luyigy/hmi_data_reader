@@ -92,6 +92,7 @@ console.log(JSON.stringify({role:'meta',type:'session.resume_hint',session_id:'$
 setTimeout(()=>{fs.appendFileSync(path.join(dir,'wire.jsonl'),' failed');process.exit(1)},100);
 `);
     await chmod(binary, 0o755);
+    const oldTransport = process.env.KIMI_CODE_TRANSPORT; process.env.KIMI_CODE_TRANSPORT = 'print';
     const oldBinary = process.env.KIMI_CODE_CLI_PATH; process.env.KIMI_CODE_CLI_PATH = binary;
     let nativeBound = false;
     try {
@@ -100,7 +101,7 @@ setTimeout(()=>{fs.appendFileSync(path.join(dir,'wire.jsonl'),' failed');process
         onSessionStarted: async session => { assert.equal(session.sessionId, id); nativeBound = true; } } });
       assert.equal(result.success, false); assert.equal(nativeBound, true);
       assert.equal(samples.at(-1)?.totalBytes, 12, 'native failure still flushes the bound history size');
-    } finally { if (oldBinary === undefined) delete process.env.KIMI_CODE_CLI_PATH; else process.env.KIMI_CODE_CLI_PATH = oldBinary; }
+    } finally { if (oldTransport === undefined) delete process.env.KIMI_CODE_TRANSPORT; else process.env.KIMI_CODE_TRANSPORT = oldTransport; if (oldBinary === undefined) delete process.env.KIMI_CODE_CLI_PATH; else process.env.KIMI_CODE_CLI_PATH = oldBinary; }
 
     const nativePi = require('../src/lib/real-agents/pi-agent');
     const piOriginal = { execute: nativePi.executePiAgentTask, resume: nativePi.resumePiAgentSession, resolve: nativePi.resolvePiAgentSessionDir };

@@ -1,3 +1,4 @@
+import { supportsHarnessSteering } from '@/lib/harness/registry';
 import { graphRoomTarget } from './task-graph/room-context';
 import { prepareRoomTurnCard } from './feishu-turn-card';
 import { prisma } from '@/lib/prisma';
@@ -262,7 +263,7 @@ export const triggerLiveRoomAgentReply = async ({
     return;
   }
 
-  const localSteering = targetMember.backend === 'platform_local' && ['pi-agent', 'codex', 'antigravity'].includes(targetMember.harnessType || '');
+  const localSteering = supportsHarnessSteering(targetMember.harnessType, targetMember.backend);
   const generation = getLiveRoomExecutionGeneration(targetMember.id);
   const dispatch = async () => {
     const session = await ensureMemberSession(room.id, targetMember);

@@ -123,6 +123,8 @@ export interface HarnessAdapter {
   type: string;
   displayName: string;
   checkAvailability(): Promise<HarnessAvailability>;
+  /** Running-turn input support; absence means messages remain queued. */
+  supportsSteering?(executionBackend: AcpxExecutionBackend): boolean;
   execute(args: HarnessExecuteArgs): Promise<HarnessExecuteResult>;
   resume?(args: HarnessResumeArgs): Promise<HarnessExecuteResult>;
   getCapabilities(executionBackend: AcpxExecutionBackend): HarnessCapability;

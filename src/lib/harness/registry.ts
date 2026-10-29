@@ -34,3 +34,6 @@ export const getLocalHarnessStatusMap = async (): Promise<Record<string, Harness
 
   return Object.fromEntries(pairs);
 };
+
+export const supportsHarnessSteering = (type: string | null | undefined, backend: string | null | undefined) =>
+  backend === 'platform_local' && (getHarnessAdapter(type)?.supportsSteering?.(backend) ?? false);

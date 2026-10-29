@@ -1,6 +1,7 @@
 import { withSessionSizeAdapter } from '../session-size';
 import { readKimiSessionBytes } from '../../real-agents/session-size-readers';
 import path from 'node:path';
+import { kimiServerEnabled } from '../../real-agents/kimi-server';
 import type { HarnessAdapter, HarnessExecuteArgs } from '../types';
 
 import { collectKimiCodeSessionTelemetry } from '@/lib/real-agents/kimi-code-telemetry';
@@ -22,6 +23,7 @@ const INVALID_KIMI_CONTINUATION_PATTERNS = [
 export const kimiCodeHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
   type: 'kimi-code',
   displayName: 'Kimi Code CLI',
+  supportsSteering: backend => backend === 'platform_local' && kimiServerEnabled(),
 
   async checkAvailability() {
     const { isKimiCodeAvailable, getKimiCodeVersion } = await loadKimiCodeAgent();
@@ -55,6 +57,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
       onSpawn: context.onSpawn,
       onSessionStarted: id => context.onSessionStarted?.({ sessionId: id, sessionKind: 'kimi_session' }),
       model: context.model,
+      reasoningEffort: context.reasoningEffort,
       runtimeHome: context.runtimeHome,
       taskEnvironment: context.taskEnvironment,
     });
@@ -84,6 +87,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
       onSpawn: context.onSpawn,
       onSessionStarted: id => context.onSessionStarted?.({ sessionId: id, sessionKind: 'kimi_session' }),
       model: context.model,
+      reasoningEffort: context.reasoningEffort,
       runtimeHome: context.runtimeHome,
       taskEnvironment: context.taskEnvironment,
       prompt: continuationMessage,

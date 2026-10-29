@@ -56,6 +56,8 @@ export const antigravityHarnessAdapter: HarnessAdapter = withSessionSizeAdapter(
   type: 'antigravity',
   displayName: 'Antigravity CLI',
 
+  supportsSteering: backend => backend === 'platform_local',
+
   async checkAvailability() {
     const { isAntigravityAvailable, getAntigravityVersion } = await loadAntigravityAgent();
     const available = await isAntigravityAvailable();

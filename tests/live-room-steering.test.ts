@@ -105,7 +105,11 @@ async function main() {
   assert.equal(injected,1);assert.equal(queued,8);
   member.harnessType='antigravity';await trigger('antigravity-normal');assert.equal(injected,2);
   assert.match(notices.at(-1)!, /正在中断当前轮并在同一会话/);
-  unregisterCodex();await trigger('codex-startup');assert.equal(queued,9);
+  member.harnessType='kimi-code';await trigger('kimi-normal');await trigger('kimi-normal');assert.equal(injected,3);
+  const oldTransport=process.env.KIMI_CODE_TRANSPORT;process.env.KIMI_CODE_TRANSPORT='print';
+  try { await trigger('kimi-print');assert.equal(injected,3);assert.equal(queued,9); }
+  finally { if(oldTransport===undefined)delete process.env.KIMI_CODE_TRANSPORT;else process.env.KIMI_CODE_TRANSPORT=oldTransport; }
+  unregisterCodex();await trigger('codex-startup');assert.equal(queued,10);
   console.log('Live Room steering: receipts, fallback, generation/run/session guards, cleanup and dedup passed');
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

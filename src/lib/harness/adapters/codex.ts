@@ -87,6 +87,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
   type: 'codex',
   displayName: 'Codex',
 
+  supportsSteering: backend => backend === 'platform_local',
+
   async checkAvailability() {
     const { isCodexAvailable, getCodexVersion } = await loadCodexAgent();
     const available = await isCodexAvailable();
