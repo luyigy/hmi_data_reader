@@ -82,8 +82,8 @@ async function writeRoots(directory: string, permission: AcpxRunRequest['permiss
   const config = permission || DEFAULT_ACPX_PERMISSION_CONFIG;
   if (config.sandboxMode === 'read-only') return [];
   if (!local) return ['*']; // Remote workspace mapping is resolved later; conservatively serialize writes per host.
-  if (config.sandboxMode === 'danger-full-access') return ['/'];
-  return Promise.all([directory, ...config.writableRoots, ...extra].map(root => canonical(root)));
+  // Admission reserves declared workspaces; full filesystem access does not reserve the entire host.
+  return Promise.all([directory, ...(config.writableRoots ?? []), ...extra].map(root => canonical(root)));
 }
 
 /** Check new room runs against all active runs, and all other callers against new room runs. */
