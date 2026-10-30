@@ -104,3 +104,29 @@ projects:
             preset: workspace
             extraReadOnlyPaths:
               - /data1/code/scada
+
+  - id: trialcam
+    name: 试模水印相机
+    path: /data1/code/trialcam
+    ref: refs/heads/main
+    feishu:
+      chat_id: oc_de916b89cc41e2760e757cdd7b584c89
+      approver_open_ids:
+        - ou_16b82bdefeb4944108d62068e88a2f0c
+    jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "* * * * *"
+        enabled: true
+        mode: active
+        config:
+          active_side_effects_enabled: true
+          coding_bot_chat_id: oc_de916b89cc41e2760e757cdd7b584c89
+          coding_bot_chat_type: group
+          coding_bot_app_id: cli_a8e5326f4e7f901c
+          contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: .
+          initial_cursor_commit: 56782ac7d14e8bd3599e042b3845ef09a3346f2b
+          workflow_autonomy: semi_auto
+          execution_policy:
+            preset: full_access
