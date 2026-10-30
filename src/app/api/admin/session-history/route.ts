@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   try {
     const user = await requireAdmin(request);
     const search = new URL(request.url).searchParams;
+    if (search.get('status') === '1') return json(await cleanupReadiness());
     const operation = search.get('operation');
     if (operation) return json(cleanupReceipt(await readCleanup(operation, user.id)));
     if (search.get('refresh') === '1') invalidateHistoryInventory();

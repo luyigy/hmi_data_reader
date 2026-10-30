@@ -12,6 +12,8 @@ const button = 'rounded border px-3 py-2 text-sm disabled:opacity-40';
 export default function SessionHistoryPage() {
   const [listing, setListing] = useState<Listing>();
   const generation = useRef(0);
+  const [cleanup, setCleanup] = useState<{ enabled: boolean; reason?: string }>({ enabled: false, reason: '正在检查清理启用状态…' });
+  const [now, setNow] = useState(Date.now);
   const [harness, setHarness] = useState(''), [state, setState] = useState(''), [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string[]>([]), [receipt, setReceipt] = useState<Receipt>();
   const [confirmed, setConfirmed] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -27,6 +29,28 @@ export default function SessionHistoryPage() {
   }, [harness, state, page]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    let controller: AbortController | undefined;
+    let disposed = false, pending = false;
+    async function refreshStatus() {
+      setNow(Date.now());
+      if (pending) return;
+      pending = true;
+      controller = new AbortController();
+      const timeout = window.setTimeout(() => controller?.abort(), 4000);
+      try {
+        const response = await fetch('/api/admin/session-history?status=1', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) throw new Error('status unavailable');
+        const status = await response.json();
+        if (!disposed) setCleanup(status);
+      } catch {
+        if (!disposed) setCleanup({ enabled: false, reason: '暂时无法确认清理启用状态，正在自动重试…' });
+      } finally { window.clearTimeout(timeout); pending = false; }
+    }
+    void refreshStatus();
+    const timer = window.setInterval(() => void refreshStatus(), 5000);
+    return () => { disposed = true; controller?.abort(); window.clearInterval(timer); };
+  }, []);
+  useEffect(() => {
     const id = sessionStorage.getItem('ap-history-operation');
     if (id) fetch(`/api/admin/session-history?operation=${encodeURIComponent(id)}`).then(async response => {
       if (response.ok) setReceipt(await response.json());
@@ -38,11 +62,16 @@ export default function SessionHistoryPage() {
       const response = await fetch('/api/admin/session-history', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(confirm ? { action: 'confirm', operationId: receipt?.id, confirmPermanent: true } : { action: 'preview', keys: selected }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || '操作失败');
-      setReceipt(data); setConfirmed(false); sessionStorage.setItem('ap-history-operation', data.id);
+      setNow(Date.now()); setReceipt(data); setConfirmed(false); sessionStorage.setItem('ap-history-operation', data.id);
       if (confirm) await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : '操作失败'); }
     finally { setBusy(false); }
   }
+  const confirmationBlock = busy ? '正在核对，请稍候。'
+    : receipt && now >= receipt.expiresAt ? '预览已过期，请重新预览清理并核对清单。'
+    : !cleanup.enabled ? cleanup.reason || '清理尚未启用，正在等待服务完成更新。'
+    : !receipt?.items.length ? '清单中没有可清理的会话，请重新选择并预览。'
+    : !confirmed ? '请先勾选上方的永久删除确认。' : '';
   return <div className="mx-auto max-w-7xl space-y-6">
     <div><h1 className="text-2xl font-bold">历史会话</h1>
       <p className="mt-2 text-sm text-gray-600">管理本机原生历史。最后活动超过 30 天且不再绑定或使用的会话，才允许管理员预览并确认永久清理。不会自动删除。</p>
@@ -50,7 +79,7 @@ export default function SessionHistoryPage() {
     {error && <p role="alert" className="rounded bg-red-50 p-3 text-red-700">{error}</p>}
     {listing && <div className="rounded border bg-white p-4 text-sm">
       <p>已扫描 {listing.summary.count} 个会话 · 已测记录 {size(listing.summary.bytes)} · 可预览 {listing.summary.eligible} 个 / {size(listing.summary.eligibleBytes)} · 未知大小 {listing.summary.unknown} 个</p>
-      {!listing.cleanup.enabled && <p className="mt-2 text-amber-700">{listing.cleanup.reason}</p>}
+      {!cleanup.enabled && <p className="mt-2 text-amber-700">{cleanup.reason}</p>}
       <p className="mt-1 text-gray-500">采样于 {new Date(listing.sampledAt).toLocaleString()}。字节数为记录文件长度，不等于实际磁盘释放量；不含工具配置、缓存和所有附属索引。</p>
       {listing.truncated && <p className="mt-2 text-red-700">扫描不完整，本次全部禁止清理。请查看下方来源状态。</p>}
     </div>}
@@ -75,7 +104,8 @@ export default function SessionHistoryPage() {
       {receipt.state === 'preview' ? <>
         <p className="text-sm">预览有效至 {new Date(receipt.expiresAt).toLocaleString()}。执行时会再次检查，变化的会话将拒绝清理。</p>
         <label className="block text-sm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> 我已核对清单，确认永久删除，原生历史不可恢复。</label>
-        <button className={button + ' bg-red-700 text-white'} disabled={busy || !listing?.cleanup.enabled || !confirmed || !receipt.items.length || Date.now() >= receipt.expiresAt} onClick={() => void action(true)}>确认永久清理</button>
+        {confirmationBlock && <p id="cleanup-confirmation-reason" role="status" className="text-sm text-amber-900">{confirmationBlock}</p>}
+        <button aria-describedby={confirmationBlock ? 'cleanup-confirmation-reason' : undefined} className={button + ' bg-red-700 text-white'} disabled={!!confirmationBlock} onClick={() => void action(true)}>确认永久清理</button>
       </> : <p className="text-sm">失败或中断不自动重放。若仍显示执行中或清理中，保留操作 ID 供核对，勿手动删除审计文件。</p>}
       <button className={button + ' ml-3'} disabled={busy} onClick={() => { setReceipt(undefined); setConfirmed(false); sessionStorage.removeItem('ap-history-operation'); }}>关闭</button>
     </section>}

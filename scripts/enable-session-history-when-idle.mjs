@@ -4,30 +4,50 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, rename, writeFile, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { PrismaClient } from '@prisma/client';
-const require = createRequire(import.meta.url);
-require('@next/env').loadEnvConfig(process.cwd());
-const db = new PrismaClient();
-const root = process.env.AP_SESSION_HISTORY_STATE_ROOT || path.join(homedir(), '.agent-platform/session-history');
-const services = ['agent-platform-dev.service', 'agent-platform-feishu.service', 'agent-platform-scheduled-jobs.service', 'agent-platform-task-graph.service', 'agent-platform-task-graph-feishu.service'];
-const deadline = Date.now() + 20 * 60000;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const idle = async () => {
-  const [runs, jobs, deliveries] = await Promise.all([
-    db.taskRun.count({ where: { status: { in: ['pending', 'running', 'waiting_for_input'] } } }),
-    db.scheduledJobRun.count({ where: { status: 'running' } }),
-    db.liveRoomDelivery.count({ where: { deliveryStatus: 'running' } }),
-  ]);
-  return runs === 0 && jobs === 0 && deliveries === 0;
-};
-try {
-  await mkdir(root, { recursive: true, mode: 0o700 });
-  await unlink(path.join(root, 'enabled.json')).catch(error => { if (error.code !== 'ENOENT') throw error; });
-  let done = false;
-  while (Date.now() < deadline) {
-    if (!await idle()) { await sleep(5000); continue; }
-    await sleep(3000);
-    if (!await idle()) continue;
+
+// No timeout: long-running tasks must not silently cancel an authorized deployment.
+export async function waitForHistoryIdle(snapshot, report, pause = sleep) {
+  const isIdle = counts => counts.runs === 0 && counts.jobs === 0 && counts.deliveries === 0;
+  while (true) {
+    const counts = await snapshot();
+    await report(counts);
+    if (isIdle(counts)) {
+      await pause(3000);
+      const checked = await snapshot();
+      if (isIdle(checked)) return;
+      await report(checked);
+    }
+    await pause(5000);
+  }
+}
+
+async function main() {
+  createRequire(import.meta.url)('@next/env').loadEnvConfig(process.cwd());
+  const db = new PrismaClient();
+  const root = process.env.AP_SESSION_HISTORY_STATE_ROOT || path.join(homedir(), '.agent-platform/session-history');
+  const services = ['agent-platform-dev.service', 'agent-platform-feishu.service', 'agent-platform-scheduled-jobs.service', 'agent-platform-task-graph.service', 'agent-platform-task-graph-feishu.service'];
+  const save = async (name, value) => {
+    await writeFile(path.join(root, name + '.tmp'), JSON.stringify(value), { mode: 0o600 });
+    await rename(path.join(root, name + '.tmp'), path.join(root, name));
+  };
+  const status = (state, counts) => save('activation.json', { state, counts, updatedAt: Date.now() });
+  const snapshot = async () => {
+    const [runs, jobs, deliveries] = await Promise.all([
+      db.taskRun.count({ where: { status: { in: ['pending', 'running', 'waiting_for_input'] } } }),
+      db.scheduledJobRun.count({ where: { status: 'running' } }),
+      db.liveRoomDelivery.count({ where: { deliveryStatus: 'running' } }),
+    ]);
+    return { runs, jobs, deliveries };
+  };
+  try {
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    await unlink(path.join(root, 'enabled.json')).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    console.log('Waiting for idle tasks; activation remains scheduled without a time limit.');
+    await waitForHistoryIdle(snapshot, counts => status('waiting', counts));
+    await status('reloading');
     const previous = services.map(service => execFileSync('systemctl', ['--user', 'show', service, '-p', 'MainPID', '--value'], { encoding: 'utf8' }).trim());
     execFileSync('systemctl', ['--user', 'restart', ...services], { stdio: 'inherit' });
     const pids = services.map((service, index) => {
@@ -45,10 +65,14 @@ try {
     if (!healthy) throw new Error('Web health check failed; cleanup remains disabled.');
     const marker = { version: 1, reloadedAt: new Date().toISOString(), services, pids,
       commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() };
-    await writeFile(path.join(root, 'enabled.json.tmp'), JSON.stringify(marker), { mode: 0o600 });
-    await rename(path.join(root, 'enabled.json.tmp'), path.join(root, 'enabled.json'));
+    await save('enabled.json', marker);
+    await status('ready');
     console.log('Session history cleanup enabled after all five services reloaded. Native histories untouched.');
-    done = true; break;
-  }
-  if (!done) throw new Error('Tasks remained active for 20 minutes. Cleanup remains disabled; rerun during idle time.');
-} finally { await db.$disconnect(); }
+  } catch (error) {
+    await status('failed');
+    throw error;
+  } finally { await db.$disconnect(); }
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch(error => { console.error(error); process.exitCode = 1; });
+}
