@@ -1,3 +1,4 @@
+import { withHistoryLock } from '../session-history/guard';
 /**
  * Real Agents Integration
  * 
@@ -87,7 +88,7 @@ export const executeRealAgentTask = async (
         ...result,
       };
     } else if (agentType === 'codex') {
-      const result = await executeCodexTask(task);
+      const result = await withHistoryLock('codex', false, () => executeCodexTask(task));
       return {
         agentType: 'codex',
         ...result,
@@ -105,7 +106,7 @@ export const executeRealAgentTask = async (
         ...result,
       };
     } else if (agentType === 'pi-agent') {
-      const result = await executePiAgentTask(task);
+      const result = await withHistoryLock('pi-agent', false, () => executePiAgentTask(task));
       return {
         agentType: 'pi-agent',
         ...result,

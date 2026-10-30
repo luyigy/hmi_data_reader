@@ -1,3 +1,4 @@
+import { historyTombstone } from '../session-history/guard';
 import { prisma } from '@/lib/prisma';
 import { getHarnessAdapter } from '@/lib/harness';
 import { normalizeAcpxPermissionConfig } from './permissions';
@@ -35,6 +36,7 @@ export const getContinuationSession = (participant: {
   harnessType: string;
 }) => {
   const metadata = parseAcpxMetadata(participant.controlMetadata);
+  if (metadata.historyDeletedAt) return { sessionId: null, sessionKind: null };
   const adapter = getHarnessAdapter(participant.harnessType);
   const explicitSessionId = typeof metadata.lastSessionId === 'string' && metadata.lastSessionId.trim()
     ? metadata.lastSessionId.trim()
@@ -226,6 +228,8 @@ export const findLatestParticipantSession = async (
     matched = selectMatched(await queryCandidates(null));
     viaRoleFallback = Boolean(matched);
   }
+
+  if (matched && participant.executionBackend === 'platform_local' && await historyTombstone(participant.harnessType, getContinuationSession(matched).sessionId!)) return null;
 
   return matched
     ? {

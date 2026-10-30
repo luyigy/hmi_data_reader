@@ -17,6 +17,7 @@ const menuItems = [
 ];
 
 const adminMenuItems = [
+  { href: '/admin/session-history', label: '历史会话', icon: '🗃️' },
   { href: '/admin/users', label: '用户管理', icon: '👥' },
 ];
 
@@ -35,6 +36,14 @@ export function Sidebar() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('app-sidebar-collapsed', String(isCollapsed));
   }, [isCollapsed]);
+
+  useEffect(() => {
+    const narrow = window.matchMedia('(max-width: 767px)');
+    const collapseOnNarrowScreen = () => { if (narrow.matches) setIsCollapsed(true); };
+    collapseOnNarrowScreen();
+    narrow.addEventListener('change', collapseOnNarrowScreen);
+    return () => narrow.removeEventListener('change', collapseOnNarrowScreen);
+  }, []);
 
   // Redirect to login if not authenticated and not loading
   useEffect(() => {

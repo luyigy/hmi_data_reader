@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { historyTombstone } from '../../session-history/guard';
 import { resolvePiAgentSessionDir } from '../../real-agents/pi-agent';
 import { withSessionSizeAdapter } from '../session-size';
 import { readPiSessionBytes } from '../../real-agents/session-size-readers';
@@ -31,7 +33,8 @@ export const piAgentHarnessAdapter: HarnessAdapter = withSessionSizeAdapter({
 
   async execute({ task, context }) {
     const { executePiAgentTask, resolvePiAgentSessionDir } = await loadPiAgent();
-    const sessionDir = resolvePiAgentSessionDir(context.sessionKey || `${context.executionBackend}:${task.id}`);
+    const baseDir = resolvePiAgentSessionDir(context.sessionKey || `${context.executionBackend}:${task.id}`);
+    const sessionDir = await historyTombstone('pi-agent', baseDir) ? `${baseDir}-fresh-${randomUUID()}` : baseDir;
     await context.onSessionStarted?.({
       sessionId: sessionDir,
       sessionKind: 'pi_session_dir',

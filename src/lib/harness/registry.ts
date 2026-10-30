@@ -1,3 +1,4 @@
+import { withHistoryProtection } from '../session-history/guard';
 import type { HarnessAdapter, HarnessAvailability } from './types';
 import { antigravityHarnessAdapter } from './adapters/antigravity';
 import { claudeHahaHarnessAdapter, claudeHarnessAdapter } from './adapters/claude';
@@ -19,7 +20,7 @@ const harnessAdapters = [
 ] as const satisfies readonly HarnessAdapter[];
 
 const registry = new Map<string, HarnessAdapter>(
-  harnessAdapters.map((adapter) => [adapter.type, adapter])
+  harnessAdapters.map((adapter) => [adapter.type, withHistoryProtection(adapter)])
 );
 
 export const getHarnessAdapter = (type: string | null | undefined) =>

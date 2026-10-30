@@ -82,7 +82,8 @@
     "workspace:inventory": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/workspace-inventory.ts",
     "test:persistent-ticket-agent-w01": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/persistent-ticket-agent-w01.test.ts",
     "workspace:create": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/workspace-create.ts",
-    "check:ticket-admission": "node scripts/check-task-admission.mjs"
+    "check:ticket-admission": "node scripts/check-task-admission.mjs",
+    "test:session-history": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/session-history.test.ts && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/session-history-cleanup.test.ts"
   },
   "prisma": {
     "seed": "ts-node prisma\\seed.ts"
