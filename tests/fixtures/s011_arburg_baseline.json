@@ -1,0 +1,484 @@
+{
+  "baseline_commit": "5a0cda3",
+  "cases": {
+    "development": {
+      "profile_id": "generic.spatial",
+      "fields": null,
+      "observations": null
+    },
+    "retained": {
+      "profile_id": "arburg.storage_cooling.selogica_two_stage",
+      "fields": {},
+      "observations": {
+        "profile_id": "arburg.storage_cooling.selogica_two_stage",
+        "fields": [
+          {
+            "screen_field_key": "metering.speed.actual",
+            "role": "actual",
+            "section": "metering",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 0.0,
+            "original_unit": "mm/s",
+            "effective_unit": "mm/s",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified"
+            ],
+            "text": "0.0",
+            "confidence": 0.984766960144043,
+            "bbox": [
+              792.0,
+              883.0,
+              829.0,
+              906.0
+            ],
+            "original_bbox": [
+              46.443987607680945,
+              51.89820391909061,
+              48.14440805331783,
+              52.70994509792658
+            ]
+          },
+          {
+            "screen_field_key": "metering.speed.stage-1",
+            "role": "setting",
+            "section": "metering",
+            "stage": 1,
+            "segment_id": "metering-1",
+            "order": 1,
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 100.0,
+            "original_unit": "mm/s",
+            "effective_unit": "mm/s",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified"
+            ],
+            "text": "100.0",
+            "confidence": 0.9975113868713379,
+            "bbox": [
+              860.0,
+              883.0,
+              931.0,
+              906.0
+            ],
+            "original_bbox": [
+              49.432513843083186,
+              51.70503504136029,
+              52.62350150595624,
+              52.5817131913657
+            ]
+          },
+          {
+            "screen_field_key": "metering.speed.stage-2",
+            "role": "setting",
+            "section": "metering",
+            "stage": 2,
+            "segment_id": "metering-2",
+            "order": 2,
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 100.0,
+            "original_unit": "mm/s",
+            "effective_unit": "mm/s",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified"
+            ],
+            "text": "100.0",
+            "confidence": 0.9956396818161011,
+            "bbox": [
+              962.0,
+              883.0,
+              1029.0,
+              906.0
+            ],
+            "original_bbox": [
+              53.91960100044154,
+              51.51923156527087,
+              56.93179859834559,
+              52.389183176430045
+            ]
+          },
+          {
+            "screen_field_key": "metering.back_pressure.actual",
+            "role": "actual",
+            "section": "metering",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": -35.0,
+            "original_unit": null,
+            "effective_unit": "bar",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified",
+              "unit_from_definition"
+            ],
+            "text": "-35",
+            "confidence": 0.9325949549674988,
+            "bbox": [
+              794.0,
+              948.0,
+              829.0,
+              972.0
+            ],
+            "original_bbox": [
+              46.7483150917766,
+              53.98959783534277,
+              48.357274320573815,
+              54.8228227555958
+            ]
+          },
+          {
+            "screen_field_key": "metering.back_pressure.stage-1",
+            "role": "setting",
+            "section": "metering",
+            "stage": 1,
+            "segment_id": "metering-1",
+            "order": 1,
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 8.0,
+            "original_unit": null,
+            "effective_unit": "bar",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified",
+              "unit_from_definition"
+            ],
+            "text": "8",
+            "confidence": 0.9839805364608765,
+            "bbox": [
+              910.0,
+              952.0,
+              929.0,
+              970.0
+            ],
+            "original_bbox": [
+              51.83930534529988,
+              53.93043174875649,
+              52.72463542229852,
+              54.542335589451774
+            ]
+          },
+          {
+            "screen_field_key": "metering.back_pressure.stage-2",
+            "role": "setting",
+            "section": "metering",
+            "stage": 2,
+            "segment_id": "metering-2",
+            "order": 2,
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": null,
+            "original_unit": null,
+            "effective_unit": "bar",
+            "state": "unknown",
+            "reading": "missing",
+            "reasons": [
+              "enable_state_unverified",
+              "unit_from_definition",
+              "source_box_unavailable"
+            ],
+            "text": null,
+            "confidence": null,
+            "bbox": null,
+            "original_bbox": null
+          },
+          {
+            "screen_field_key": "metering.end_position.actual",
+            "role": "actual",
+            "section": "metering",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 34.96,
+            "original_unit": "mm",
+            "effective_unit": "mm",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified"
+            ],
+            "text": "34.96",
+            "confidence": 0.996799111366272,
+            "bbox": [
+              762.0,
+              1013.0,
+              829.0,
+              1041.0
+            ],
+            "original_bbox": [
+              45.56871389985222,
+              56.0640698073232,
+              48.57794773757389,
+              57.07616047050713
+            ]
+          },
+          {
+            "screen_field_key": "metering.end_position.stage-1",
+            "role": "setting",
+            "section": "metering",
+            "stage": 1,
+            "segment_id": "metering-1",
+            "order": 1,
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 20.0,
+            "original_unit": "mm",
+            "effective_unit": "mm",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified"
+            ],
+            "text": "20.00",
+            "confidence": 0.9987045526504517,
+            "bbox": [
+              862.0,
+              1015.0,
+              927.0,
+              1037.0
+            ],
+            "original_bbox": [
+              49.93381170253028,
+              55.945890750027026,
+              52.83373488411909,
+              56.764828375054066
+            ]
+          },
+          {
+            "screen_field_key": "metering.end_position.stage-2",
+            "role": "setting",
+            "section": "metering",
+            "stage": 2,
+            "segment_id": "metering-2",
+            "order": 2,
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 27.0,
+            "original_unit": "mm",
+            "effective_unit": "mm",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified"
+            ],
+            "text": "27.00",
+            "confidence": 0.9981659650802612,
+            "bbox": [
+              958.0,
+              1015.0,
+              1025.0,
+              1037.0
+            ],
+            "original_bbox": [
+              54.12241441843282,
+              55.763946849994596,
+              57.10693852161729,
+              56.58734595486862
+            ]
+          },
+          {
+            "screen_field_key": "decompression.speed",
+            "role": "setting",
+            "section": "decompression",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 50.0,
+            "original_unit": null,
+            "effective_unit": "mm/s",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified",
+              "unit_from_definition"
+            ],
+            "text": "50.0",
+            "confidence": 0.998418927192688,
+            "bbox": [
+              1275.0,
+              946.0,
+              1338.0,
+              975.0
+            ],
+            "original_bbox": [
+              67.84787645526961,
+              52.96895908236916,
+              70.67377603040296,
+              54.01933927437014
+            ]
+          },
+          {
+            "screen_field_key": "decompression.distance",
+            "role": "setting",
+            "section": "decompression",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 8.0,
+            "original_unit": null,
+            "effective_unit": "mm",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified",
+              "unit_from_definition"
+            ],
+            "text": "8.00",
+            "confidence": 0.9977031946182251,
+            "bbox": [
+              1273.0,
+              1015.0,
+              1329.0,
+              1037.0
+            ],
+            "original_bbox": [
+              67.89793654709126,
+              55.19827344425822,
+              70.3924370471994,
+              56.003647114578825
+            ]
+          },
+          {
+            "screen_field_key": "time.remaining_cooling",
+            "role": "unknown",
+            "section": "time",
+            "time_kind": "remaining_cooling",
+            "source": "image_recognition",
+            "original_label": "剩余冷却时间",
+            "original_value": 8.0,
+            "original_unit": null,
+            "effective_unit": "s",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified",
+              "role_unverified",
+              "unit_from_definition"
+            ],
+            "text": "8.00",
+            "confidence": 0.9973704814910889,
+            "bbox": [
+              1285.0,
+              369.0,
+              1348.0,
+              399.0
+            ],
+            "original_bbox": [
+              67.10459919261822,
+              33.66904869211586,
+              70.03956655042532,
+              34.836742044732645
+            ]
+          },
+          {
+            "screen_field_key": "time.unlabeled_left",
+            "role": "unknown",
+            "section": "time",
+            "time_kind": "unlabeled_left",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 0.1,
+            "original_unit": null,
+            "effective_unit": "s",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified",
+              "role_unverified",
+              "unit_from_definition"
+            ],
+            "text": "0.10",
+            "confidence": 0.9990218877792358,
+            "bbox": [
+              975.0,
+              454.0,
+              1038.0,
+              482.0
+            ],
+            "original_bbox": [
+              53.23653523622225,
+              37.231022923875436,
+              56.16627905470553,
+              38.313969278830555
+            ]
+          },
+          {
+            "screen_field_key": "time.unlabeled_right",
+            "role": "unknown",
+            "section": "time",
+            "time_kind": "unlabeled_right",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": 0.0,
+            "original_unit": null,
+            "effective_unit": "s",
+            "state": "unknown",
+            "reading": "known",
+            "reasons": [
+              "enable_state_unverified",
+              "role_unverified",
+              "unit_from_definition"
+            ],
+            "text": "0.00",
+            "confidence": 0.9971024394035339,
+            "bbox": [
+              1283.0,
+              452.0,
+              1346.0,
+              482.0
+            ],
+            "original_bbox": [
+              67.189442987673,
+              36.535285500919116,
+              70.10851445357554,
+              37.69011711991782
+            ]
+          },
+          {
+            "screen_field_key": "control.enable_icons",
+            "role": "unknown",
+            "section": "control",
+            "source": "image_recognition",
+            "original_label": null,
+            "original_value": null,
+            "original_unit": null,
+            "effective_unit": null,
+            "state": "unknown",
+            "reading": "unsupported",
+            "reasons": [
+              "enable_state_unverified",
+              "role_unverified",
+              "source_box_unavailable"
+            ],
+            "text": null,
+            "confidence": null,
+            "bbox": null,
+            "original_bbox": null
+          }
+        ],
+        "issues": [
+          {
+            "code": "READING_MISSING",
+            "screen_field_key": "metering.back_pressure.stage-2"
+          },
+          {
+            "code": "READING_UNSUPPORTED",
+            "screen_field_key": "control.enable_icons"
+          }
+        ],
+        "coverage": {
+          "status": "partial",
+          "declared": 15,
+          "known": 13
+        }
+      }
+    }
+  }
+}

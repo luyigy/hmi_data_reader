@@ -312,6 +312,14 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             result.update(compatibility={"status": "incompatible", "code": "CONTROLLER_HINT_INVALID"})
             result["warnings"].append("CONTROLLER_HINT_INVALID")
             return result
+    from page_identity import PLUGINS, route_identities
+    identity = route_identities(lines)
+    if identity['status'] == 'ambiguous':
+        result.update(page_routing=identity, page_type='unknown', controller_family='unknown',
+            compatibility={'status': 'conflict', 'code': 'PAGE_TEMPLATE_CONFLICT'},
+            provenance={'page_source': 'ambiguous_page_identity', 'screen_size': meta['screen_size']})
+        result['warnings'].append('PAGE_TEMPLATE_CONFLICT')
+        return result
     family, family_src = route_family(stem, lines, record_report, machine_labels)
     clahe_path = rectified_dir / f"{stem}.ocr_clahe.json"
     clahe_lines = None
@@ -330,10 +338,12 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         det_lines = lines
         if clahe_lines is not None:
             det_lines, _ = merge_variant_lines(lines, clahe_lines)
-        fam = detect_family_from_templates(det_lines + mt_lines, templates_dir)
+        fam = (next(c['family'] for c in identity['candidates'] if c['matched'] and not c['conflicts'])
+               if identity['status'] == 'matched' else
+               detect_family_from_templates(det_lines + mt_lines, templates_dir))
         if fam:
             family, family_src = fam, "template_keywords"
-        elif lcd_pv_set:
+        elif lcd_pv_set and not any(c['evidence'] or c['conflicts'] for c in identity['candidates']):
             family, family_src = "INDUSTRIAL_CHILLER", "mold_temp_lcd_signature"
     page, page_src, template = resolve_page_template(
         stem, lines, family, templates_dir, extra_anchor_lines=mt_lines)
@@ -360,18 +370,21 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
     result["page_type"] = page
-    from page_identity import route_identities
     routing = route_identities(lines, family)
-    if template is not None and template.get('profile_id') and page_src == 'template_anchors':
-        selected_id = template['profile_id']
-        if routing['profile_id'] != selected_id:
-            routing.update(status='matched', profile_id=selected_id)
-            routing['candidates'].append(dict(profile_id=selected_id, family=template['ui_family'],
-                matched=True, evidence=['registered_layout_anchors'], missing=[], conflicts=[]))
+    if template is not None and template.get('profile_id') not in PLUGINS:
+        routing = route_identities(lines, family, profile_ids=[template.get('profile_id')])
+        routing['legacy_profile_id'] = template.get('profile_id')
+        routing['compatibility_path'] = page_src
     if page_src in BLOCKED_PAGE_SOURCES:
-        routing.update(status='ambiguous' if page_src == 'ambiguous_template_anchors' else 'blocked',
-                       profile_id=None)
+        if page_src == 'ambiguous_template_anchors':
+            routing.update(status='ambiguous', profile_id=None)
+        routing['selection_error'] = BLOCKED_PAGE_SOURCES[page_src]
     result['page_routing'] = routing
+    if (template is not None and template.get('profile_id') in PLUGINS
+            and (routing['status'] != 'matched' or routing['profile_id'] != template['profile_id'])):
+        result['warnings'].append('PAGE_IDENTITY_UNVERIFIED')
+        result['compatibility'] = {'status': 'unknown', 'code': 'PAGE_UNKNOWN'}
+        return result
     if page_src in BLOCKED_PAGE_SOURCES:
         result['provenance'] = dict(family_source=family_src, page_source=page_src,
                                     screen_size=meta['screen_size'])
@@ -399,6 +412,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                 result["controller_family"] = family
                 result["page_type"] = page
                 template = alt_tpl
+                result['page_routing'] = route_identities(lines, family,
+                    profile_ids=[template.get('profile_id')])
     if template is None:
         # Unrecognized screens retain observations for operator review.
         result["compatibility"] = {"status": "unknown", "code": "PAGE_UNKNOWN"}

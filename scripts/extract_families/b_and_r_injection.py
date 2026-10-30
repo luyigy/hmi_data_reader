@@ -165,8 +165,9 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
             count = visual_count if count == visual_count else None
         values = inj if section == "injection" else hold
         residual = (values["velocity"] or [])[count:] if count is not None else []
-        conflict = (count is not None and (visual_count is not None and visual_count != count
-                    or any(value is not None and value != 0 for value in residual)))
+        if count is not None and visual_count is not None and visual_count != count:
+            warnings.append(f"STAGE_GRAYSCALE_CONFLICT({section},layout={count},gray={visual_count})")
+        conflict = count is not None and any(value is not None and value != 0 for value in residual)
         if conflict:
             warnings.append(f"STAGE_EVIDENCE_CONFLICT({section})")
         if count is not None and not conflict:

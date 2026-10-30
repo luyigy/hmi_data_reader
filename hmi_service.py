@@ -45,6 +45,7 @@ from vlm_qwen import VlmError, draft_from_ocr
 from page_template_admin import router as page_template_router
 from extractor_capabilities import router as capabilities_router
 from page_template_registry import BLOCKED_PAGE_SOURCES
+from page_identity import accepts_field_retry
 
 # 083 S01 分辨率救援：提取失败时按此 max_size 重跑一轮矫正+OCR（见 run_attempt 调用处）
 RESCUE_MAX_SIZE = 4000
@@ -389,8 +390,10 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                         ocr_data["lines"] = lines
                         ocr_data["line_count"] = len(lines)
                         ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
-                        extract_res = extract_one(stem, rect_dir, record_report,
+                        retry = extract_one(stem, rect_dir, record_report,
                                                   machine_labels, HERE / "templates", controller_hint=controller_hint)
+                        if accepts_field_retry(extract_res, retry):
+                            extract_res = retry
                 # 6b. 083 S03 温度表逐格重读救援：B&R/DEMAG 温度页缺格/列结构失败时，
                 # 按实测网格逐格 rec 重读生成旁车（ocr_tcells）后重提取一次；
                 # 仅缺格变少才采用，网格实测失败不生成旁车、保持原结果。
@@ -411,7 +414,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                         if n_cells:
                             ext2 = extract_one(stem, rect_dir, record_report,
                                                machine_labels, HERE / "templates", controller_hint=controller_hint)
-                            if cell_rescue_better(extract_res, ext2):
+                            if accepts_field_retry(extract_res, ext2) and cell_rescue_better(extract_res, ext2):
                                 ext2.setdefault("warnings", []).append(
                                     f"CELL_GRID_RESCUE({n_cells})")
                                 extract_res = ext2
@@ -449,7 +452,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 # 重跑一轮——4K 原图经 2000 长边封顶后小字表格（B&R 灰底温度表等）
                 # 降采样过度整表漏读。仅在救援轮提取出字段时采用，否则保留原拒识。
                 cls2, ext2, evidence2 = run_attempt(RESCUE_MAX_SIZE)
-                if ext2.get("fields") is not None:
+                if ext2.get("fields") is not None and accepts_field_retry(extract_res, ext2):
                     cls_res, extract_res, ocr_evidence = cls2, ext2, evidence2
                     extract_res.setdefault("warnings", []).append(
                         f"RESCUE_HI_RES({RESCUE_MAX_SIZE})")

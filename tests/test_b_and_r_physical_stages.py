@@ -95,9 +95,9 @@ def test_positive_gray_conflict_rejects_layout(current_photo, monkeypatch):
     image, tokens, template = current_photo
     monkeypatch.setattr(plugin, '_visual_active_count', lambda cells, gray: 1)
     result = plugin.extract_injection_b_and_r(tokens, template, image_path=image)
-    assert result['detail']['verified_layout_counts'] == {}
-    assert all(f['state'] == 'unknown' for f in result['detail']['page_observations']['fields'])
-    assert 'STAGE_EVIDENCE_CONFLICT(injection)' in result['warnings']
+    assert result['detail']['verified_layout_counts'] == {'injection': 4, 'holding': 2}
+    assert all(f['state'] == 'enabled' for f in result['detail']['page_observations']['fields'] if f['stage'])
+    assert 'STAGE_GRAYSCALE_CONFLICT(injection,layout=4,gray=1)' in result['warnings']
 
 
 @pytest.mark.parametrize('row_indexes', [(2,), (1, 2)])

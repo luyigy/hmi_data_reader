@@ -5,7 +5,7 @@ from pathlib import Path
 from classify_ui import find_page
 from extract_families.common import _anchor_hits
 from extractor_registry import template_error
-from page_identity import page_identity_match, profile_identity
+from page_identity import PLUGINS, page_identity_match, profile_identity
 
 TEMPLATES_DIR = Path("templates")
 BLOCKED_PAGE_SOURCES = {
@@ -43,7 +43,10 @@ def registered_page_templates(family: str, templates_dir: Path,
         if page is not None and template.get("page") != page:
             continue
         assessment = profile_identity(template.get('profile_id'), lines, family) if lines is not None else None
-        if assessment and assessment['conflicts']:
+        if assessment is not None:
+            if assessment['matched'] and not assessment['conflicts']:
+                matches.append(template)
+            # Plugin decisions are final for this profile, including unknown.
             continue
         identity_match = None
         if family not in template.get("route_families", [template.get("ui_family")]):
@@ -111,6 +114,8 @@ def route_page(stem: str, lines: list[dict], family: str,
             if page_name == "temperature":
                 continue
             t2 = json.loads(tp.read_text())
+            if t2.get('profile_id') in PLUGINS:
+                continue
             anchors2 = t2.get("page_detect_anchors")
             if anchors2 and all(_anchor_hits(a, texts) for a in anchors2):
                 matches.append(page_name)
@@ -131,16 +136,26 @@ def load_template(family: str, page: str, templates_dir: Path = TEMPLATES_DIR,
     registered = registered_page_templates(family, templates_dir, page=page, lines=lines)
     if lines is not None and not registered:
         registered = [template for template in registered_page_templates(
-            family, templates_dir, page=page) if not template.get("require_anchor_match")]
+            family, templates_dir, page=page) if not template.get("require_anchor_match")
+            and template.get('profile_id') not in PLUGINS]
     if len(registered) > 1:
         return None
     if registered:
         return registered[0]
+    if lines is not None and any(t.get('profile_id') in PLUGINS for t in
+            registered_page_templates(family, templates_dir, page=page)):
+        # A pre-registry file for the same page cannot bypass its plugin either.
+        return None
     filename = f"{family.lower()}.{page}.json"
     path = templates_dir / filename
     if not path.is_file():
         return None
-    return json.loads(path.read_text())
+    template = json.loads(path.read_text())
+    if lines is not None and template.get('profile_id') in PLUGINS:
+        assessment = profile_identity(template['profile_id'], lines, family)
+        if not assessment['matched'] or assessment['conflicts']:
+            return None
+    return template
 
 
 def _selection_error(family, page, lines, templates_dir):
@@ -149,7 +164,7 @@ def _selection_error(family, page, lines, templates_dir):
     if not candidates:
         candidates = [item for item in registered_page_templates(
             family, templates_dir, page=page, include_disabled=True)
-            if not item.get("require_anchor_match")]
+            if not item.get("require_anchor_match") and item.get('profile_id') not in PLUGINS]
     if any(item.get("enabled", True) is not True for item in candidates):
         return "disabled_template"
     if len(candidates) > 1:

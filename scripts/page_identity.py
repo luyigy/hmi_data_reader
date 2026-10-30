@@ -40,9 +40,24 @@ def page_identity_match(template, lines):
 
 
 def route_identities(lines, family='unknown', profile_ids=None):
-    candidates = [profile_identity(pid, lines, family) for pid in (PLUGINS if profile_ids is None else profile_ids)]
-    candidates = [c for c in candidates if c is not None and (c['matched'] or c['evidence'])]
+    ids = list(PLUGINS if profile_ids is None else profile_ids)
+    candidates = [profile_identity(pid, lines, family) for pid in ids]
+    candidates = [c for c in candidates if c is not None]
+    candidates.sort(key=lambda c: (bool(c['matched']), bool(c['evidence'])), reverse=True)
+    supported = any(pid in PLUGINS and (profile_ids is not None or family == 'unknown'
+                    or family in PLUGINS[pid][0]) for pid in ids)
     matched = [c for c in candidates if c['matched'] and not c['conflicts']]
-    return dict(version='1.0', status='matched' if len(matched) == 1 else 'ambiguous' if matched else 'unknown',
+    return dict(version='1.1', status='unsupported' if not supported else
+                'matched' if len(matched) == 1 else 'ambiguous' if matched else 'unknown',
                 profile_id=matched[0]['profile_id'] if len(matched) == 1 else None,
                 candidates=candidates)
+
+
+def accepts_field_retry(current, retry):
+    """A field recovery attempt cannot change an already confirmed page."""
+    confirmed = current.get('page_routing') or {}
+    if confirmed.get('status') != 'matched':
+        return True
+    recovered = retry.get('page_routing') or {}
+    return (recovered.get('status') == 'matched'
+            and recovered.get('profile_id') == confirmed.get('profile_id'))

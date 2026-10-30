@@ -1,0 +1,167 @@
+{
+  "base_commit": "5a0cda3",
+  "report": "/data1/code/hmi_data_reader/artifacts/br_stability/routing_s011/acceptance/report.html",
+  "runtime_files": [
+    {
+      "path": "scripts/page_identity.py",
+      "sha256": "c44f0cf95e46c10bf0efd5efb8838c15fa4849212ff55104679eff49cd01d5b0",
+      "runtime_matches": true
+    },
+    {
+      "path": "scripts/page_template_registry.py",
+      "sha256": "849a64c613c24b783d0662d41a36c5cc937f0bfaa6c8e39b4c644794d8a7921d",
+      "runtime_matches": true
+    },
+    {
+      "path": "scripts/extract_fields.py",
+      "sha256": "4557c3fc8fa4f26e72d0d9a65ea1ea7ba8eb16ac46d93a0094381c7b27ec15a1",
+      "runtime_matches": true
+    },
+    {
+      "path": "scripts/extract_families/b_and_r_injection.py",
+      "sha256": "3979de2dd12efb1717d0b41e346cbe623a9820cbf8fb0701a622cc38db66da02",
+      "runtime_matches": true
+    }
+  ],
+  "regression": {
+    "full_suite_passed": 229,
+    "subtests_passed": 22,
+    "final_targeted_passed": 13,
+    "brands": [
+      "伯乐 B&R",
+      "日精 TACT5",
+      "德马格",
+      "发那科",
+      "伊之密",
+      "阿博格"
+    ],
+    "mode": "Frozen real OCR / deterministic unit and integration replay; not all six brands rerun live OCR.",
+    "arburg_baseline": "5a0cda3; two real frozen fixtures compare exact profile, fields and observations",
+    "limitations": [
+      "numbers_only: live HTTP quality gate SCREEN_NOT_FOUND before OCR; independent route not executed",
+      "Known development photographs and derived crops, not independent holdouts",
+      "Nissei PB/BP evidence checked on the existing TACT5 photo; not a universal generation classifier",
+      "Frozen numeric HTTP replay explicitly bypasses quality and fixes rectification; it is not live OCR"
+    ]
+  },
+  "cases": [
+    {
+      "id": "br_full",
+      "source": "tests/fixtures/b_and_r_stability/live_20261029_curve_context.jpg",
+      "crop": null,
+      "input_sha256": "ade6059d24ea945b73029dd310020c39a487bfd1573c872561d220facae36982",
+      "expected": "matched",
+      "actual": "matched",
+      "http_status": 200,
+      "ocr_mode": "fresh_service_ocr",
+      "passed": true
+    },
+    {
+      "id": "br_other_stages",
+      "source": "datasets/hmi/raw/legacy/samples_inj_z050/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.jpeg",
+      "crop": null,
+      "input_sha256": "03830ab484fc905a35947a0094e1d682c8287e1d397fe520d91f523ef6104962",
+      "expected": "matched",
+      "actual": "matched",
+      "http_status": 200,
+      "ocr_mode": "fresh_service_ocr",
+      "passed": true
+    },
+    {
+      "id": "br_local",
+      "source": "tests/fixtures/b_and_r_stability/live_20261029_curve_context.jpg",
+      "crop": [
+        0,
+        430,
+        1155,
+        1366
+      ],
+      "input_sha256": "e1eab2980e166dc8708c770f15acd015bfef12c6bd3c50d91144b7f8b5391992",
+      "expected": "matched",
+      "actual": "matched",
+      "http_status": 200,
+      "ocr_mode": "fresh_service_ocr",
+      "passed": true
+    },
+    {
+      "id": "numbers_only",
+      "source": "tests/fixtures/b_and_r_stability/live_20261029_curve_context.jpg",
+      "crop": [
+        300,
+        530,
+        1050,
+        700
+      ],
+      "input_sha256": "78124baf464677563487d2e327dc0dd3341568c3e8e75eeb344e139b1fef396c",
+      "expected": "unknown",
+      "actual": "not_routed",
+      "http_status": 200,
+      "ocr_mode": "not_run_or_not_returned",
+      "passed": false
+    },
+    {
+      "id": "nissei_local",
+      "source": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/development/Z078_20260910_shebao.jpg",
+      "crop": [
+        990,
+        440,
+        1418,
+        1077
+      ],
+      "input_sha256": "2e55a2a94e6864c309d33963cb1265e0aa6b9cc968ca44d671c187b7de710cb6",
+      "expected": "matched",
+      "actual": "matched",
+      "http_status": 200,
+      "ocr_mode": "fresh_service_ocr",
+      "passed": true
+    },
+    {
+      "id": "page_without_values",
+      "source": "tests/fixtures/b_and_r_stability/live_20261029_curve_context.jpg",
+      "crop": [
+        100,
+        440,
+        1130,
+        750
+      ],
+      "input_sha256": "c776b2d6b511dabefda03c2e47bb5fa4f0eb0fece0232f9718365eae781b8817",
+      "expected": "matched",
+      "actual": "matched",
+      "http_status": 200,
+      "ocr_mode": "fresh_service_ocr",
+      "passed": true
+    },
+    {
+      "id": "nissei_family_only",
+      "source": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/development/Z078_20260910_shebao.jpg",
+      "crop": [
+        0,
+        400,
+        990,
+        760
+      ],
+      "input_sha256": "37aae683cc51ee9f7bd4759a71206c4796e7af35b2be34fef6cae1635dc4224d",
+      "expected": "unknown",
+      "actual": "unknown",
+      "http_status": 200,
+      "ocr_mode": "fresh_service_ocr",
+      "passed": true
+    },
+    {
+      "id": "numbers_only_frozen_http",
+      "source": "tests/fixtures/b_and_r_stability/live_20261029_curve_context.jpg",
+      "crop": [
+        300,
+        530,
+        1050,
+        700
+      ],
+      "input_sha256": "78124baf464677563487d2e327dc0dd3341568c3e8e75eeb344e139b1fef396c",
+      "expected": "unknown",
+      "actual": "unknown",
+      "http_status": 200,
+      "ocr_mode": "frozen_ocr_http_replay_quality_bypassed",
+      "passed": true
+    }
+  ]
+}
