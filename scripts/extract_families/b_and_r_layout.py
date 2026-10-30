@@ -4,6 +4,21 @@ from statistics import median
 from .visual_cells import tokens_in_cells
 
 
+def infer_active_stages(rows):
+    """Count active stages in this B&R profile's physical three-row table.
+
+    Callers must verify complete cell geometry and printed stage identity first.
+    OCR token lists are not physical rows.
+    """
+    if len(rows) != 3:
+        return None
+    speed, pressure, third = rows
+    n = len(pressure)
+    if n < 1 or len(third) != n or len(speed) != n + 1:
+        return None
+    return n
+
+
 def physical_rows(rows, boxes, y_lo, y_hi):
     """Read three physical input rows, preserving missing/duplicate OCR cells.
 
@@ -35,12 +50,21 @@ def physical_rows(rows, boxes, y_lo, y_hi):
         widths = [b[2]-b[0] for b in cells]
         centers = [(b[0]+b[2])/2 for b in cells]
         steps = [a-b for a,b in zip(centers, centers[1:])]
-        regular = (len(cells) >= 2 and max(widths) < 1.3*min(widths)
+        regular = (len(cells) >= 1 and max(widths) < 1.3*min(widths)
                    and all(.85*median(widths) < step < 1.3*median(widths) for step in steps))
         if not regular:
             return [[], [], []], [[], [], []]
         aligned.append(tokens_in_cells(tokens, cells))
         evidence.append(cells)
+    # Pressure aligns with speed; the position row may be half a cell staggered.
+    # Reject a shifted/truncated row even when its cell count happens to fit.
+    speed, pressure, third = evidence
+    width = median(b[2]-b[0] for b in speed)
+    for row, tolerance in ((pressure, .25), (third, .65)):
+        offsets = [(b[0]+b[2]-s[0]-s[2])/2 for b, s in zip(row, speed)]
+        if (not offsets or any(abs(delta) > tolerance*width for delta in offsets)
+                or max(offsets)-min(offsets) > .2*width):
+            return [[], [], []], [[], [], []]
     return aligned, evidence
 
 

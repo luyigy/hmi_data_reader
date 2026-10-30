@@ -553,6 +553,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 # Import safety remains governed by status/profile/contract in the Web layer.
                 "ocr_evidence": ocr_evidence,
                 "page_observations": page_observations,
+                "page_routing": extract_res.get("page_routing"),
             }
             # Layer 1 禁用段图像观测（契约 2.4.0 additive）：无图像观测时缺省不出
             stage_enabled = (extract_res.get("extraction_detail") or {}).get("stage_enabled")

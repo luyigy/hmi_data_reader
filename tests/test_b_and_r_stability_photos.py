@@ -35,7 +35,7 @@ def test_real_photo_values_order_states_and_raw_residuals(sample,tmp_path):
     for f in r['detail']['raw_page_observations']['fields']:
         if not f['stage']:
             continue
-        verified=f['section']=='injection' or sample['holding_state_verified']
+        verified=f['section'] in r['detail']['verified_layout_counts']
         expected=('enabled' if f['stage']<=truth[f['section']+'_stages'] else 'disabled') if verified else 'unknown'
         assert f['state']==expected
         if expected=='unknown':
@@ -121,8 +121,9 @@ def test_fault_injection_low_confidence_value_remains_unknown(photo,text,label):
     result=extract_injection_b_and_r(tokens,template,image_path=image)
     row=next(f for f in result['detail']['page_observations']['fields'] if f['label']==label)
     assert row['value']==float(text)
-    assert row['state']=='unknown'
-    assert 'stage_state_unverified' in row['reasons']
+    assert row['state']=='enabled'
+    assert row['state_basis']=='verified_physical_layout'
+    assert 'stage_state_unverified' not in row['reasons']
     assert 'low_confidence' in row['reasons']
 
 

@@ -2,6 +2,7 @@
 from importlib import import_module
 
 from contract import _field_catalog
+from page_identity import page_identity_match  # Backward-compatible import; routing owns the implementation.
 
 
 # ID, module, function, input kind, image support, supported pages.
@@ -18,6 +19,7 @@ _EXTRACTORS = {
     "yizumi.injection_holding_f2": ("pages.yizumi_injection_metering_injection_holding_f2", "extract", "ocr", True, ("injection_metering",)),
     "yizumi.metering_f2": ("pages.yizumi_injection_metering_metering_f2", "extract", "ocr", True, ("injection_metering",)),
 }
+
 for _family in ("tact", "fanuc", "zizes", "keba", "b_and_r", "kaiming", "est", "trd6", "arburg"):
     _EXTRACTORS[f"{_family}.injection_metering"] = (
         f"{_family}_injection", f"extract_injection_{_family}", "tokens", _family == "b_and_r", ("injection_metering",))

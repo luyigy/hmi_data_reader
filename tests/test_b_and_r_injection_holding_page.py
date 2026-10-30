@@ -92,10 +92,11 @@ def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_pat
                                     "holding_velocity_pct", "holding_pressure_bar", "holding_time_s")}
     observed = b_and_r_page_observations(fields, template, source_tokens,
                                          stage_cells={key: [t["bbox"] for t in value] for key, value in stage_tokens.items()},
+                                         layout_counts={"injection": 3, "holding": 3},
                                          image_path=image_path)
     staged = [row for row in observed["fields"] if row["stage"]]
     assert len(staged) == 18
-    assert all(row["state"] == "enabled" and row["state_basis"] == "grayscale_stage_boundary"
+    assert all(row["state"] == "enabled" and row["state_basis"] == "verified_physical_layout"
                for row in staged)
     assert observed["visual_stage_counts"] == {"injection": 3}
 
@@ -130,9 +131,10 @@ def test_z050_holding_two_active_stages_with_only_three_visible_cells(tmp_path):
     source_tokens = {source: tokens[:2] for source in
                      ("holding_velocity_pct", "holding_pressure_bar", "holding_time_s")}
     observed = b_and_r_page_observations(fields, template, source_tokens,
-                                         stage_cells={"holding": [t["bbox"] for t in tokens]}, image_path=image_path)
+                                         stage_cells={"holding": [t["bbox"] for t in tokens]},
+                                         layout_counts={"holding": 2}, image_path=image_path)
     assert len(observed["fields"]) == 6
-    assert all(row["state"] == "enabled" and row["state_basis"] == "grayscale_stage_boundary"
+    assert all(row["state"] == "enabled" and row["state_basis"] == "verified_physical_layout"
                for row in observed["fields"])
 
 

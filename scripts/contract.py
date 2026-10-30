@@ -258,10 +258,16 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
     selected_name = result.get("template_name", "")
     selected_id = selected_name.removesuffix(".json")
     selected = registry.get(selected_id)
-    if (not is_generic and selected and selected.get("template", "").startswith("published/")
+    selected_by_route = (result.get('provenance') or {}).get('page_source') == 'template_anchors'
+    if (not is_generic and selected
+            and (selected_by_route or selected.get("template", "").startswith("published/"))
             and selected.get("controller_family", "").upper() == str(family).upper()
-            and selected.get("page_type") == page_type):
+            and (selected_by_route or selected.get("page_type") == page_type)):
+        # A registered identity may use a canonical page name while dispatch
+        # retains a legacy page alias. Successful routing owns that identity.
         profile_id = selected_id
+        layout_variant = selected.get('layout_variant') or layout_variant
+        result['hmi_variant'] = layout_variant or 'unknown'
         detail = result.get("extraction_detail") or {}
         observations = detail.get("page_observations")
         if isinstance(observations, dict):

@@ -11,7 +11,8 @@ from pathlib import Path
 
 import cv2
 
-from .b_and_r_layout import physical_rows, stage_identity
+from .b_and_r_layout import infer_active_stages, physical_rows, stage_identity
+from .b_and_r_headers import section_headers
 from .visual_cells import bordered_cells
 from .common import _anchor_match  # noqa: F401
 from .b_and_r_page_observations import b_and_r_page_observations, _visual_active_count
@@ -84,6 +85,10 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
                     if 0.35 < t["x"] < 0.65 and t["y"] < y_hold
                     and _anchor_match(sc["injection"]["header"], t["text"])]
         y_inj = max(inj_hits, key=lambda t: t["y"])["y"] if inj_hits else None
+    if template.get('profile_id') == 'b_and_r.injection_holding.multi_stage_position_time':
+        headers = section_headers(toks)
+        if headers is not None:
+            y_inj, y_hold, y_sw = (headers[key]['y'] for key in ('injection', 'holding', 'switch'))
     if not (y_inj and y_hold and y_sw):
         return {"fields": None, "heater_columns": 0,
                 "warnings": warnings + [f"SECTION_NOT_FOUND({y_inj},{y_hold},{y_sw})"], "detail": {}}
@@ -152,10 +157,21 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
 
     detail["numeric_stage_candidates"] = {"injection": n_inj or None, "holding": n_hold or None}
     verified_cells = {}
+    layout_counts = {}
     for section, rows in row_cells.items():
-        count = _visual_active_count(rows[0], gray) if identity.get(section) else None
-        if count is not None and len(rows[0]) == count+1 and len(rows[1]) == len(rows[2]) == count:
+        count = infer_active_stages(rows) if identity.get(section) else None
+        visual_count = _visual_active_count(rows[0], gray) if identity.get(section) else None
+        if template.get("profile_id") != "b_and_r.injection_holding.multi_stage_position_time":
+            count = visual_count if count == visual_count else None
+        values = inj if section == "injection" else hold
+        residual = (values["velocity"] or [])[count:] if count is not None else []
+        conflict = (count is not None and (visual_count is not None and visual_count != count
+                    or any(value is not None and value != 0 for value in residual)))
+        if conflict:
+            warnings.append(f"STAGE_EVIDENCE_CONFLICT({section})")
+        if count is not None and not conflict:
             verified_cells[section] = rows[0]
+            layout_counts[section] = count
             if section == "injection":
                 n_inj = count
             else:
@@ -217,6 +233,7 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
         "vp_switch_time_s": vp_time,
     }
     detail["section_y"] = {"injection": y_inj, "holding": y_hold, "switch": y_sw}
+    detail["verified_layout_counts"] = layout_counts
     if template.get("profile_id") == "b_and_r.injection_holding.multi_stage_position_time":
         detail["page_variant"] = "multi_stage_position_time"
         source_tokens = {
@@ -236,6 +253,7 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
                 "injection_position_mm": inj["position"], "holding_velocity_pct": hold["velocity"],
                 "holding_pressure_bar": hold["pressure"], "holding_time_s": hold["time"]},
             stage_cells=verified_cells,
+            layout_counts=layout_counts,
             image_path=image_path)
         # v1 consumers use the largest exposed stage as the final business stage.
         # Keep full screen facts in extraction evidence without extending that view.

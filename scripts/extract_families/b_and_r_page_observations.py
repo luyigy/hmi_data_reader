@@ -40,6 +40,7 @@ def _visual_active_count(cells: list, gray) -> int | None:
 
 def b_and_r_page_observations(fields: dict, template: dict, source_tokens: dict | None = None,
                               *, stage_cells: dict | None = None,
+                              layout_counts: dict | None = None,
                               raw_values: dict | None = None, image_path=None) -> dict:
     candidate = template["business_profile_candidate"]
     aliases = candidate["possible_names"]
@@ -51,6 +52,7 @@ def b_and_r_page_observations(fields: dict, template: dict, source_tokens: dict 
     visual_counts = {section: count for section, cells in (stage_cells or {}).items()
                      if (count := _visual_active_count(cells, gray)) is not None
                      and count == fields.get(f"{section}_stages")}
+    layout_counts = layout_counts or {}
 
     def add(field_id: str, alias_id: str, value, stage: int | None, token: dict | None):
         if value is None:
@@ -58,17 +60,16 @@ def b_and_r_page_observations(fields: dict, template: dict, source_tokens: dict 
         final_display = field_id == f"injection.end.{last_injection}"
         section = field_id.split(".")[0]
         box = token.get("bbox") if token else None
-        verified = (stage is not None and stage <= visual_counts.get(section, 0)
-                    and token is not None and token.get("conf", 0) >= .8
-                    and box is not None)
-        disabled = stage is not None and section in visual_counts and stage > visual_counts[section]
+        count = layout_counts.get(section)
+        verified = stage is not None and count is not None and stage <= count
+        disabled = stage is not None and count is not None and stage > count
         state = "enabled" if verified else "disabled" if disabled else "unknown"
         observations.append(dict(
             label=aliases[alias_id][0].replace("{n}", str(stage)), value=value,
             unit=units[alias_id], role="unknown" if final_display else "setting",
             section=section if section in {"injection", "holding"} else "scalar",
             stage=stage, state=state,
-            state_basis="grayscale_stage_boundary" if stage and section in visual_counts else None,
+            state_basis="verified_physical_layout" if stage and count is not None else None,
             text=token["text"] if token else str(value),
             confidence=token.get("conf", 0.0) if token else 0.0,
             bbox=box, original_bbox=None,

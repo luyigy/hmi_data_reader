@@ -5,6 +5,7 @@ from pathlib import Path
 from classify_ui import find_page
 from extract_families.common import _anchor_hits
 from extractor_registry import template_error
+from page_identity import page_identity_match, profile_identity
 
 TEMPLATES_DIR = Path("templates")
 BLOCKED_PAGE_SOURCES = {
@@ -41,13 +42,23 @@ def registered_page_templates(family: str, templates_dir: Path,
             continue
         if page is not None and template.get("page") != page:
             continue
-        if family not in template.get("route_families", [template.get("ui_family")]):
+        assessment = profile_identity(template.get('profile_id'), lines, family) if lines is not None else None
+        if assessment and assessment['conflicts']:
             continue
+        identity_match = None
+        if family not in template.get("route_families", [template.get("ui_family")]):
+            if family != 'unknown' or lines is None:
+                continue
+            identity_match = page_identity_match(template, lines)
+            if not identity_match:
+                continue
         if texts is not None:
             anchors = template.get("layout_anchors", [])
-            if not anchors or not all(any(re.fullmatch(anchor, text, re.I) for text in texts)
-                                      for anchor in anchors):
-                continue
+            if not anchors or not all(any(re.fullmatch(anchor, text, re.I) for text in texts) for anchor in anchors):
+                if identity_match is None:
+                    identity_match = page_identity_match(template, lines)
+                if not identity_match:
+                    continue
         matches.append(template)
     return matches
 

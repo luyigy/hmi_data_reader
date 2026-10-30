@@ -360,7 +360,21 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
     result["page_type"] = page
+    from page_identity import route_identities
+    routing = route_identities(lines, family)
+    if template is not None and template.get('profile_id') and page_src == 'template_anchors':
+        selected_id = template['profile_id']
+        if routing['profile_id'] != selected_id:
+            routing.update(status='matched', profile_id=selected_id)
+            routing['candidates'].append(dict(profile_id=selected_id, family=template['ui_family'],
+                matched=True, evidence=['registered_layout_anchors'], missing=[], conflicts=[]))
     if page_src in BLOCKED_PAGE_SOURCES:
+        routing.update(status='ambiguous' if page_src == 'ambiguous_template_anchors' else 'blocked',
+                       profile_id=None)
+    result['page_routing'] = routing
+    if page_src in BLOCKED_PAGE_SOURCES:
+        result['provenance'] = dict(family_source=family_src, page_source=page_src,
+                                    screen_size=meta['screen_size'])
         result["warnings"].append(BLOCKED_PAGE_SOURCES[page_src])
         return result
     if template is None and family_src in ("machine_labels", "record_report"):
