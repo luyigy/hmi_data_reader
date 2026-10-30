@@ -15,13 +15,18 @@ export class ScanBudget {
   tick() { if (++this.count > this.maxEntries || Date.now() > this.deadline) throw new Error('扫描达到数量或时间上限；本次结果不完整'); }
 }
 export function defaultSources(): HistorySource[] {
-  return [
-    { harness: 'codex', home: process.env.CODEX_HOME || path.join(homedir(), '.codex'), label: '本机 Codex' },
-    { harness: 'kimi-code', home: process.env.KIMI_CODE_HOME || path.join(homedir(), '.kimi-code'), label: '本机 Kimi Code' },
-    { harness: 'pi-agent', home: process.env.PI_AGENT_SESSION_ROOT || path.join(homedir(), '.acpx/pi-agent-sessions'), label: '平台 Pi 会话目录' },
+  const sources: HistorySource[] = [
+    { harness: 'codex', home: path.join(homedir(), '.codex'), label: '共享 Codex' },
+    { harness: 'kimi-code', home: path.join(homedir(), '.kimi-code'), label: '共享 Kimi Code' },
+    { harness: 'pi-agent', home: path.join(homedir(), '.acpx/pi-agent-sessions'), label: '平台 Pi 会话目录' },
     { harness: 'antigravity', home: path.join(homedir(), '.gemini/antigravity-cli'), label: '本机 Antigravity CLI' },
   ];
+  for (const [harness, home] of [
+    ['codex', process.env.CODEX_HOME], ['kimi-code', process.env.KIMI_CODE_HOME], ['pi-agent', process.env.PI_AGENT_SESSION_ROOT],
+  ] as const) if (home) sources.push({ harness, home: path.resolve(home), label: '配置的运行目录' });
+  return Array.from(new Map(sources.map(source => [source.harness + ':' + source.home, source])).values());
 }
+
 export async function safeStat(root: string, file: string) {
   if (!path.isAbsolute(root) || !(file === root || file.startsWith(root + path.sep))) throw new Error('路径超出存储范围');
   const info = await lstat(file);

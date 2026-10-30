@@ -35,16 +35,24 @@ async function sourcesWithRuntimes(): Promise<HistorySource[]> {
       for (const harness of ['codex', 'kimi-code'] as const) sources.push({ harness, home: path.join(root, entry.name, `.${harness}`), label: `任务运行环境 ${entry.name}` });
     }
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-  return sources;
+  // Live Room dispatch already stores per-room Codex homes under this platform-owned root.
+  const roomRoot = '/data1/.agent-platform/codex-rooms';
+  try {
+    const rooms = await readdir(roomRoot, { withFileTypes: true });
+    if (rooms.length > 1000) throw new Error('聊天室运行目录超过 1000，需缩小范围');
+    for (const room of rooms) if (room.isDirectory()) sources.push({ harness: 'codex', home: path.join(roomRoot, room.name), label: `聊天室运行环境 ${room.name}` });
+  } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  return Array.from(new Map(sources.map(source => [source.harness + ':' + source.home, source])).values());
 }
 export async function historyInventory(options: { sources?: HistorySource[]; references?: HistoryReference[]; now?: number } = {}) {
   const sampledAt = options.now ?? Date.now();
   const sources = options.sources || await sourcesWithRuntimes();
   const refs = options.references || await historyReferences();
-  const budget = new ScanBudget(); const records: HistoryRecord[] = [];
+  const budget = new ScanBudget(50000, Date.now() + 45000); const records: HistoryRecord[] = [];
   const statuses: HistoryInventory['sources'] = [];
   let truncated = false;
-  for (const source of sources) {
+  // Bound concurrent filesystem work as well as total entries/time; one large home must not serialize all others.
+  for (let offset = 0; offset < sources.length; offset += 4) await Promise.all(sources.slice(offset, offset + 4).map(async source => {
     try {
       const scanned = await scanSource(source, budget); records.push(...scanned);
       statuses.push({ ...source, status: 'ok', count: scanned.length });
@@ -53,7 +61,7 @@ export async function historyInventory(options: { sources?: HistorySource[]; ref
       if (!missing) truncated = true;
       statuses.push({ ...source, status: missing ? 'missing' : 'error', count: 0, error: missing ? '目录不存在' : error instanceof Error ? error.message : '读取失败' });
     }
-  }
+  }));
   const idCounts = new Map<string, number>();
   for (const record of records) { const id = record.harness + ':' + record.nativeId; idCounts.set(id, (idCounts.get(id) || 0) + 1); }
   const rows: HistoryRow[] = [];
@@ -73,6 +81,6 @@ let inFlight: ReturnType<typeof historyInventory> | undefined;
 export function invalidateHistoryInventory() { cached = undefined; }
 export async function listHistoryInventory() {
   if (cached && cached.expires > Date.now()) return cached.value;
-  if (!inFlight) inFlight = historyInventory().then(value => { cached = { value, expires: Date.now() + 30000 }; return value; }).finally(() => { inFlight = undefined; });
+  if (!inFlight) inFlight = historyInventory().then(value => { cached = { value, expires: Date.now() + 120000 }; return value; }).finally(() => { inFlight = undefined; });
   return inFlight;
 }

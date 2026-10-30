@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, utimes, symlink, rm, lstat, appendFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
-import { scanSource, ScanBudget } from '../src/lib/session-history/scan';
+import { scanSource, ScanBudget, defaultSources } from '../src/lib/session-history/scan';
 import { classifyHistory, historyInventory } from '../src/lib/session-history/inventory';
 import { deleteNativeHistory } from '../src/lib/session-history/cleanup';
 import { blockHistorySession, assertHistoryAvailable, withHistoryLock, withHistoryProtection } from '../src/lib/session-history/guard';
@@ -15,6 +15,11 @@ import { codexHarnessAdapter } from '../src/lib/harness/adapters/codex';
 async function main() {
   const root = await mkdtemp(path.join(tmpdir(), 'ap-history-test-'));
   process.env.AP_SESSION_HISTORY_STATE_ROOT = path.join(root, 'audit');
+  const oldHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = path.join(root, 'configured-codex');
+  assert.ok(defaultSources().some(source => source.harness === 'codex' && source.home === path.join(homedir(), '.codex')));
+  assert.ok(defaultSources().some(source => source.home === process.env.CODEX_HOME));
+  if (oldHome === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = oldHome;
   const now = Date.now(), old = now - RETENTION_MS - 100000;
   const id = '11111111-1111-4111-8111-111111111111';
   const source = { harness: 'codex' as const, home: path.join(root, 'codex'), label: 'fixture' };

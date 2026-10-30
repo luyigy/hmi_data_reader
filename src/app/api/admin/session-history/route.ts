@@ -1,6 +1,6 @@
 import { cleanupReadiness } from '@/lib/session-history/readiness';
 import { requireAdmin, authenticationErrorResponse } from '@/lib/auth-users';
-import { listHistoryInventory } from '@/lib/session-history/inventory';
+import { listHistoryInventory, invalidateHistoryInventory } from '@/lib/session-history/inventory';
 import { cleanupReceipt, executeCleanup, previewCleanup, readCleanup } from '@/lib/session-history/cleanup';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const search = new URL(request.url).searchParams;
     const operation = search.get('operation');
     if (operation) return json(cleanupReceipt(await readCleanup(operation, user.id)));
+    if (search.get('refresh') === '1') invalidateHistoryInventory();
     const { inventory } = await listHistoryInventory();
     const harness = search.get('harness'), state = search.get('state');
     const filtered = inventory.rows.filter(row => (!harness || row.harness === harness) && (!state || row.state === state));

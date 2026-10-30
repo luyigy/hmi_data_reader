@@ -15,11 +15,11 @@ export default function SessionHistoryPage() {
   const [harness, setHarness] = useState(''), [state, setState] = useState(''), [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string[]>([]), [receipt, setReceipt] = useState<Receipt>();
   const [confirmed, setConfirmed] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
-  const load = useCallback(async () => {
+  const load = useCallback(async (refresh = false) => {
     const current = ++generation.current;
     setBusy(true); setError('');
     try {
-      const response = await fetch(`/api/admin/session-history?${new URLSearchParams({ harness, state, page: String(page) })}`, { cache: 'no-store' });
+      const response = await fetch(`/api/admin/session-history?${new URLSearchParams({ harness, state, page: String(page), ...(refresh ? { refresh: '1' } : {}) })}`, { cache: 'no-store' });
       const data = await response.json(); if (!response.ok) throw new Error(data.error || '读取失败');
       if (current === generation.current) { setListing(data); setSelected([]); }
     } catch (cause) { if (current === generation.current) setError(cause instanceof Error ? cause.message : '读取失败'); }
@@ -61,7 +61,7 @@ export default function SessionHistoryPage() {
       <select aria-label="保留状态" className={button} value={state} onChange={event => { setState(event.target.value); setPage(0); }}>
         <option value="">全部状态</option>{Object.entries(states).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
       </select>
-      <button className={button} disabled={busy} onClick={() => void load()}>刷新</button>
+      <button className={button} disabled={busy} onClick={() => void load(true)}>重新扫描</button>
       <button className={button} disabled={busy || !listing} onClick={() => setSelected(listing?.rows.filter(row => row.state === 'eligible').map(row => row.key) || [])}>选择本页可清理项</button>
       <button className={button + ' bg-blue-600 text-white'} disabled={busy || !selected.length} onClick={() => void action(false)}>预览清理（{selected.length}）</button>
       {busy && <span role="status" className="self-center text-sm">正在核对…</span>}
