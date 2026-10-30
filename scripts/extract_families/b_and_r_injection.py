@@ -111,9 +111,22 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
 
     # 保压表（区段：保压头 ~ 保压切换头）
     hold_rows = _value_rows(toks, y_hold + 0.02, y_sw - 0.01, gap)
+    detail['ocr_rows'] = {
+        section: [[dict(value=_first_num(t['text']), confidence=t.get('conf', 0),
+                        text=t['text'], bbox=t.get('bbox'), stage=None,
+                        identity_verified=False) for t in row] for row in rows]
+        for section, rows in (('injection', _value_rows(toks, y_inj+.02, y_hold-.01, gap)),
+                              ('holding', hold_rows))}
     if gray is not None:
+        reference = (row_cells['injection'][0][0]
+                     if stage_identity(toks, row_cells['injection'], y_inj,
+                                       (gray.shape[1], gray.shape[0])) else None)
+        recovery = dict(tokens=toks, title_y=y_hold,
+                        size=(gray.shape[1], gray.shape[0]), reference=reference, gray=gray)
         hold_rows, row_cells["holding"] = physical_rows(
-            hold_rows, cells, (y_hold+.02)*gray.shape[0], (y_sw-.01)*gray.shape[0])
+            hold_rows, cells, (y_hold+.02)*gray.shape[0], (y_sw-.01)*gray.shape[0],
+            recovery=recovery)
+        detail['reconstructed_cells'] = recovery.get('reconstructed', [])
     hold: dict[str, list | None] = {"velocity": None, "pressure": None, "time": None}
     hold_tokens: dict[str, list] = {}
     if len(hold_rows) < len(sc["holding"]["rows"]):
@@ -137,10 +150,20 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
                 toks, row_cells.get("injection"), y_inj, (gray.shape[1], gray.shape[0]),
                 row_cells["holding"][0][0])
         for section, values in (("injection", inj), ("holding", hold)):
+            tokens_by_row = inj_tokens if section == 'injection' else hold_tokens
+            detail.setdefault('cell_readings', {})[section] = {
+                name: [dict(value=value,
+                            confidence=(tokens_by_row[name][i].get('conf', 0)
+                                        if tokens_by_row[name][i] else None),
+                            stage=i+1 if identity[section] else None,
+                            identity_verified=identity[section])
+                       for i, value in enumerate(row or [])]
+                for name, row in values.items()}
             if not identity[section]:
                 warnings.append(f"STAGE_IDENTITY_UNVERIFIED({section})")
-                for name in values:
-                    values[name] = None
+        # Keep raw readings above; only verified mappings enter downstream fields.
+        inj = inj if identity['injection'] else dict.fromkeys(inj)
+        hold = hold if identity['holding'] else dict.fromkeys(hold)
     detail["stage_identity_verified"] = identity
     # 数值推断只作候选段数；缺读不得当作零或压紧后续段位。
     n_inj = 0
