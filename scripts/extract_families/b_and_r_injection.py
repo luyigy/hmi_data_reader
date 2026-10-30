@@ -12,6 +12,7 @@ from pathlib import Path
 import cv2
 
 from .b_and_r_layout import infer_active_stages, physical_rows, stage_identity
+from .b_and_r_holding_layout import build_holding_layout, layout_evidence
 from .b_and_r_headers import section_headers
 from .visual_cells import bordered_cells
 from .common import _anchor_match  # noqa: F401
@@ -60,6 +61,27 @@ def _row_values(cluster, rng, parse):
     return out
 
 
+def _holding_field_readings(layout, ranges):
+    """Keep value validation separate from layout identity and OCR confidence."""
+    result = []
+    for cell in layout.cells:
+        unit_key = {'velocity': 'pct', 'pressure': 'bar', 'time': 's'}[cell.row_key]
+        lo, hi = ranges[unit_key]
+        value = _first_num(cell.raw_reading[0]) if len(cell.raw_reading) == 1 else None
+        if value is not None and not lo <= value <= hi:
+            value = None
+        confidence = cell.ocr_confidences[0] if len(cell.ocr_confidences) == 1 else None
+        reading = ('missing' if not cell.raw_reading else 'conflict' if len(cell.raw_reading) > 1
+                   else 'known' if value is not None and confidence >= .8 else 'uncertain')
+        result.append(dict(row_key=cell.row_key, stage_id=cell.stage_id,
+                           raw_reading=cell.raw_reading, value=value, confidence=confidence,
+                           mapping_status=cell.mapping_status, reading_status=reading,
+                           stage_identity_verified=cell.stage_identity_verified,
+                           automatic_eligible=(cell.mapping_status == 'verified' and reading == 'known'
+                               and layout.active_stages is not None and cell.stage_id <= layout.active_stages)))
+    return result
+
+
 def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path | None = None) -> dict:
     warnings: list[str] = []
     sc = template["sections"]
@@ -70,6 +92,7 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
     gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE) if image_path is not None else None
     cells = bordered_cells(gray)
     row_cells = {}
+    holding_layout = None
 
     # 区段头 y（保压切换唯一，反向链式锚定：保压=保压切换之上最近，射胶=保压之上最近）
     y_sw = _section_y(toks, sc["switch"]["header"])
@@ -121,12 +144,24 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
         reference = (row_cells['injection'][0][0]
                      if stage_identity(toks, row_cells['injection'], y_inj,
                                        (gray.shape[1], gray.shape[0])) else None)
-        recovery = dict(tokens=toks, title_y=y_hold,
-                        size=(gray.shape[1], gray.shape[0]), reference=reference, gray=gray)
-        hold_rows, row_cells["holding"] = physical_rows(
-            hold_rows, cells, (y_hold+.02)*gray.shape[0], (y_sw-.01)*gray.shape[0],
-            recovery=recovery)
-        detail['reconstructed_cells'] = recovery.get('reconstructed', [])
+        if template.get('profile_id') == 'b_and_r.injection_holding.multi_stage_position_time':
+            holding_layout, hold_rows = build_holding_layout(
+                toks, cells, y_hold*gray.shape[0], y_sw*gray.shape[0],
+                (gray.shape[1], gray.shape[0]), gray, reference)
+            detail['holding_layout'] = layout_evidence(holding_layout)
+            detail['holding_fields'] = _holding_field_readings(holding_layout, vr)
+            row_cells['holding'] = [
+                [holding_layout.observed_borders[bid]
+                 for cell in holding_layout.cells if cell.row_key == key
+                 for bid in cell.observed_border_ids]
+                for key in ('velocity', 'pressure', 'time')]
+            for cell in holding_layout.cells:
+                if cell.reasons:
+                    warnings.append(f"LAYOUT_REVIEW(holding,{cell.row_key},{cell.stage_id},"
+                                    f"{','.join(cell.reasons)})")
+        else:
+            hold_rows, row_cells['holding'] = physical_rows(
+                hold_rows, cells, (y_hold+.02)*gray.shape[0], (y_sw-.01)*gray.shape[0])
     hold: dict[str, list | None] = {"velocity": None, "pressure": None, "time": None}
     hold_tokens: dict[str, list] = {}
     if len(hold_rows) < len(sc["holding"]["rows"]):
@@ -143,12 +178,14 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
         identity["injection"] = stage_identity(toks, row_cells.get("injection"), y_inj,
                                                 (gray.shape[1], gray.shape[0]))
         reference = row_cells["injection"][0][0] if identity["injection"] else None
-        identity["holding"] = stage_identity(toks, row_cells.get("holding"), y_hold,
-                                              (gray.shape[1], gray.shape[0]), reference)
+        identity['holding'] = (holding_layout.stage_identity_verified if holding_layout is not None
+                               else stage_identity(toks, row_cells.get('holding'), y_hold,
+                                                   (gray.shape[1], gray.shape[0]), reference))
         if not identity["injection"] and identity["holding"]:
             identity["injection"] = stage_identity(
                 toks, row_cells.get("injection"), y_inj, (gray.shape[1], gray.shape[0]),
-                row_cells["holding"][0][0])
+                (holding_layout.cells[0].predicted_bbox if holding_layout is not None
+                 else row_cells['holding'][0][0]))
         for section, values in (("injection", inj), ("holding", hold)):
             tokens_by_row = inj_tokens if section == 'injection' else hold_tokens
             detail.setdefault('cell_readings', {})[section] = {
@@ -177,12 +214,15 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
         for i, v in enumerate(hold["time"]):
             if (v or 0) > 0:
                 n_hold = i + 1
+    if holding_layout is not None:
+        n_hold = holding_layout.active_stages or 0
 
     detail["numeric_stage_candidates"] = {"injection": n_inj or None, "holding": n_hold or None}
     verified_cells = {}
     layout_counts = {}
     for section, rows in row_cells.items():
-        count = infer_active_stages(rows) if identity.get(section) else None
+        count = (holding_layout.active_stages if section == 'holding' and holding_layout is not None
+                 else infer_active_stages(rows) if identity.get(section) else None)
         visual_count = _visual_active_count(rows[0], gray) if identity.get(section) else None
         if template.get("profile_id") != "b_and_r.injection_holding.multi_stage_position_time":
             count = visual_count if count == visual_count else None

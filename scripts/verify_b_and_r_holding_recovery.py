@@ -48,30 +48,29 @@ comparison = dict(mode='frozen_real_primary_ocr_extraction_replay', baseline='f7
 raw = cv2.imread(str(image))
 detected = bordered_cells(cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY))
 panels = []
+predictions = [c for c in after['detail']['holding_layout']['cells'] if not c['observed_border_ids']]
 for label, restored in [('BEFORE: detected borders', []),
-                        ('AFTER: green = reconstructed border', after['detail']['reconstructed_cells'])]:
+                        ('AFTER: green = verified logical cell, border unobserved', predictions)]:
     panel = raw.copy()
     for box in detected:
         cv2.rectangle(panel, tuple(box[:2]), tuple(box[2:]), (0, 0, 220), 2)
     for evidence in restored:
-        box = evidence['bbox']
+        box = evidence['predicted_bbox']
         cv2.rectangle(panel, tuple(box[:2]), tuple(box[2:]), (0, 170, 0), 4)
-        cv2.putText(panel, 'restored stage '+str(evidence['stage']), (box[0], box[1]-10),
+        cv2.putText(panel, 'logical stage '+str(evidence['stage_id']), (box[0], box[1]-10),
                     cv2.FONT_HERSHEY_SIMPLEX, .6, (0, 130, 0), 2)
-        for neighbour in evidence['neighbour_bboxes']+[evidence['reference_bbox']]:
-            cv2.rectangle(panel, tuple(neighbour[:2]), tuple(neighbour[2:]), (220, 100, 0), 3)
     cv2.rectangle(panel, (0, 0), (panel.shape[1], 44), (255, 255, 255), -1)
     cv2.putText(panel, label, (15, 30), cv2.FONT_HERSHEY_SIMPLEX, .75, (0, 0, 0), 2)
     panels.append(panel)
 cv2.imwrite(str(OUTPUT / 'reconstruction_evidence.png'), cv2.hconcat(panels))
 rows = ''.join('<tr><td>'+html.escape(key)+'</td><td>'+html.escape(str(before['fields'][key]))+
                '</td><td>'+html.escape(str(value))+'</td></tr>' for key, value in after['fields'].items())
-proof = html.escape(json.dumps(after['detail']['reconstructed_cells'], ensure_ascii=False, indent=2))
+proof = html.escape(json.dumps(predictions, ensure_ascii=False, indent=2))
 (OUTPUT / 'report.html').write_text('''<!doctype html><meta charset="utf-8"><title>B&amp;R 缺格重建核验</title>
 <style>body{font-family:sans-serif;max-width:1500px;margin:30px auto;padding:20px}img{width:100%}
 table{border-collapse:collapse}td,th{border:1px solid #bbb;padding:8px}pre{white-space:pre-wrap}</style>
 <h1>B&amp;R 保压缺格重建核验</h1><p>真实照片、冻结主 OCR 的提取回放，非重新 OCR，未部署。
-基线 f7fd322。红框为公共检测器原始结果，绿框为重建格，蓝框为相邻格和跨行参考证据。</p>
+基线 f7fd322。红框为公共检测器原始结果，绿框为已验证映射的逻辑格，不能解释成检测到了真实边框。</p>
 <img src="reconstruction_evidence.png"><h2>字段前后对照</h2>
 <table><tr><th>字段</th><th>修改前</th><th>修改后</th></tr>'''+rows+'''</table>
 <h2>重建证据</h2><pre>'''+proof+'''</pre><h2>独立 OCR 问题</h2>

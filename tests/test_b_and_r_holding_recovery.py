@@ -41,10 +41,11 @@ def test_real_missed_border_recovers_pressure_and_time_without_correcting_ocr(cu
     assert result['fields']['holding_pressure_bar'] == [45., 90.]
     assert result['fields']['holding_time_s'] == [2., 2.]
     assert result['fields']['holding_stages'] == 2
-    recovered = result['detail']['reconstructed_cells']
+    recovered = [c for c in result['detail']['holding_layout']['cells'] if not c['observed_border_ids']]
     assert len(recovered) == 1
-    assert recovered[0]['row'] == 1 and recovered[0]['stage'] == 1
-    assert recovered[0]['neighbour_bboxes'] and recovered[0]['reference_bbox']
+    assert recovered[0]['row_key'] == 'pressure' and recovered[0]['stage_id'] == 1
+    assert recovered[0]['predicted_bbox'] and recovered[0]['evidence']
+    assert recovered[0]['mapping_status'] == 'verified'
     # Keep OCR defects visible; geometry must never manufacture/correct numbers.
     assert result['fields']['holding_velocity_pct'] == [6., 10.]
     assert result['fields']['injection_velocity_pct'] is None
@@ -61,10 +62,10 @@ def test_real_missed_border_recovers_pressure_and_time_without_correcting_ocr(cu
     ([(2, 0)], False, True),  # Recover time from the complete pressure row.
     ([(2, 1)], False, True),
     ([(2, 0), (2, 2)], False, True),
-    ([(1, 1), (2, 1)], False, False),  # Neither lower reference row is complete.
-    ([(0, 0)], False, False),  # First speed cell: no verified stage lattice.
+    ([(1, 1), (2, 1)], False, True),  # Labels/OCR keep both row identities without full rows.
+    ([(0, 0)], False, True),  # First speed OCR + verified sibling preserve stage one.
     ([], True, False),  # Half-column pressure displacement.
-    ([(1, 0), (1, 1), (1, 2)], False, False),  # No adjacent cell evidence.
+    ([(1, 0), (1, 1), (1, 2)], False, True),  # Complete pressure readings need no border.
 ])
 def test_real_three_stage_border_faults(three_stage_photo, monkeypatch, missing, shift, recover):
     image, tokens, truth, template = three_stage_photo
@@ -81,20 +82,22 @@ def test_real_three_stage_border_faults(three_stage_photo, monkeypatch, missing,
     result = extraction.extract_injection_b_and_r(copy.deepcopy(tokens), template, image)
     if recover:
         assert result['fields'] == truth
-        assert len(result['detail']['reconstructed_cells']) == len(missing)
+        predicted = [c for c in result['detail']['holding_layout']['cells'] if not c['observed_border_ids']]
+        assert len(predicted) == len(missing)
+        assert all(c['mapping_status'] == 'verified' for c in predicted)
         for row in result['detail']['cell_readings']['holding'].values():
             assert all(cell['identity_verified'] for cell in row)
     else:
         assert result['fields']['holding_pressure_bar'] is None
-        assert result['fields']['holding_time_s'] is None
-        assert result['fields']['holding_stages'] is None
-        assert 'STAGE_IDENTITY_UNVERIFIED(holding)' in result['warnings']
+        assert result['fields']['holding_time_s'] == truth['holding_time_s']
+        assert result['fields']['holding_stages'] == truth['holding_stages']
         # Preserve actual OCR readings, without assigning an unproved stage.
         facts = result['detail']['ocr_rows']['holding']
         assert any(cell['value'] == truth['holding_pressure_bar'][0] for row in facts for cell in row)
         assert all(cell['stage'] is None and not cell['identity_verified'] for row in facts for cell in row)
-        assert not any(f['section'] == 'holding' and f['state'] == 'enabled'
+        assert not any(f['section'] == 'holding' and f['label'].startswith('保压压力')
                        for f in result['detail']['page_observations']['fields'])
+        assert any('OFF_AXIS_BORDER' in c['reasons'] for c in result['detail']['holding_layout']['cells'])
 
 
 def test_conflicting_stage_number_blocks_reconstruction(current_photo):
@@ -104,7 +107,8 @@ def test_conflicting_stage_number_blocks_reconstruction(current_photo):
     next(t for t in tokens if t['text'] == '3')['text'] = '2'
     result = extraction.extract_injection_b_and_r(tokens, template, image)
     assert result['fields']['holding_pressure_bar'] is None
-    assert not result['detail']['reconstructed_cells']
+    assert not result['detail']['holding_layout']['stage_identity_verified']
+    assert all(c['mapping_status'] == 'needs_review' for c in result['detail']['holding_layout']['cells'])
     # Unverified injection mappings preserve readings and confidence for review.
     cells = result['detail']['cell_readings']['injection']['pressure']
     assert [cell['value'] for cell in cells] == [110., 120., 120., 100.]
@@ -120,4 +124,4 @@ def test_missing_numeric_ocr_does_not_change_reconstruction(current_photo):
     assert result['fields']['holding_pressure_bar'] is None
     assert result['detail']['raw_rows']['holding']['pressure'] == [None, 90.]
     assert result['fields']['holding_time_s'] == [2., 2.]
-    assert len(result['detail']['reconstructed_cells']) == 1
+    assert sum(not c['observed_border_ids'] for c in result['detail']['holding_layout']['cells']) == 1
