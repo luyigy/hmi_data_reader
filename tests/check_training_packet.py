@@ -8,7 +8,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as directory:
     out = Path(directory)
-    command = [sys.executable, str(root / 'scripts/prepare_training_packet.py'), '--output', directory]
+    command = [sys.executable, str(root / 'scripts/data_tools/prepare_training_packet.py'), '--output', directory]
     subprocess.run(command, check=True, capture_output=True)
     manifest = [json.loads(line) for line in (out / 'manifest.jsonl').read_text().splitlines()]
     inventory = [json.loads(line) for line in (root / 'output/training-prep/review.jsonl').read_text().splitlines()]

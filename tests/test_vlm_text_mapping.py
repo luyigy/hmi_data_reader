@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import vlm_qwen  # noqa: E402
-import vlm_text_eval  # noqa: E402
+import scripts.evaluation.vlm_text_eval as vlm_text_eval
 
 
 CATALOG = {"fields": {

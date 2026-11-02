@@ -3,7 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 from PIL import Image
-from scripts.train_small_sample import read_samples
+from scripts.training.train_small_sample import read_samples
 
 ROOT = Path(__file__).resolve().parents[1]
 CAT = ROOT / 'datasets/hmi/catalog'

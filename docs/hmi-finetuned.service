@@ -5,7 +5,7 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/data1/code/hmi_data_reader
-ExecStart=/data/venvs/hmi-unsloth/bin/python -u -m scripts.serve_finetuned
+ExecStart=/data/venvs/hmi-unsloth/bin/python -u -m scripts.training.serve_finetuned
 Environment=CUDA_VISIBLE_DEVICES=0
 Environment=HF_HUB_OFFLINE=1
 Environment=TRANSFORMERS_OFFLINE=1

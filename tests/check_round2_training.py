@@ -1,6 +1,6 @@
 """CPU-only regression: python3 -m tests.check_round2_training."""
 import json
-from scripts.train_small_sample import ROOT, field_metrics, read_evaluation, read_samples, summarize_fields
+from scripts.training.train_small_sample import ROOT, field_metrics, read_evaluation, read_samples, summarize_fields
 
 truth = {"速度": {"value": 0, "unit": "mm/s"}, "时间": {"value": 2, "unit": "s"}}
 perfect = field_metrics(json.dumps({"fields": truth}), truth)

@@ -2,7 +2,7 @@
 import json
 from types import SimpleNamespace
 from fastapi import HTTPException
-from scripts.serve_unsloth import parse_tool_block, validate_chat_request
+from scripts.training.serve_unsloth import parse_tool_block, validate_chat_request
 
 name, args = parse_tool_block('''<function=read_skill>
 <parameter=path>references/output-schema.md</parameter>

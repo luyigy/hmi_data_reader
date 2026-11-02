@@ -15,10 +15,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import verify_accuracy as va
+import scripts.evaluation.verify_accuracy as va
 import yaml
 
-VERIFY = Path(__file__).resolve().parents[1] / "scripts" / "verify_accuracy.py"
+VERIFY = Path(__file__).resolve().parents[1] / "scripts" / "evaluation/verify_accuracy.py"
 
 CATALOG = {
     "contract_version": "9.9.9-test",

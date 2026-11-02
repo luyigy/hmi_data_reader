@@ -2,7 +2,7 @@
 import io
 from fastapi.testclient import TestClient
 from PIL import Image
-from scripts import serve_finetuned as service
+from scripts.training import serve_finetuned as service
 
 client = TestClient(service.app)
 assert client.get('/').status_code == 200

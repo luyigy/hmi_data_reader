@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import profile_lifecycle as lc
+import scripts.operations.profile_lifecycle as lc
 
 REGISTRY = {
     "version": "1.0.0",
@@ -155,7 +155,7 @@ class CliTest(unittest.TestCase):
         self.registry.write_text(json.dumps(REGISTRY, ensure_ascii=False),
                                  encoding="utf-8")
         self.state = self.tmp / "state.json"
-        self.script = Path(__file__).resolve().parents[1] / "scripts" / "profile_lifecycle.py"
+        self.script = Path(__file__).resolve().parents[1] / "scripts" / "operations/profile_lifecycle.py"
 
     def run_cli(self, *argv: str) -> subprocess.CompletedProcess:
         return subprocess.run(

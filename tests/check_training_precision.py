@@ -11,7 +11,7 @@ import unsloth
 import torch
 from PIL import Image
 from unsloth import FastVisionModel
-from scripts.train_small_sample import BASE, PROMPT, model_loss, read_samples
+from scripts.training.train_small_sample import BASE, PROMPT, model_loss, read_samples
 
 torch.manual_seed(42)
 model, processor = FastVisionModel.from_pretrained(

@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import yaml
 
-import datasets as ds
+import scripts.data_tools.datasets as ds
 
 CATALOG = {
     "contract_version": "9.9.9-test",

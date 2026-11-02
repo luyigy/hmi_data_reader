@@ -6,7 +6,7 @@ import types
 from pathlib import Path
 from unittest.mock import patch
 
-script = Path(__file__).resolve().parents[1] / 'scripts/download_training_model.py'
+script = Path(__file__).resolve().parents[1] / 'scripts/training/download_training_model.py'
 files = [{'Type': 'blob', 'Path': 'model.safetensors', 'Size': 3,
           'Sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'}]
 api = types.ModuleType('modelscope.hub.api')

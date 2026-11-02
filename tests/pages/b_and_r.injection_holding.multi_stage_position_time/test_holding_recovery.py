@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor as extraction
 from export_page_package import export_page_package
 from rectify import rectify
-from verify_b_and_r_stability import MANIFEST, load_sample
+from scripts.extract_families.b_and_r.injection_holding.multi_stage_position_time.verify_stability import MANIFEST, load_sample
 
 
 @pytest.fixture

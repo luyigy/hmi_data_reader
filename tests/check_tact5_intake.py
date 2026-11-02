@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from PIL import Image
-from scripts import train_small_sample as training
+from scripts.training import train_small_sample as training
 
 root = training.ROOT
 catalog = root / 'datasets/hmi/catalog'

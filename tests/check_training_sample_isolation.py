@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from scripts import train_small_sample as training
+from scripts.training import train_small_sample as training
 
 rows = training.read_samples()
 assert rows and all(r["id"] != "bde2ce6c4a7e75f3" for r in rows)

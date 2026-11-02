@@ -2,7 +2,7 @@
 import copy
 import json
 import re
-from scripts.train_small_sample import ROOT, PROMPT, read_samples
+from scripts.training.train_small_sample import ROOT, PROMPT, read_samples
 
 snapshot = ROOT / 'output/training-prep/cleanup-20260926/before.json'
 before = json.loads(snapshot.read_text())

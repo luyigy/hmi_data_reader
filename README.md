@@ -56,7 +56,7 @@ scripts/extract_families/b_and_r/injection_holding/multi_stage_position_time/
 
 ```bash
 PYTHONPATH=scripts:. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest tests -q
-.venv/bin/python scripts/verify_b_and_r_stability.py --output /tmp/br-stability
+.venv/bin/python scripts/extract_families/b_and_r/injection_holding/multi_stage_position_time/verify_stability.py --output /tmp/br-stability
 ```
 
 这些检查区分冻结 OCR 和真实在线 OCR，不代表 mold 已接纳新包。
@@ -78,7 +78,9 @@ PYTHONPATH=scripts:. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest
 
 把每天每台机台约 3-5 张控制屏拍照图片里的设定参数抽取出来，入库回填到飞书 Base，替代每月 ~6000+ 张图的 vision 手动读取，节省 token 成本。
 
-## 当前状态（2026-07-30）
+## 历史研发状态（2026-07-30）
+
+以下为历史记录，包含已撤下的页面；当前运行支持范围以本页上方的单页面说明为准。
 
 **S2 record 级控制器识别 + S4 ZizES 温度页端到端薄切片已跑通（PoC）：**
 
@@ -90,14 +92,14 @@ PYTHONPATH=scripts:. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest
 | 单图 OCR → (text, bbox, conf) JSON | ✅ `scripts/ocr_one.py` |
 | OCR 后处理（品牌模糊匹配 + 同行合并 + 数字约束）| ✅ `scripts/postprocess.py` v0.1.0 |
 | UI 家族识别 + 页面识别（基于 OCR 文本关键词）| ✅ `scripts/classify_ui.py`（含 `score_all_families` 全向量打分）|
-| S2 record 级控制器识别（离线聚合 + dedup 代表选取）| ✅ `scripts/aggregate_record.py` → `output/record_classify_report.json` |
+| S2 record 级控制器识别（离线聚合 + dedup 代表选取）| ✅ `scripts/data_tools/aggregate_record.py` → `output/record_classify_report.json` |
 | 屏幕四角检测 + 透视矫正 | ✅ `scripts/rectify.py`（检测失败降级 MANUAL_SCREEN_CONFIRM）|
 | S4 字段提取（OCR + 归一化模板，VLM 不进提取链路）| ✅ `scripts/extract_fields.py` |
-| S4 真值比对（6 项指标）| ✅ `scripts/verify_accuracy.py` → `output/accuracy_report.json` |
+| S4 真值比对（6 项指标）| ✅ `scripts/evaluation/verify_accuracy.py` → `output/accuracy_report.json` |
 | ZizES 温度页模板（归一化坐标，5 样本校准）| ✅ `templates/zizes.temperature.json` v0.2.0 |
 | S1 机器先验（VLM 草稿 + 人工核验）| ✅ `ground_truth/machine_labels.json` |
 | S3 ZizES 温度页真值集（5 张，逐字段核验）| ✅ `ground_truth/zizes_temperature/` |
-| 主入口流水线（去重 → 质量 → 矫正 → OCR → 分类 → 提取 → 比对）| ✅ `scripts/run_pipeline.py` |
+| 主入口流水线（去重 → 质量 → 矫正 → OCR → 分类 → 提取 → 比对）| ✅ `scripts/operations/run_pipeline.py` |
 | 其余家族模板（KEBA/弘讯/EST/B&R/KAIMING）| ⏳ 待 ZizES 达标后复制 |
 | 入库（lark-cli base +record-upsert）| ⏳ 扩样验证通过前禁止真实自动入库 |
 
@@ -105,38 +107,30 @@ PYTHONPATH=scripts:. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest
 
 ## 项目结构
 
-```
+工具的逐文件说明从 [scripts/README.md](scripts/README.md) 进入。
+
+```text
 hmi_data_reader/
-├── README.md
-├── docs/
-│   ├── 000_INDEX.md
-│   ├── 006_REPORT_20260729_架构重新梳理.md
-│   ├── 007_PLAN_20260730_端到端薄切片实施计划.md
-│   └── samples*/                          # 历史兼容链接 → datasets/hmi/raw/legacy/
-├── ground_truth/
-│   ├── machine_labels.json                # S1 机器先验（唯一先验事实源）
-│   └── zizes_temperature/                 # S3 ZizES 温度页字段级真值（5 张）
+├── hmi_service.py                 # 公共 HTTP 服务
 ├── scripts/
-│   ├── dedup.py                           # SHA-256 去重
-│   ├── quality.py                         # 质量门禁（屏幕/透视/反光/模糊）
-│   ├── rectify.py                         # 屏幕四角检测 + 透视矫正
-│   ├── ocr_one.py                         # 单图 PaddleOCR → 结构化 JSON
-│   ├── postprocess.py                     # OCR 后处理（品牌模糊/同行合并/数字约束）
-│   ├── classify_ui.py                     # UI 家族 + 页面识别（含全向量打分）
-│   ├── aggregate_record.py                # S2 record 级控制器识别（离线聚合）
-│   ├── extract_fields.py                  # S4 字段提取（OCR + 归一化模板）
-│   ├── verify_accuracy.py                 # S4 真值比对（6 项指标）
-│   └── run_pipeline.py                    # 主入口（去重→质量→矫正→OCR→分类→提取→比对）
-├── templates/
-│   └── zizes.temperature.json             # ZizES 温度页模板 v0.2.0（归一化坐标）
-├── models/                                # 模型缓存（占位）
-├── output/
-│   ├── json/                              # 原图 OCR JSON（含 postprocessed 变体）
-│   ├── rectified/                         # 矫正图 + 其 OCR 产物（批量产物，不进 git）
-│   ├── extracted/                         # 字段提取结果（批量产物，不进 git）
-│   ├── record_classify_report.json        # S2 聚合报告
-│   └── accuracy_report.json               # S4 6 项指标报告
-└── .venv/                                 # uv venv（PaddleOCR 2.7 + paddle 2.6）
+│   ├── README.md                  # 运行模块与工具导航
+│   ├── extract_fields.py          # 公共提取编排
+│   ├── page_identity.py           # 页面身份路由
+│   ├── ...                        # 公共 OCR、质量、契约模块
+│   ├── extract_families/          # 控制器/页面/布局独立实现及专属回放
+│   ├── data_tools/                # 图片、标注、数据集治理
+│   ├── training/                  # 模型下载、训练和试验推理服务
+│   ├── evaluation/                # 真值评测、批量识别
+│   ├── diagnostics/               # 标注预览、单图解释
+│   ├── integrations/              # 飞书等外部入口
+│   └── operations/                # 离线流水线、模板与生命周期操作
+├── templates/                     # B&R 活动模板和固定版本包
+├── contracts/                     # 活动页面注册、字段目录与 schema
+├── datasets/                      # 原图、标注、训练/评测清单，不随工具代码移动
+├── ground_truth/                  # 保留的历史真值
+├── tests/                         # 公共测试及独立页面测试
+├── docs/                          # 历史设计、计划和交接
+└── output/                        # 运行和验收产物
 ```
 
 ## 安装与运行
@@ -152,11 +146,11 @@ source .venv/bin/activate
 # uv pip install paddleocr==2.7.3 paddlepaddle==2.6.2 numpy opencv-python-headless
 
 # 运行完整流水线（去重 → 质量 → 矫正 → OCR → 分类 → 提取 → 真值比对）
-python scripts/run_pipeline.py docs/samples_v3 --output output/pipeline_report.json \
+python scripts/operations/run_pipeline.py docs/samples_v3 --output output/pipeline_report.json \
     --extract --verify ground_truth/zizes_temperature --verify-output output/accuracy_report.json
 
 # S2 record 级控制器识别（离线聚合，唯一规范输入 *.ocr.postprocessed.json）
-python scripts/aggregate_record.py output/json --labels ground_truth/machine_labels.json \
+python scripts/data_tools/aggregate_record.py output/json --labels ground_truth/machine_labels.json \
     --output output/record_classify_report.json
 
 # 单独跑去重
@@ -174,7 +168,7 @@ python scripts/rectify.py docs/samples/jiaming_Z052_t1_炮筒.jpeg output/rectif
 
 # 单独跑字段提取 / 真值比对
 python scripts/extract_fields.py --all --rectified-dir output/rectified --output-dir output/extracted
-python scripts/verify_accuracy.py output/extracted --truth ground_truth/zizes_temperature \
+python scripts/evaluation/verify_accuracy.py output/extracted --truth ground_truth/zizes_temperature \
     --output output/accuracy_report.json
 ```
 
@@ -185,12 +179,12 @@ VLM 混合链只用于离线实验，尚未替代生产模板。可直接用已�
 哪条路、用了哪个模板、为何禁止自动导入，以及逐字段真值差异：
 
 ```bash
-.venv/bin/python scripts/explain_case.py barrel_A11_9835fbea \
+.venv/bin/python scripts/diagnostics/explain_case.py barrel_A11_9835fbea \
   --rectified-dir output/s083_direct_fixes/rectified \
   --truth datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_9835fbea.truth.yml \
   --no-priors
 
-.venv/bin/python scripts/explain_case.py hr_B03_54b7a68e \
+.venv/bin/python scripts/diagnostics/explain_case.py hr_B03_54b7a68e \
   --rectified-dir output/s075_rf/rectified \
   --truth datasets/holdout/tact.hot_runner_temp.digital_sv/hr_B03_54b7a68e.truth.yml \
   --no-priors

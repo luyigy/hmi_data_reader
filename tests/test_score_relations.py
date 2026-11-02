@@ -1,7 +1,7 @@
 """One focused check of the frozen five-dimensional scoring contract."""
 import pytest
 
-from scripts.score_relations import score_relations
+from scripts.evaluation.score_relations import score_relations
 
 
 def test_relation_scoring():
