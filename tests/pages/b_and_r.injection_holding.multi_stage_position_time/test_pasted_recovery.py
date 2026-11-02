@@ -10,7 +10,7 @@ import pytest
 
 ROOT = next(p for p in Path(__file__).resolve().parents if (p / "contracts/profiles.json").is_file())
 sys.path.insert(0, str(ROOT / 'scripts'))
-import extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor as extraction
+import extract_families.b_and_r.injection_holding.extractor as extraction
 from export_page_package import export_page_package
 from rectify import rectify
 

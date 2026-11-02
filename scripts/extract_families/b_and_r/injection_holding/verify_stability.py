@@ -1,12 +1,12 @@
 """Replay frozen OCR and original B&R photographs; export field-level evidence.
 
-Run: .venv/bin/python scripts/extract_families/b_and_r/injection_holding/multi_stage_position_time/verify_stability.py --output artifacts/br_stability
+Run: .venv/bin/python scripts/extract_families/b_and_r/injection_holding/verify_stability.py --output artifacts/br_stability
 This evaluates extraction, not the OCR model itself or Model-side preselection.
 """
 
 from pathlib import Path as _ToolPath
 import sys as _tool_sys
-_tool_root = _ToolPath(__file__).resolve().parents[5]
+_tool_root = _ToolPath(__file__).resolve().parents[4]
 _tool_sys.path.insert(0, str(_tool_root))
 _tool_sys.path.insert(0, str(_tool_root / "scripts"))
 
@@ -21,13 +21,13 @@ import cv2
 import numpy as np
 
 from export_page_package import export_page_package
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor import extract_injection_b_and_r
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.observations import ROWS
+from extract_families.b_and_r.injection_holding.extractor import extract_injection_b_and_r
+from extract_families.b_and_r.injection_holding.observations import ROWS
 from extract_families.coordinates import project_boxes
 from extract_families.visual_cells import cell_glyph_evidence
 from rectify import warp_to_screen
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[4]
 MANIFEST = ROOT / 'tests/fixtures/b_and_r_stability/manifest.json'
 
 

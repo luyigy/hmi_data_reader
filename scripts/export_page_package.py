@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dict:
     if profile_id != "b_and_r.injection_holding.multi_stage_position_time":
         raise ValueError(f"Unsupported page: {profile_id}")
-    if version in ("0.6.0", "0.6.1"):
+    if version in ("0.6.0", "0.6.1", "0.6.2"):
         try:
-            from extract_families.b_and_r.injection_holding.multi_stage_position_time.raw_observations import bole_injection_package
+            from extract_families.b_and_r.injection_holding.package import bole_injection_package
         except ModuleNotFoundError:
-            from scripts.extract_families.b_and_r.injection_holding.multi_stage_position_time.raw_observations import bole_injection_package
+            from scripts.extract_families.b_and_r.injection_holding.package import bole_injection_package
         return bole_injection_package(root, version)
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError(f"Invalid page version: {version}")

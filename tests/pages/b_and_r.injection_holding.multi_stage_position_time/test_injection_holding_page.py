@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from export_page_package import export_page_package
 from contract import attach_contract
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor import extract_injection_b_and_r
+from extract_families.b_and_r.injection_holding.extractor import extract_injection_b_and_r
 from page_template_registry import registered_page_templates
 import extract_fields
 
@@ -58,7 +58,7 @@ def test_z050_legacy_and_registered_routes_share_image_adapter(tmp_path):
 
 
 def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_path):
-    from extract_families.b_and_r.injection_holding.multi_stage_position_time.observations import b_and_r_page_observations
+    from extract_families.b_and_r.injection_holding.observations import b_and_r_page_observations
 
     template = export_page_package(PID, "0.1.1")["template"]
     fields = {
@@ -108,7 +108,7 @@ def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_pat
 
 
 def test_z050_holding_two_active_stages_with_only_three_visible_cells(tmp_path):
-    from extract_families.b_and_r.injection_holding.multi_stage_position_time.observations import b_and_r_page_observations
+    from extract_families.b_and_r.injection_holding.observations import b_and_r_page_observations
 
     template = export_page_package(PID, "0.1.1")["template"]
     fields = {

@@ -12,9 +12,9 @@ ROOT = next(p for p in Path(__file__).resolve().parents if (p / "contracts/profi
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 from export_page_package import export_page_package
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor import extract_injection_b_and_r
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.layout import infer_active_stages
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.observations import _visual_active_count
+from extract_families.b_and_r.injection_holding.extractor import extract_injection_b_and_r
+from extract_families.b_and_r.injection_holding.layout import infer_active_stages
+from extract_families.b_and_r.injection_holding.observations import _visual_active_count
 from rectify import rectify
 
 PID = 'b_and_r.injection_holding.multi_stage_position_time'
@@ -91,7 +91,7 @@ def test_bad_value_cannot_shift_other_stages_or_erase_layout_evidence(current_ph
 
 
 def test_positive_gray_conflict_rejects_layout(current_photo, monkeypatch):
-    import extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor as plugin
+    import extract_families.b_and_r.injection_holding.extractor as plugin
     image, tokens, template = current_photo
     monkeypatch.setattr(plugin, '_visual_active_count', lambda cells, gray: 1)
     result = plugin.extract_injection_b_and_r(tokens, template, image_path=image)

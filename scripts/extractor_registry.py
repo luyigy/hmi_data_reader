@@ -8,7 +8,7 @@ from page_identity import page_identity_match  # Backward-compatible import; rou
 # IDs are code-owned; template data cannot supply Python imports.
 _EXTRACTORS = {
     "b_and_r.injection_metering": (
-        "b_and_r.injection_holding.multi_stage_position_time.extractor",
+        "b_and_r.injection_holding.extractor",
         "extract_injection_b_and_r", "tokens", True, ("injection_metering",)),
 }
 

@@ -1,17 +1,24 @@
 """Extract fields for the supported B&R injection/holding profile."""
+
+# 字段提取层：布局确定格子归属后，这里读取数值、核对范围/置信度，并保留待核对原因。
+# v1 入口 extract_injection_b_and_r；v2 兼容入口 observe_bole_injection。
+# 两种入口的布局均从 layout.py 获取；v2 仍保留旧定义的定位规则，未伪装成统一算法。
+# 这里不管理版本包发布，也不决定 mold 标准参数的业务去向。
+
 import re
 from pathlib import Path
 
 import cv2
 
-from .layout import infer_active_stages, physical_rows, stage_identity
-from .holding_layout import build_holding_layout, layout_evidence
-from .headers import section_headers
+from .layout import infer_active_stages, physical_rows, stage_identity, _section_y, _value_rows, VALUE_TEXT as NUM
+from .layout import build_holding_layout, layout_evidence, build_raw_layout, _visual_active_count
+from .page_identity import section_headers
 from extract_families.visual_cells import bordered_cells
 from extract_families.common import _anchor_match  # noqa: F401
-from .observations import b_and_r_page_observations, _visual_active_count
+from .observations import b_and_r_page_observations, build_raw_observations
+from .package import ROOT, PROFILE, VERSION, bole_injection_package
+from raw_page import _line_box
 
-NUM = re.compile(r"\d+\.?\d*")
 
 
 def _first_num(text: str) -> float | None:
@@ -19,30 +26,8 @@ def _first_num(text: str) -> float | None:
     return float(m.group()) if m else None
 
 
-def _section_y(toks, header, anchor_after=None):
-    """深色条区段标题（居中 x 0.35~0.65，无固定 y 窗——照片倾斜/裁剪逐图漂移）。
-    anchor_after：有多个同名命中时，取 y 大于该值中最近的一个（射胶<保压<保压切换 链式定位）。"""
-    hits = [t for t in toks
-            if 0.35 < t["x"] < 0.65 and _anchor_match(header, t["text"])]
-    if anchor_after is not None:
-        hits = [t for t in hits if t["y"] > anchor_after]
-    return min(hits, key=lambda t: t["y"])["y"] if hits else None
 
 
-def _value_rows(toks, y_lo, y_hi, gap):
-    """区段内数值 token 按 y 聚类成值行（上→下），每行内按 x 降序=段1→段N。
-    段头裸数字（'1'..'5'）排除——本页值均为 X.X 形态。"""
-    sel = [t for t in toks if y_lo < t["y"] < y_hi and t["x"] > 0.1
-           and _first_num(t["text"]) is not None
-           and not re.fullmatch(r"\d{1,2}", t["text"].strip())]
-    sel.sort(key=lambda t: t["y"])
-    clusters = []
-    for t in sel:
-        if clusters and t["y"] - clusters[-1][-1]["y"] <= gap:
-            clusters[-1].append(t)
-        else:
-            clusters.append([t])
-    return [sorted(cl, key=lambda t: -t["x"]) for cl in clusters]
 
 
 def _row_values(cluster, rng, parse):
@@ -322,3 +307,48 @@ def extract_injection_b_and_r(toks: list[dict], template: dict, image_path: Path
                        or row["stage"] <= (fields.get(f"{row['section']}_stages") or 0)],
         }
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}
+
+
+NUMBER = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)\s*(mm/s|mm|bar|%|sec|s)?\s*$", re.I)
+
+def observe_bole_injection(lines, meta, image_sha256, root=ROOT):
+    """v2 兼容读值入口：布局给候选位置，本函数读取数值/单位，观测模块封装结果。"""
+    if image_sha256 is not None and not re.fullmatch(r"[a-f0-9]{64}", image_sha256):
+        raise ValueError("IMAGE_HASH_INVALID")
+    package = bole_injection_package(root)
+    entries, issues = build_raw_layout(lines, meta, package["raw_field_definition"], NUMBER)
+    fields = []
+    for entry in entries:
+        spec, source_label, header = entry['spec'], entry['source_label'], entry['header']
+        options, order, conflict = entry['options'], entry['order'], entry['conflict']
+        cells = entry['cells']
+        source = options[0] if len(options) == 1 and not conflict else None
+        unit = source["match"][2] if source else None
+        if source and unit is None:
+            unit_cells = [c for c in cells if c["text"].lower() in {"%", "bar", "mm", "mm/s", "sec", "s"}
+                          and abs(c["y"] - source["y"]) < .015 and c["x"] > source["x"]
+                          and (c["x"] - source["x"] < .16 or spec.get("stage"))]
+            units = {c["line"]["text"] for c in unit_cells}
+            unit = next(iter(units)) if len(units) == 1 else None
+        confidence = source["line"].get("conf", source["line"].get("confidence", 0)) if source else None
+        reading = ("unsupported" if spec.get("value_type") == "boolean" else
+                   "conflict" if conflict or len(options) > 1 else "missing" if source is None else
+                   "uncertain" if confidence < .9 or source_label["text"] != spec["label"]
+                   or spec.get("stage") and (header is None or header["line"].get("conf", 0) < .9) else "known")
+        if unit and ("s" if unit.lower() == "sec" else unit.lower()) != spec["unit"]:
+            reading = "conflict"
+        field = {key: spec[key] for key in ("screen_field_key", "section", "role", "stage", "segment_id", "time_kind") if key in spec}
+        field.update(source="image_recognition", original_label=source_label["line"]["text"] if source_label else None,
+                     original_value=float(source["match"][1]) if source else None,
+                     original_unit=unit, effective_unit=unit or spec["unit"], state="unknown", reading=reading,
+                     order=order, identity_basis="ocr_header" if header else "frozen_field_definition",
+                     bbox=_line_box(source["line"]) if source else None, original_bbox=None,
+                     text=source["line"]["text"] if source else None, confidence=confidence,
+                     reasons=["enable_state_unverified"],
+                     template_ref=dict(profile_id=PROFILE, version=VERSION,
+                                       sha256=package["raw_field_definition_sha256"],
+                                       unit=spec["unit"] if unit is None else None))
+        if reading != "known":
+            issues.append(dict(code="READING_" + reading.upper(), screen_field_key=spec["screen_field_key"]))
+        fields.append(field)
+    return build_raw_observations(fields, issues, lines, meta, image_sha256, package)

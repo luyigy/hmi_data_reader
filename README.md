@@ -30,17 +30,16 @@
 页面代码集中于：
 
 ```text
-scripts/extract_families/b_and_r/injection_holding/multi_stage_position_time/
-├── page_identity.py       # 页面身份
-├── headers.py             # 本页区段标题证据
-├── layout.py              # 物理行列、段号
-├── holding_layout.py      # 保压逻辑网格
-├── extractor.py           # 字段提取
-├── observations.py        # v1 原屏观测
-└── raw_observations.py    # v2 原屏观测与版本包
+scripts/extract_families/b_and_r/injection_holding/
+├── page_identity.py       # 页面身份与结构标题证据
+├── layout.py              # 射胶/保压布局，含中文算法讲解
+├── extractor.py           # v1/v2 字段读值
+├── observations.py        # 原屏观测输出
+├── package.py             # 固定版本包和源码哈希
+└── verify_stability.py    # 页面冻结回放
 ```
 
-目录按完整 profile 的三段组织：`<controller>/<page>/<layout>/`。新增页面在自己的目录实现，
+目录按控制器和具体页面组织：`<controller>/<page>/`。完整 profile 是注册身份，不机械映射目录层级。新增页面在自己的目录实现，
 再接入公共 `page_identity.py` 与 `extractor_registry.py`，不得向 HTTP/CLI 添加页面分支。
 `common.py`、`visual_cells.py`、`coordinates.py` 是公共原语。
 测试位于 `tests/pages/b_and_r.injection_holding.multi_stage_position_time/`，共用入口边界测试位于
@@ -49,14 +48,14 @@ scripts/extract_families/b_and_r/injection_holding/multi_stage_position_time/
 - `contracts/profiles.json`：活动页面登记表，只登记当前一个页面及模板路径。
 - `templates/b_and_r/injection_holding.json`：活动 v1 模板。
 - `templates/raw-packages/<profile>/<version>.json`：不可原地修改的 v2 交付包。
-  原 `0.6.0` 保留用于文档回放；整理后的源码身份使用新 `0.6.1`。
+  原 `0.6.0`、`0.6.1` 保留用于历史导出；当前源码身份使用新 `0.6.2`。
 - `contracts/field_catalog.json` 和公共 schema：保持现有契约，字段存在不等于页面已支持。
 
 离线验证：
 
 ```bash
 PYTHONPATH=scripts:. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest tests -q
-.venv/bin/python scripts/extract_families/b_and_r/injection_holding/multi_stage_position_time/verify_stability.py --output /tmp/br-stability
+.venv/bin/python scripts/extract_families/b_and_r/injection_holding/verify_stability.py --output /tmp/br-stability
 ```
 
 这些检查区分冻结 OCR 和真实在线 OCR，不代表 mold 已接纳新包。

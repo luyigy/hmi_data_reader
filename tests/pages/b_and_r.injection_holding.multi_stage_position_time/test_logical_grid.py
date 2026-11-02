@@ -10,8 +10,8 @@ import pytest
 ROOT = next(p for p in Path(__file__).resolve().parents if (p / "contracts/profiles.json").is_file())
 sys.path.insert(0, str(ROOT/'scripts'))
 from export_page_package import export_page_package
-import extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor as plugin
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.holding_layout import build_holding_layout
+import extract_families.b_and_r.injection_holding.extractor as plugin
+from extract_families.b_and_r.injection_holding.layout import build_holding_layout
 from rectify import rectify
 
 

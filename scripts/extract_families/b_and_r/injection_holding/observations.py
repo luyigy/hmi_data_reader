@@ -1,8 +1,17 @@
 """Expose the B&R injection/holding physical page to the review contract."""
 
+# 观测输出层：接收已提取的字段，保留原值、单位来源、状态、图像框和问题，组装 v1/v2 合同。
+# 本文件不再包含 v2 的标题/段号/数值定位过程。坐标回投使用公共 project_boxes。
+# v2 的 unknown 启用态保持原语义，不因为目录整理而自动放行。
+
+
 import cv2
 
-from extract_families.visual_cells import cell_glyph_evidence
+from .layout import _visual_active_count
+from .package import PROFILE, VERSION
+from raw_contract import canonical_hash
+from extract_families.coordinates import project_boxes
+import copy
 
 
 ROWS = {
@@ -20,22 +29,6 @@ SCALARS = {
 }
 
 
-def _visual_active_count(cells: list, gray) -> int | None:
-    """B&R semantics: one verified dark-to-gray boundary on physical cells.
-
-    OCR confidence and token count cannot establish cell visibility. The same
-    physical image yields the same state evidence even when OCR misses text.
-    """
-    if gray is None or not cells:
-        return None
-    evidence = [cell_glyph_evidence(gray, box) for box in cells]
-    if any(item is None or item["contrast"] is None for item in evidence):
-        return None
-    contrasts = [item["contrast"] for item in evidence]
-    candidates = [split for split in range(1, len(cells))
-                  if min(contrasts[:split]) - max(contrasts[split:]) >= 25
-                  and min(contrasts[:split]) >= 1.2 * max(contrasts[split:])]
-    return candidates[0] if len(candidates) == 1 else None
 
 
 def b_and_r_page_observations(fields: dict, template: dict, source_tokens: dict | None = None,
@@ -88,3 +81,22 @@ def b_and_r_page_observations(fields: dict, template: dict, source_tokens: dict 
     return dict(version="1.0", profile_id=template["profile_id"],
                 coordinate_space="original_percent", fields=observations,
                 stage_counts={}, visual_stage_counts={k: v for k, v in visual_counts.items() if k == "injection"})
+
+
+def build_raw_observations(fields, issues, lines, meta, image_sha256, package):
+    """把读值结果包装成 v2 原屏合同；不选模板、不定位、不纠正数值。"""
+    definition = package["raw_field_definition"]
+    project_boxes(fields, meta)
+    for field in fields:
+        if field["original_bbox"] is None:
+            field["reasons"].append("source_box_unavailable")
+    transform = copy.deepcopy(meta)
+    transform.update(rectifier_input_sha256=meta.get("original_sha256"), original_sha256=image_sha256)
+    return dict(schema_version="page_observations.v2", source="image_recognition", profile_id=PROFILE,
+                page_identity=definition["page_identity"], image_sha256=image_sha256,
+                original_size=meta.get("original_size"), coordinate_space="original_percent", transform=transform,
+                raw_field_definition_sha256=package["raw_field_definition_sha256"],
+                raw_field_definition_version=VERSION, raw_contract_sha256=package["raw_contract_sha256"],
+                recognizer=package["recognizer"], package_sha256=canonical_hash(package), fields=fields, issues=issues,
+                ocr_evidence=dict(coordinate_space="rectified_pixels", screen_size=meta["screen_size"], lines=lines),
+                coverage=dict(status="partial", declared=len(fields), known=sum(f["reading"] == "known" for f in fields)))

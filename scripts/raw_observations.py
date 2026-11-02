@@ -1,7 +1,6 @@
 """Dispatch v2 observations for the registered B&R injection/holding page."""
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.raw_observations import (
-    PROFILE, ROOT, observe_bole_injection,
-)
+from extract_families.b_and_r.injection_holding.package import PROFILE, ROOT
+from extract_families.b_and_r.injection_holding.extractor import observe_bole_injection
 
 
 class RawPageRejected(ValueError):
@@ -21,7 +20,7 @@ def select_raw_profile(profile_id, lines):
 def observe_temperature_time_page(profile_id, lines, meta, image_sha256, rectified_image=None,
                                   package_root=ROOT, package_version="1.0.0"):
     select_raw_profile(profile_id, lines)
-    if package_version == "0.6.0":
+    if package_version in ("0.6.0", "0.6.1"):
         raise RawPageRejected("RAW_PAGE_VERSION_UNSUPPORTED", profile_id)
     try:
         return observe_bole_injection(lines, meta, image_sha256, package_root)

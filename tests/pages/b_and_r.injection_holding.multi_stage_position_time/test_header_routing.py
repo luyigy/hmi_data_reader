@@ -9,8 +9,8 @@ import pytest
 
 ROOT = next(p for p in Path(__file__).resolve().parents if (p / "contracts/profiles.json").is_file())
 sys.path.insert(0, str(ROOT / 'scripts'))
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.headers import section_headers
-from extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor import extract_injection_b_and_r
+from extract_families.b_and_r.injection_holding.page_identity import section_headers
+from extract_families.b_and_r.injection_holding.extractor import extract_injection_b_and_r
 from extractor_registry import page_identity_match
 from page_template_registry import registered_page_templates, resolve_page_template
 from rectify import rectify
@@ -120,7 +120,7 @@ def test_insufficient_or_contradictory_local_fingerprints_remain_unknown(evidenc
 
 
 def test_routing_does_not_execute_value_extractor(evidence, monkeypatch):
-    import extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor as extractor
+    import extract_families.b_and_r.injection_holding.extractor as extractor
     _, ocr = evidence
 
     def forbidden(*args, **kwargs):

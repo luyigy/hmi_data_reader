@@ -5,7 +5,7 @@ from math import isfinite
 
 PLUGINS = {
     'b_and_r.injection_holding.multi_stage_position_time':
-        (('B_AND_R',), 'b_and_r.injection_holding.multi_stage_position_time.page_identity'),
+        (('B_AND_R',), 'b_and_r.injection_holding.page_identity'),
 }
 
 
