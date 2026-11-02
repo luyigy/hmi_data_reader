@@ -7,6 +7,7 @@ class KimiTranscript {
     this.seq = 0;
     this.frames = new Map();
     this.steps = new Map();
+    this.turn = undefined;
     this.seenTools = new Set();
     this.thinking = new Set();
     this.subagents = 0;
@@ -30,7 +31,10 @@ class KimiTranscript {
   }
 
   apply(op) {
-    if (op.op === 'step.upsert') {
+    if (op.op === 'turn.upsert') {
+      // Retain only failure metadata; a turn also carries the original user prompt.
+      this.turn = { id: op.turn.turnId, state: op.turn.state, error: op.turn.error };
+    } else if (op.op === 'step.upsert') {
       this.steps.set(op.step.stepId, op.step);
     } else if (op.op === 'frame.upsert') {
       const frame = op.frame;
@@ -80,6 +84,17 @@ class KimiTranscript {
   publish(id) {
     const text = this.frames.get(id)?.text;
     if (text) this.emit({ type: 'progress', id, text, phase: 'commentary' });
+  }
+
+  failureMessage() {
+    const last = [...this.steps.values()].at(-1);
+    const error = this.turn?.state === 'failed' && typeof this.turn.error === 'string' && this.turn.error.trim()
+      ? this.turn.error
+      : (!this.turn || (this.turn.state === 'failed' && last?.turnId === this.turn.id)) && last?.endReason === 'error'
+        ? last.endMessage : undefined;
+    if (typeof error !== 'string' || !error.trim()) return undefined;
+    const label = /\b429\b[\s\S]*\b(?:quota|usage limit)\b/i.test(error) ? 'Kimi 额度已耗尽' : 'Kimi 执行失败';
+    return `${label}：${error.trim().slice(0, 2000)}`;
   }
 
   finish() {

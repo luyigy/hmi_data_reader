@@ -85,7 +85,8 @@
     "check:ticket-admission": "node scripts/check-task-admission.mjs",
     "test:session-history": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/session-history.test.ts && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/session-history-cleanup.test.ts",
     "test:session-history-activation": "node tests/session-history-activation.test.mjs && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/session-history-readiness.test.ts",
-    "test:session-history-ui": "node tests/session-history-ui.test.cjs"
+    "test:session-history-ui": "node tests/session-history-ui.test.cjs",
+    "test:kimi-quota-native": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/kimi-quota-native.test.ts"
   },
   "prisma": {
     "seed": "ts-node prisma\\seed.ts"

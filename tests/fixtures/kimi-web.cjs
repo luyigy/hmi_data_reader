@@ -14,6 +14,14 @@ function complete() {
   if (mode === 'crash') process.exit(1);
   if (mode === 'disconnect') { peers.forEach(peer => peer.close()); return; }
   if (mode === 'hang' || mode === 'stop' || mode === 'unknown') return;
+  if (mode === 'quota') {
+    ops([
+      { op: 'step.upsert', step: { kind: 'step', stepId: 't0.1', turnId: 't0', ordinal: 1, state: 'interrupted', endReason: 'error', endMessage: '[provider.api_error] 429 quota exhausted' } },
+      { op: 'turn.upsert', turn: { kind: 'turn', turnId: 't0', state: 'failed', error: "429 You've reached your 5-hour usage limit. Your quota will reset when the current 5-hour window ends. fixture-private-token" } },
+    ]);
+    busy = false; send({ type: 'event.session.work_changed', payload: { busy: false, last_turn_reason: 'failed' } });
+    return;
+  }
   ops([
     { op: 'step.upsert', step: { stepId: 't0.1', ordinal: 1, state: 'completed' } },
     { op: 'frame.upsert', stepId: 't0.1', frame: { frameId: 'text', kind: 'text', role: 'assistant', text: 'done:' + texts.join('|') } },
@@ -27,7 +35,7 @@ const server = createServer((req, res) => {
     const request = body ? JSON.parse(body) : {};
     const path = req.url;
     const respond = (data, code = 0) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ code, msg: code ? 'fixture rejected' : 'success', data })); };
-    if (path === '/api/v1/sessions' || path === '/api/v1/sessions/' + id) return respond({ id, metadata: { cwd: process.cwd() }, busy, last_turn_reason: 'completed' });
+    if (path === '/api/v1/sessions' || path === '/api/v1/sessions/' + id) return respond({ id, metadata: { cwd: process.cwd() }, busy, last_turn_reason: mode === 'quota' ? 'failed' : 'completed' });
     if (path.endsWith('/status')) return respond({ model: 'fixture', busy });
     if (path.endsWith('/config')) return respond({ default_model: 'fixture' });
     if (path.endsWith('/prompts:steer')) return respond({ steered: true });

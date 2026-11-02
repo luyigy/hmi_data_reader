@@ -184,7 +184,7 @@ input.on('line', line => {
         const observed = revision;
         const session = await api(sessionPath());
         if (session.busy || pending || observed !== revision) return;
-        if (session.last_turn_reason !== 'completed') throw new Error(`Kimi turn ended: ${session.last_turn_reason || 'unknown'}`);
+        if (session.last_turn_reason !== 'completed') throw new Error(transcript.failureMessage() || `Kimi turn ended: ${session.last_turn_reason || 'unknown'}`);
         emit({ type: 'result', output: transcript.finish(), sessionId });
         await stop();
       })().catch(fail).finally(() => { finishing = false; });

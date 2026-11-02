@@ -20,7 +20,7 @@ async function main() {
     const base = { binary: path.join(process.cwd(), 'tests/fixtures/kimi-web.cjs'), configPaths: [], prompt: 'original', workingDirectory: dir, timeout: 10000 };
     const long = await runKimiServer({ ...base, prompt: 'x'.repeat(400), env: process.env });
     assert.equal(long.output, 'done:' + 'x'.repeat(400), 'final output is not a short progress preview');
-    for (const mode of ['success', 'reject', 'unknown', 'disconnect', 'crash', 'hang', 'stop']) {
+    for (const mode of ['quota', 'success', 'reject', 'unknown', 'disconnect', 'crash', 'hang', 'stop']) {
       const pidFile = path.join(dir, mode + '.json');
       let release = 0, control: HarnessSteer | undefined;
       let receipt: Promise<string> | undefined, duplicate: Promise<string> | undefined;
@@ -39,7 +39,13 @@ async function main() {
           onStdoutChunk: text => { progress.push(text); },
         },
       });
-      if (['disconnect', 'crash', 'hang', 'stop'].includes(mode)) await assert.rejects(promise, mode === 'disconnect' ? /connection lost/ : mode === 'hang' ? /timed out/ : mode === 'crash' ? /server exited/ : /ended/);
+      if (mode === 'quota') await assert.rejects(promise, error => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /Kimi 额度已耗尽.*429.*5-hour usage limit/);
+        assert.doesNotMatch(error.message, /fixture-private-token|DO_NOT_DISCLOSE/);
+        return true;
+      });
+      else if (['disconnect', 'crash', 'hang', 'stop'].includes(mode)) await assert.rejects(promise, mode === 'disconnect' ? /connection lost/ : mode === 'hang' ? /timed out/ : mode === 'crash' ? /server exited/ : /ended/);
       else if (mode === 'unknown') {
         assert.equal(await new Promise<string>(resolve => {
           const timer = setInterval(() => { if (receipt) { clearInterval(timer); void receipt.then(resolve); } }, 10);
