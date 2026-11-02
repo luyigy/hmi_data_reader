@@ -10,11 +10,11 @@ from raw_contract import canonical_hash, import_raw_package
 
 ROOT = Path(__file__).resolve().parents[4]
 PROFILE = "b_and_r.injection_holding.multi_stage_position_time"
-VERSION = "0.6.2"
-DEFINITION = "contracts/raw-pages/b-and-r-injection-0.6.2.json"
+VERSION = "0.6.3"
+DEFINITION = "contracts/raw-pages/b-and-r-injection-0.6.3.json"
 PAGE_DIR = "scripts/extract_families/b_and_r/injection_holding"
 FILES = tuple(f"{PAGE_DIR}/{name}.py" for name in (
-    "package", "page_identity", "layout", "extractor", "observations")) + (
+    "package", "page_identity", "layout", "extractor", "page_result")) + (
     "scripts/raw_contract.py", "scripts/raw_page.py", "scripts/extract_families/coordinates.py",
     "scripts/extract_families/common.py", "scripts/extract_families/visual_cells.py", DEFINITION)
 

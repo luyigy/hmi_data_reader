@@ -34,7 +34,7 @@ scripts/extract_families/b_and_r/injection_holding/
 ├── page_identity.py       # 页面身份与结构标题证据
 ├── layout.py              # 射胶/保压布局，含中文算法讲解
 ├── extractor.py           # v1/v2 字段读值
-├── observations.py        # 原屏观测输出
+├── page_result.py        # 原屏观测输出
 ├── package.py             # 固定版本包和源码哈希
 └── verify_stability.py    # 页面冻结回放
 ```
@@ -48,7 +48,7 @@ scripts/extract_families/b_and_r/injection_holding/
 - `contracts/profiles.json`：活动页面登记表，只登记当前一个页面及模板路径。
 - `templates/b_and_r/injection_holding.json`：活动 v1 模板。
 - `templates/raw-packages/<profile>/<version>.json`：不可原地修改的 v2 交付包。
-  原 `0.6.0`、`0.6.1` 保留用于历史导出；当前源码身份使用新 `0.6.2`。
+  原 `0.6.0`、`0.6.1`、`0.6.2` 保留用于历史导出；当前源码身份使用新 `0.6.3`。
 - `contracts/field_catalog.json` 和公共 schema：保持现有契约，字段存在不等于页面已支持。
 
 离线验证：

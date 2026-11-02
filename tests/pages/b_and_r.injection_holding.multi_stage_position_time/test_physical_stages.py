@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from export_page_package import export_page_package
 from extract_families.b_and_r.injection_holding.extractor import extract_injection_b_and_r
 from extract_families.b_and_r.injection_holding.layout import infer_active_stages
-from extract_families.b_and_r.injection_holding.observations import _visual_active_count
+from extract_families.b_and_r.injection_holding.page_result import _visual_active_count
 from rectify import rectify
 
 PID = 'b_and_r.injection_holding.multi_stage_position_time'

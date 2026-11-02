@@ -6,7 +6,7 @@
 
 ```text
 确认页面身份 → 重建页面布局 → 读取字段 → 组装观测结果
-page_identity.py  layout.py    extractor.py  observations.py
+page_identity.py  layout.py    extractor.py  page_result.py
 ```
 
 | 文件 | 回答的问题 | 边界 |
@@ -14,7 +14,7 @@ page_identity.py  layout.py    extractor.py  observations.py
 | page_identity.py | 图片是否有本页特有结构？标题链是否唯一？ | 不读取工艺数值，不推断启用段数；原 headers.py 的标题辅助合入这里 |
 | layout.py | 哪些位置属于射胶/保压区、哪一行、哪一段？ | 统一放物理三行、保压逻辑网格、段号与像素证据；原 holding_layout.py 合入这里 |
 | extractor.py | 对应格里读到了什么值、单位是否冲突、读数是否可信？ | v1/v2 读值入口都在这里，不管理包发布，不决定 mold 标准参数去向 |
-| observations.py | 怎样保留原值、状态和图像来源，并输出合同？ | 只接收读值结果，做来源/坐标/结果组装，不自行定位格子 |
+| page_result.py | 怎样保留原值、状态和图像来源，并输出合同？ | 只接收读值结果，做来源/坐标/结果组装，不自行定位格子 |
 | package.py | 使用哪一版字段定义和识读源码？ | 固定版本包与哈希校验，是交付配套，不是识图算法 |
 | verify_stability.py | 已知照片的冻结 OCR 回放结果是否退化？ | 不重新运行 OCR，不证明未知照片准确率 |
 | __init__.py | Python 包标记 | 无识读行为 |
@@ -39,7 +39,7 @@ page_identity.py  layout.py    extractor.py  observations.py
 
 v1 路径使用物理三行和保压逻辑网格。v2 兼容路径的几何定位已归入 `build_raw_layout`，读值归入 `observe_bole_injection`，输出归入 `build_raw_observations`；它仍保留原冻结定义的区域与段号匹配算法，没有在本片改造成与 v1 完全相同的算法。未来新增页面应优先形成一套布局结果供不同输出合同适配，不复制这个历史兼容双路径。
 
-v2 启用态仍保持 `unknown`，勾选项仍保留现有 `unsupported`，不是改目录就自动变为可靠值。新源码包为 `0.6.2`，原 `0.6.0`、`0.6.1` 包逐字节保留供历史导出；mold 未接纳新包。当前代码不能假装按旧源码身份运行。
+v2 启用态仍保持 `unknown`，勾选项仍保留现有 `unsupported`，不是改目录就自动变为可靠值。新源码包为 `0.6.3`，原 `0.6.0`、`0.6.1`、`0.6.2` 包逐字节保留供历史导出；mold 未接纳新包。当前代码不能假装按旧源码身份运行。
 
 ## 入口与验证
 
@@ -51,3 +51,7 @@ v2 启用态仍保持 `unknown`，勾选项仍保留现有 `unsupported`，不�
 PYTHONPATH=scripts:. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest tests/pages/b_and_r.injection_holding.multi_stage_position_time -q
 .venv/bin/python scripts/extract_families/b_and_r/injection_holding/verify_stability.py --output /tmp/br-stability
 ```
+
+## 交给 mold 的结果
+
+`page_result.py` 组装页面识读结果，公共入口仍为 `scripts/raw_observations.py`。文件名已改为易读名称，但 JSON 的 `page_observations.v2` 等协议键和函数名保留，避免无意改变跨仓 API。Reader 原屏字段到 mold 标准槽位的实际对应关系、版本接纳与自动候选门槛见 [157 对接核查报告](../../../../docs/157_REPORT_20261102_Reader与mold字段槽位对接核查.md)。

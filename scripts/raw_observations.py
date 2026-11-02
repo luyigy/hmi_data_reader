@@ -20,7 +20,7 @@ def select_raw_profile(profile_id, lines):
 def observe_temperature_time_page(profile_id, lines, meta, image_sha256, rectified_image=None,
                                   package_root=ROOT, package_version="1.0.0"):
     select_raw_profile(profile_id, lines)
-    if package_version in ("0.6.0", "0.6.1"):
+    if package_version in ("0.6.0", "0.6.1", "0.6.2"):
         raise RawPageRejected("RAW_PAGE_VERSION_UNSUPPORTED", profile_id)
     try:
         return observe_bole_injection(lines, meta, image_sha256, package_root)

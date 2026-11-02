@@ -131,14 +131,14 @@ def test_old_package_immutable_and_new_package_tracks_moved_sources():
         f'backup/reader-before-page-cleanup-20261102:templates/raw-packages/{PROFILE}/0.6.0.json'], cwd=ROOT)
     assert before == (ROOT/'templates/raw-packages'/PROFILE/'0.6.0.json').read_bytes()
     assert export_page_package(PROFILE, '0.6.0')['version'] == '0.6.0'
-    package = export_page_package(PROFILE, '0.6.2')
+    package = export_page_package(PROFILE, '0.6.3')
     for path, digest in package['recognizer']['files'].items():
         assert hashlib.sha256((ROOT/path).read_bytes()).hexdigest() == digest
-    assert package['version'] == '0.6.2'
+    assert package['version'] == '0.6.3'
 
 
 def test_v2_observations_have_valid_moved_package_identity():
-    package = export_page_package(PROFILE, '0.6.2')
+    package = export_page_package(PROFILE, '0.6.3')
     sample = package['samples'][0]
     manifest = sample['manifest']
     # Package-frozen OCR. No transform is invented when this fixture lacks one.
@@ -147,7 +147,7 @@ def test_v2_observations_have_valid_moved_package_identity():
     result['engine'] = {'library': 'frozen_ocr'}
     validate_raw_record(result, package)
     assert len(result['fields']) == 47
-    assert result['raw_field_definition_version'] == '0.6.2'
+    assert result['raw_field_definition_version'] == '0.6.3'
 
 
 def test_draft_creation_cannot_reenable_an_unimplemented_page(tmp_path):
@@ -206,7 +206,7 @@ def test_unsupported_http_upload_never_extracts_or_retries(monkeypatch, version,
 
 
 def test_retained_page_draft_is_versioned_and_retired_page_is_rejected(tmp_path):
-    package = export_page_package(PROFILE, '0.6.2')
+    package = export_page_package(PROFILE, '0.6.3')
     (tmp_path/'contracts').mkdir()
     (tmp_path/'contracts/profiles.json').write_text(json.dumps({'profiles': []}))
     template = copy.deepcopy(package['template'])
@@ -219,7 +219,7 @@ def test_retained_page_draft_is_versioned_and_retired_page_is_rejected(tmp_path)
     assert lifecycle.read_draft(tmp_path, PROFILE) == first
 
 
-@pytest.mark.parametrize('version', ['0.6.0', '0.6.1'])
+@pytest.mark.parametrize('version', ['0.6.0', '0.6.1', '0.6.2'])
 def test_v2_old_binding_is_not_silently_upgraded(version):
     from raw_observations import RawPageRejected
     with pytest.raises(RawPageRejected) as error:
@@ -227,9 +227,9 @@ def test_v2_old_binding_is_not_silently_upgraded(version):
     assert error.value.detail['code'] == 'RAW_PAGE_VERSION_UNSUPPORTED'
 
 
-@pytest.mark.parametrize('version', ['0.6.0', '0.6.1'])
+@pytest.mark.parametrize('version', ['0.6.0', '0.6.1', '0.6.2'])
 def test_all_historical_raw_packages_remain_byte_identical(version):
     relative = f'templates/raw-packages/{PROFILE}/{version}.json'
-    before = subprocess.check_output(['git', 'show', f'6dee04d:{relative}'], cwd=ROOT)
+    before = subprocess.check_output(['git', 'show', f'31ea239:{relative}'], cwd=ROOT)
     assert before == (ROOT/relative).read_bytes()
     assert export_page_package(PROFILE, version)['version'] == version

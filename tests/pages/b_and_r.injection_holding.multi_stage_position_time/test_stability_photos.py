@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT/'scripts'))
 from scripts.extract_families.b_and_r.injection_holding.verify_stability import MANIFEST, load_sample
 from export_page_package import export_page_package
 from extract_families.b_and_r.injection_holding.extractor import extract_injection_b_and_r
-from extract_families.b_and_r.injection_holding.observations import _visual_active_count
+from extract_families.b_and_r.injection_holding.page_result import _visual_active_count
 
 SAMPLES=json.loads(MANIFEST.read_text())['samples']
 

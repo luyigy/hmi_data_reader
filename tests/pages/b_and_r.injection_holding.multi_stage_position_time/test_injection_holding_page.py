@@ -58,7 +58,7 @@ def test_z050_legacy_and_registered_routes_share_image_adapter(tmp_path):
 
 
 def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_path):
-    from extract_families.b_and_r.injection_holding.observations import b_and_r_page_observations
+    from extract_families.b_and_r.injection_holding.page_result import b_and_r_page_observations
 
     template = export_page_package(PID, "0.1.1")["template"]
     fields = {
@@ -108,7 +108,7 @@ def test_z050_visual_stage_boundary_preselects_only_verified_active_rows(tmp_pat
 
 
 def test_z050_holding_two_active_stages_with_only_three_visible_cells(tmp_path):
-    from extract_families.b_and_r.injection_holding.observations import b_and_r_page_observations
+    from extract_families.b_and_r.injection_holding.page_result import b_and_r_page_observations
 
     template = export_page_package(PID, "0.1.1")["template"]
     fields = {

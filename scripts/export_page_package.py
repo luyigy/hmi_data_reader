@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dict:
     if profile_id != "b_and_r.injection_holding.multi_stage_position_time":
         raise ValueError(f"Unsupported page: {profile_id}")
-    if version in ("0.6.0", "0.6.1", "0.6.2"):
+    if version in ("0.6.0", "0.6.1", "0.6.2", "0.6.3"):
         try:
             from extract_families.b_and_r.injection_holding.package import bole_injection_package
         except ModuleNotFoundError:

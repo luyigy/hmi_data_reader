@@ -15,7 +15,7 @@ from .layout import build_holding_layout, layout_evidence, build_raw_layout, _vi
 from .page_identity import section_headers
 from extract_families.visual_cells import bordered_cells
 from extract_families.common import _anchor_match  # noqa: F401
-from .observations import b_and_r_page_observations, build_raw_observations
+from .page_result import b_and_r_page_observations, build_raw_observations
 from .package import ROOT, PROFILE, VERSION, bole_injection_package
 from raw_page import _line_box
 
