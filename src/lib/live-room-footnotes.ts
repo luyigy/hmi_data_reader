@@ -2,6 +2,7 @@ import { DEFAULT_CONTEXT_WINDOW, readContextUsage, contextUsagePercentage } from
 import type { NormalizedContextUsage } from './harness/types';
 import { readHarnessRuntimeState, formatHarnessRuntimeState } from './harness-runtime-state';
 import { prisma } from './prisma';
+import { getKimiCodeModelDisplayName } from './real-agents/kimi-code-model-catalog';
 import { formatSessionSize, readSessionSize } from './session-size';
 
 export function formatContextUsage(usage: NormalizedContextUsage | null): string {
@@ -20,6 +21,7 @@ export function buildLiveRoomFootnotes(input: {
   metadata?: string | null;
   participantId?: string;
   model?: string | null;
+  modelDisplayName?: string;
   reasoningEffort?: string | null;
   startedAt: number;
   now?: number;
@@ -30,7 +32,7 @@ export function buildLiveRoomFootnotes(input: {
   const usage = candidate && candidate.collectedAt >= input.startedAt ? candidate : null;
   const runtimeState = readHarnessRuntimeState(input.metadata, { participantId: input.participantId, startedAt: input.startedAt, now });
   return [
-    `${formatHarnessRuntimeState(runtimeState)}（本轮请求：${input.model || '继承默认'} · ${input.reasoningEffort || '继承默认'}）`,
+    `${formatHarnessRuntimeState(runtimeState, input.modelDisplayName)}（本轮请求：${input.model || '继承默认'} · ${input.reasoningEffort || '继承默认'}）`,
     formatContextUsage(usage),
     ...(usage && (contextUsagePercentage(usage) ?? 0) >= 75
       ? [`⚠️ ${usage.contextWindow && !usage.isDefaultWindow ? '最近观测的上下文' : '按默认窗口估算的上下文'}已占用 ${contextUsagePercentage(usage)}%，建议发送 /ap new-session 切换会话。`]
@@ -41,12 +43,16 @@ export function buildLiveRoomFootnotes(input: {
   ];
 }
 
-export async function collectLiveRoomFootnotes(input: Omit<Parameters<typeof buildLiveRoomFootnotes>[0], 'metadata'>) {
+export async function collectLiveRoomFootnotes(input: Omit<Parameters<typeof buildLiveRoomFootnotes>[0], 'metadata' | 'modelDisplayName'>) {
   const participant = input.participantId ? await prisma.taskRunParticipant.findUnique({
     where: { id: input.participantId }, select: { controlMetadata: true },
   }).catch((error) => {
     console.error('Failed to read reply telemetry:', error);
     return null;
   }) : null;
-  return buildLiveRoomFootnotes({ ...input, metadata: participant?.controlMetadata });
+  const metadata = participant?.controlMetadata;
+  const state = readHarnessRuntimeState(metadata, { participantId: input.participantId, startedAt: input.startedAt, now: input.now });
+  const modelDisplayName = state?.source === 'kimi_wire.llm.request' && state.model
+    ? await getKimiCodeModelDisplayName(state.model) : undefined;
+  return buildLiveRoomFootnotes({ ...input, metadata, modelDisplayName });
 }

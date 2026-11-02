@@ -136,13 +136,14 @@ export async function persistSessionSize(execution: RuntimeExecution, value: unk
   return accepted;
 }
 
-export function formatHarnessRuntimeState(state: HarnessRuntimeState | null): string {
+export function formatHarnessRuntimeState(state: HarnessRuntimeState | null, modelDisplayName?: string): string {
   const reasoning = state?.reasoning;
   const label = reasoning?.kind === 'level' ? `思考档位：${reasoning.value}`
     : reasoning?.kind === 'toggle' ? `思考开关：${reasoning.enabled ? '开启' : '关闭'}`
     : reasoning?.kind === 'not_applicable' ? '思考状态：不适用（运行器明确报告）'
     : '思考状态：实际值未确认';
-  return `模型：${state?.model || '实际值未确认'}${state?.modelKind === 'alias' ? '（别名）' : ''}`
+  const modelLabel = state?.model && modelDisplayName ? `${modelDisplayName}（${state.model}）` : state?.model;
+  return `模型：${modelLabel || '实际值未确认'}${state?.modelKind === 'alias' ? '（别名）' : ''}`
     + `${state?.provider ? ` · provider：${state.provider}` : ''} · ${label}`
     + (state ? ` · ${state.evidence === 'provider' ? '供应商回执' : '运行器报告'} / ${state.source}`
       + ` · 最近观测：${new Date(state.observedAt).toISOString()}` : '');

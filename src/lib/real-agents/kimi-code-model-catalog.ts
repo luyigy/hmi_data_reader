@@ -1,11 +1,11 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-export async function loadKimiCodeModelCatalog(cwd?: string | null) {
-  let catalog: { models?: Record<string, { displayName?: string; capabilities?: string[]; supportEfforts?: string[]; defaultEffort?: string }> };
+export async function loadKimiCodeModelCatalog(cwd?: string | null, timeoutMs = 15_000) {
+  let catalog: { models?: Record<string, { model?: string; displayName?: string; capabilities?: string[]; supportEfforts?: string[]; defaultEffort?: string }> };
   try {
     const { stdout } = await promisify(execFile)(process.env.KIMI_CODE_CLI_PATH?.trim() || 'kimi', ['provider', 'list', '--json'], {
-      cwd: cwd || undefined, timeout: 15_000, maxBuffer: 1024 * 1024,
+      cwd: cwd || undefined, timeout: timeoutMs, maxBuffer: 1024 * 1024,
     });
     catalog = JSON.parse(stdout);
     if (!catalog.models || typeof catalog.models !== 'object' || !Object.keys(catalog.models).length) throw new Error('Empty catalog');
@@ -26,4 +26,14 @@ export async function listKimiCodeModels(cwd?: string | null): Promise<string> {
     return `${alias}${model.displayName ? ` (${model.displayName})` : ''}：${efforts}${model.defaultEffort ? `；默认 ${model.defaultEffort}` : ''}`;
   });
   return `本机 Kimi 已配置模型及 CLI 报告的思考档位（实际授权可能不同）\n${rows.join('\n')}\n当前 /ap model-config 对 Kimi 仅支持 --model，不支持 --thinking。`;
+}
+
+export async function getKimiCodeModelDisplayName(model: string): Promise<string | undefined> {
+  try {
+    const models = await loadKimiCodeModelCatalog(undefined, 2_000);
+    const matches = models[model] ? [models[model]] : Object.values(models).filter(entry => entry.model === model);
+    if (matches.length !== 1) return;
+    const name = matches[0].displayName;
+    if (typeof name === 'string' && name.trim() && name.length <= 200 && !/[\u0000-\u001f\u007f]/.test(name)) return name.trim();
+  } catch { /* Display names are optional; preserve the reported model on lookup failure. */ }
 }
