@@ -59,6 +59,7 @@ async function main() {
         assert.equal(await receipt, mode === 'success' ? 'accepted' : 'rejected');
         assert.equal(await duplicate, await receipt);
       }
+      if (mode === 'quota') assert.equal(await readFile(pidFile + '.released', 'utf8'), 'released', 'native cleanup finishes before the host handles failure');
       assert.equal(release, 1, mode);
       assert.ok(!progress.join('').includes('DO_NOT_DISCLOSE'));
       assert.equal(await control?.('late', 'too late'), 'rejected');

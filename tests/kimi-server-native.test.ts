@@ -89,6 +89,11 @@ async function main() {
     assert.equal(restricted.success, true, restricted.error);
     const toolResults = JSON.parse(histories.at(-1)!).messages.filter((m: { role: string }) => m.role === 'tool');
     assert.match(JSON.stringify(toolResults), /SANDBOX_CONFIRMED/);
+    const sandboxResume = await executeKimiCodeTask({ id: 'native', name: 'sandbox resume test' }, {
+      ...config, workingDirectory: workspace, workspaceRoot: workspace, sandboxMode: 'read-only', networkAccess: 'enabled', permissionProfile: 'safe_local', sessionId: restricted.sessionId, prompt: 'SANDBOX CONTINUATION',
+    });
+    assert.equal(sandboxResume.success, true, sandboxResume.error);
+    assert.equal(sandboxResume.sessionId, restricted.sessionId);
     assert.equal(registrations, releases);
     const emptyHome = path.join(dir, 'empty-home'); await mkdir(emptyHome);
     process.env.KIMI_CODE_HOME = emptyHome;

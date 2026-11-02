@@ -6,6 +6,12 @@ const { writeFileSync } = require('node:fs');
 const { spawn } = require('node:child_process');
 const mode = process.env.KIMI_SERVER_CASE;
 const token = 'fixture-private-token';
+if (mode === 'quota' && process.env.KIMI_SERVER_PID_FILE) {
+  process.on('SIGTERM', () => setTimeout(() => {
+    writeFileSync(process.env.KIMI_SERVER_PID_FILE + '.released', 'released');
+    process.exit(0);
+  }, 150));
+}
 let busy = false, peers = [], seq = 1, texts = [], prompts = 0;
 const id = 'session_fixture';
 const send = value => peers.forEach(peer => peer.send(JSON.stringify({ ...value, session_id: id })));

@@ -13,7 +13,7 @@ const transcript = new KimiTranscript(emit);
 const receipts = new Map();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function stop(code = 0) {
+async function stop(code = 0, errorMessage) {
   if (stopped) return;
   stopped = true;
   socket?.close();
@@ -23,13 +23,14 @@ async function stop(code = 0) {
     await Promise.race([closed, sleep(1500)]);
     try { process.kill(-child.pid, 'SIGKILL'); } catch {}
   }
+  // The host kills the sandbox on an error frame; let native shutdown release session locks first.
+  if (errorMessage) emit({ type: 'error', message: errorMessage });
   process.exit(code);
 }
 function fail(error) {
   if (stopped) return;
   // Never include native startup logs: they contain the server credential.
-  emit({ type: 'error', message: String(error.message || error).replaceAll(token || '\0', '[REDACTED]') });
-  void stop(1);
+  void stop(1, String(error.message || error).replaceAll(token || '\0', '[REDACTED]'));
 }
 process.on('SIGTERM', () => void stop(1));
 process.on('SIGINT', () => void stop(1));
