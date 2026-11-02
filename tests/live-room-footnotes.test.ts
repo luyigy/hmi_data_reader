@@ -41,6 +41,7 @@ snapshot({ model: 'different-model', sessionId: 'b' }, 'b');
 assert.equal(JSON.stringify(snapshot()), saved, 'other member/session cannot rewrite a saved snapshot');
 
 assert.deepEqual(normalizeMemberModelSettings({ model: 'new-model', reasoningEffort: 'HIGH' }, 'antigravity', 'platform_local'), { model: 'new-model', reasoningEffort: 'high' });
+assert.throws(() => normalizeMemberModelSettings({ model: 'provider/model' }, 'codex', 'platform_local'), /Invalid Codex model/);
 assert.equal(normalizeMemberModelSettings({ model: 'kimi' }, 'kimi-code', 'platform_local').model, 'kimi');
 assert.equal(normalizeMemberModelSettings({ reasoningEffort: 'xhigh' }, 'codex', 'platform_local').reasoningEffort, 'xhigh');
 assert.deepEqual(normalizeMemberModelSettings({ model: '', reasoningEffort: null }, 'codex'), { model: null, reasoningEffort: null });

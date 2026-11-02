@@ -72,16 +72,18 @@ export function getMemberModelCapabilities(harness?: string | null, backend?: st
 export function normalizeMemberModelSettings(input: { model?: unknown; reasoningEffort?: unknown }, harness?: string | null, backend?: string | null) {
   const capabilities = getMemberModelCapabilities(harness, backend);
   if (!capabilities.model) throw new Error('Invalid member model settings: unsupported harness/backend');
-  if (harness === 'pi-agent') {
+  if (harness === 'pi-agent' || harness === 'kimi-code') {
     for (const value of [input.model, input.reasoningEffort]) {
       if (value != null && typeof value !== 'string') throw new Error('Invalid member setting type');
     }
     const model = (input.model as string | null | undefined)?.trim() || null;
     const reasoningEffort = (input.reasoningEffort as string | null | undefined)?.trim().toLowerCase() || null;
     if (model && (model.length > 200 || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9._:-]*)*$/.test(model))) {
-      throw new Error('Invalid member Pi model: use provider/model or a model ID');
+      throw new Error(`Invalid member ${harness === 'kimi-code' ? 'Kimi' : 'Pi'} model: use provider/model or a model ID`);
     }
-    if (reasoningEffort && !capabilities.efforts.includes(reasoningEffort)) throw new Error('Invalid member Pi thinking level');
+    if (reasoningEffort && !capabilities.efforts.includes(reasoningEffort)) {
+      throw new Error(harness === 'kimi-code' ? 'Kimi 暂不支持设置思考强度（--thinking）。' : 'Invalid member Pi thinking level');
+    }
     return { model, reasoningEffort };
   }
   const settings = normalizeCodexMemberSettings(input);
