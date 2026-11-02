@@ -5,9 +5,7 @@ from math import isfinite
 
 PLUGINS = {
     'b_and_r.injection_holding.multi_stage_position_time':
-        (('B_AND_R',), 'b_and_r_page_identity'),
-    'tact5.process_settings.injection_holding_metering':
-        (('TACT', 'TACT5'), 'tact5_page_identity'),
+        (('B_AND_R',), 'b_and_r.injection_holding.multi_stage_position_time.page_identity'),
 }
 
 

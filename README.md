@@ -21,34 +21,48 @@
 `output/training-prep/*` 已保留为兼容链接；新产物按上表存放，不再往旧目录平铺。
 图片、标注、权重被 Git 忽略，必须单独备份；Git 仓库不是训练数据备份。
 
-## HMI 页面模板与代码入口（2026-10-10）
+## 当前页面支持与代码入口（2026-11-02）
 
-在线上传、CLI 和飞书提取共用同一条识别路径：
+当前仅支持 **B&R 射胶保压组合页** `b_and_r.injection_holding.multi_stage_position_time`。
+其他品牌及其他页型的提取实现和活动模板已移除，历史照片、真值、训练数据与文档保留。
+未知或未接入页面保留 OCR 证据，拒绝输出工艺字段；不再使用通用字段提取兜底。
+
+页面代码集中于：
 
 ```text
-原图 → 矫正与 OCR → 控制器家族 → 页面类型/布局 → 页面模板与提取器
-     → 带原图证据的字段观测 → 主仓人工核对及保存
+scripts/extract_families/b_and_r/injection_holding/multi_stage_position_time/
+├── page_identity.py       # 页面身份
+├── headers.py             # 本页区段标题证据
+├── layout.py              # 物理行列、段号
+├── holding_layout.py      # 保压逻辑网格
+├── extractor.py           # 字段提取
+├── observations.py        # v1 原屏观测
+└── raw_observations.py    # v2 原屏观测与版本包
 ```
 
-| 职责 | 当前入口 |
-| --- | --- |
-| 控制器家族 | `scripts/extract_fields.py` 的 `route_family`：离线报告、已确认机台先验、单图 OCR 关键词、模板指纹依次判定；HTTP 上传名为 `raw_upload`，不能靠样本文件名推断机台 |
-| 页面类型 | `scripts/page_template_registry.py` 的 `route_page`：先匹配该家族的页面结构锚点，再使用 `classify_ui.find_page` 关键词兜底；多个普通页面模板同时命中时返回 `ambiguous_template_anchors` 待核对 |
-| 布局及字段 | `templates/` 放已确认页面布局和标签关系，`scripts/extract_families/` 按布局组装数值、单位、角色、物理段号及坐标证据 |
-| 身份及契约 | `contracts/profiles.json` 注册完整 `profile_id`、状态与模板；`contracts/field_catalog.json` 定义物理字段；`contracts/page_observations.v1.json` 约束 TACT5 页面观测 |
-| 共同调用 | `scripts/extract_fields.py` 的 `extract_one` 供 HTTP 与 CLI 使用；`scripts/feishu_card_assistant.py` 使用同一页面路由与模板 |
+目录按完整 profile 的三段组织：`<controller>/<page>/<layout>/`。新增页面在自己的目录实现，
+再接入公共 `page_identity.py` 与 `extractor_registry.py`，不得向 HTTP/CLI 添加页面分支。
+`common.py`、`visual_cells.py`、`coordinates.py` 是公共原语。
+测试位于 `tests/pages/b_and_r.injection_holding.multi_stage_position_time/`，共用入口边界测试位于
+`tests/test_reader_page_boundary.py`。
 
-已确认的组合页示例是 `tact5.process_settings.injection_holding_metering`：
-`templates/tact5.process_settings.injection_holding_metering.json` 的 `layout_anchors`
-结合 `route_families` 识别布局，`field_labels` 定义 V1、Pp1 等屏幕标签与相邻数值的关系；
-`scripts/extract_families/tact5_process.py` 输出 `page_observations`。
-页面上的 `V1 → 120` 必须由标签、相邻数值和坐标共同支持；模板中的单位是已确认的页面知识，不能冒充 OCR 读到的单位。
-Reader 不决定主仓目标槽位，也不写试模业务数据。
+- `contracts/profiles.json`：活动页面登记表，只登记当前一个页面及模板路径。
+- `templates/b_and_r/injection_holding.json`：活动 v1 模板。
+- `templates/raw-packages/<profile>/<version>.json`：不可原地修改的 v2 交付包。
+  原 `0.6.0` 保留用于文档回放；整理后的源码身份使用新 `0.6.1`。
+- `contracts/field_catalog.json` 和公共 schema：保持现有契约，字段存在不等于页面已支持。
 
-新增页面按一份实图布局交付：先确认标题、控制器证据、与现有布局的差异和人工真值，
-再登记完整 `profile_id`，补模板、路由、提取器、契约与页面测试；主仓另核对业务映射和保存重开。
-沿用现有模板文件加载关系，不根据 `profile_id` 字符串批量改名。当前 TACT5 布局仍是
-`candidate`，不能把路由命中当成独立实图准确率或自动写入许可。
+离线验证：
+
+```bash
+PYTHONPATH=scripts:. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest tests -q
+.venv/bin/python scripts/verify_b_and_r_stability.py --output /tmp/br-stability
+```
+
+这些检查区分冻结 OCR 和真实在线 OCR，不代表 mold 已接纳新包。
+清理基线标签：`backup/reader-before-page-cleanup-20261102`，指向
+`1308f26e9189f35dfdd77c2cb81364b6d391437c`。回滚说明见
+[Reader 单页面清理交接](docs/151_HANDOVER_20261102_Reader单页面清理完成.md)。
 
 ## 数据源
 

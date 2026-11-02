@@ -1,39 +1,4 @@
-"""S4 字段提取：controller+page 路由 → 归一化模板 → 屏幕归一化坐标提取 → 校验 → status。
-
-提取链路保持 OCR + 模板（PLAN 硬约束：VLM 不进入提取链路，防真值/提取同源循环论证）。
-
-输入（S4 薄切片产物，均在 output/rectified/ 下）：
-- <stem>.rectify.json  — rectify.py 的屏幕 meta（screen_size / 检测方法 / warnings）
-- <stem>.ocr.json      — 对矫正图跑的 PaddleOCR 原始输出（token 级 bbox）
-
-路由（controller_family，按优先级）：
-1. S2 record 级聚合报告（output/record_classify_report.json，record key 命中且非 unknown）
-2. S1 机器先验（ground_truth/machine_labels.json，品牌_机台号 前缀 + records 列表命中）
-3. 单图 classify_ui.find_ui_family 兜底
-页面：classify_ui.find_page；兜底文件名含 "炮筒" -> temperature。
-路由到 (family, page) 后加载 templates/<family.lower()>.<page>.json；无模板 -> reject。
-
-提取（坐标均为屏幕归一化 x/screen_width, y/screen_height）：
-- ZizES：数字列头线性拟合列位 + y 聚类出 当前/设定/控制 3 行（详见 extract_temperature）。
-- TACT：区段中文列头（喷嘴/筒头/前部/中部/后部/落下口）实测列位 + 行标签
-  （设定温度/现在温度/控制输出/保温温度）直接锚定 4 行（详见 extract_temperature_tact）。
-- KEBA（伯乐灰 UI）：设定温度/温度设置 + 上偏差/下偏差 行标签锚定行带，段数动态
-  （5/6，设定行数值定列位 + 缺列插补/前推），图形行取实际温度与下料口温度
-  （详见 extract_temperature_keba）。
-- B_AND_R（伯乐蓝 UI）：实际温度/设定温度/高、低温偏差/加热输出 行标签锚定 5 行，
-  6 列（NZ/#1~#5）按数值 x 聚类（详见 extract_temperature_b_and_r）。
-各家族共用：单元格 conf/范围/current vs set 一致性校验，任何 warning -> status != ok。
-TACT/KEBA/B_AND_R 提取前合并 CLAHE 变体 OCR（merge_variant_lines 保守规则）。
-家族路由兜底：record/机台先验与单图关键词分类均失败时，按模板
-family_detect_groups 在合并行上判族（detect_family_from_templates）。
-
-status 语义：ok = 全部字段提取且无 warning；review = 有提取结果但有 warning；
-reject = 路由无模板 / 行或列结构识别失败 / 无有效字段。
-
-用法：
-    python scripts/extract_fields.py --all --rectified-dir output/rectified --output-dir output/extracted
-    python scripts/extract_fields.py <stem>... --output-dir output/extracted
-"""
+"""Shared OCR-to-page extraction entry point. Only registered pages can emit fields."""
 from __future__ import annotations
 
 import argparse
@@ -45,7 +10,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_ui import find_page, find_ui_family  # noqa: E402
 from contract import attach_contract  # noqa: E402
-from extract_generic import extract_generic  # noqa: E402
 from extractor_registry import capabilities, extract_registered, legacy_extractor_id, template_error  # noqa: E402
 from extract_families.common import _anchor_hits  # noqa: E402
 
@@ -75,19 +39,11 @@ def _anchor_match(anchor, text: str) -> bool:
 
 
 def detect_family_from_templates(lines: list[dict], templates_dir: Path) -> str | None:
-    """模板 family_detect_groups 判族（最后兜底）：每个 group 内任一候选命中即该组命中，
-    全部组命中则判为该模板的 ui_family。仅在 record/机台/单图分类全部失败时调用，
-    不影响 ZizES/TACT 等既有路由。
-    039_FIX：glob 从 *.temperature.json 放宽到全部模板——EST 等只有注射页模板的
-    家族此前永远无法走该兜底（整族 unknown 误拒）。优先锚点组更多的模板；
-    同分时保持既有的模板文件名序。"""
-    texts = [l["text"] for l in lines]
-    paths = set(Path(templates_dir).glob("*.json"))
-    registry = Path(templates_dir).parent / "contracts" / "profiles.json"
-    if registry.is_file():
-        for profile in json.loads(registry.read_text()).get("profiles", []):
-            if profile.get("template"):
-                paths.add(Path(templates_dir) / profile["template"])
+    """Use registered template evidence to narrow controller-family candidates."""
+    texts = [line['text'] for line in lines]
+    registry = Path(templates_dir).parent / 'contracts/profiles.json'
+    profiles = json.loads(registry.read_text()).get('profiles', []) if registry.is_file() else []
+    paths = {Path(templates_dir) / profile['template'] for profile in profiles if profile.get('template')}
     matches = []
     for tpl_path in sorted(paths):
         try:
@@ -121,10 +77,6 @@ def route_family(stem: str, lines: list[dict],
                 fam = info.get("controller_family", "")
                 if fam and fam != "UNKNOWN":
                     return fam, "machine_labels"
-    # TACT 温度页在摩尔纹下品牌与整列行标签可能全丢，但四个连续区段列头仍在。
-    texts = [line["text"] for line in lines]
-    if all(_anchor_hits(anchor, texts) for anchor in ("前部", "中部", "后部", "下口")):
-        return "TACT", "temperature_columns"
     # 3. 单图兜底
     fam, _ = find_ui_family(lines)
     return fam, "per_image_classify"
@@ -155,9 +107,6 @@ def norm_tokens(ocr_data: dict, screen_size: list[int]) -> list[dict]:
     return toks
 
 
-from extract_families.zizes_temperature import (  # noqa: E402
-    detect_columns, deskew_slope, extract_temperature,
-)
 
 
 def _box(l: dict) -> tuple[float, float, float, float]:
@@ -216,7 +165,6 @@ def merge_variant_lines(base_lines: list[dict], variant_lines: list[dict]) -> tu
     return merged, stats
 
 
-from extract_families.mold_temp_devices import is_lcd_pv_set  # noqa: E402
 
 
 def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dict] | None = None,
@@ -227,64 +175,11 @@ def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dic
         return dict(fields=None, heater_columns=0, warnings=[error], detail={})
     if template.get("extractor") == "registered_extractor":
         return extract_registered(toks, template, ocr_lines=ocr_lines, meta=meta, image_path=image_path)
-    if template.get("extractor") == "page_module":
-        from importlib import import_module
-        profile_id = template.get("profile_id", "")
-        if not isinstance(profile_id, str) or not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+){2}", profile_id):
-            return dict(fields=None, heater_columns=0, warnings=["PAGE_EXTRACTOR_INVALID"], detail={})
-        module_name = "extract_families.pages." + profile_id.replace(".", "_")
-        try:
-            module = import_module(module_name)
-        except ModuleNotFoundError as exc:
-            if exc.name != module_name:
-                raise
-            return dict(fields=None, heater_columns=0, warnings=["PAGE_EXTRACTOR_MISSING"], detail={})
-        return module.extract(ocr_lines or [], template, meta or {}, image_path=image_path)
     legacy_id = legacy_extractor_id(template)
     if legacy_id:
         return extract_registered(toks, {**template, "extractor_id": legacy_id},
                                   ocr_lines=ocr_lines, meta=meta, image_path=image_path)
-    return extract_temperature(toks, template)
-
-
-# ---------------------------------------------------------------- 主流程
-# 083 S03 温度表逐格重读救援（service/retest 共用判定）：B&R/DEMAG 温度页
-# 提取出现缺格/列结构失败时，生成逐格 rec 旁车后重提取一次，仅缺格变少才采用。
-# 083 S10 增补 VALUE_OUT_OF_RANGE：DEMAG 偏差行竖向粘连合并 token（'2020'
-# 占两格）超量程被值域门禁置空时，逐格重读可读到正确单格值（row_at 值域内
-# 旁车优先口径 083 S03 已就位），采用仍以告警变少为硬条件。
-# 083 S13（095 S02 B013）增补 DECIMAL_TRUNCATED 与 ZizES：ZizES 红字数码格
-# 主 OCR 截尾漏小数位（'290.2'->'290'、'2.9'->'2'），提取器把截尾格置缺并告警，
-# 逐格重读（实测几何网格）可回补正确值；采用仍以告警变少为硬条件。
-CELL_RESCUE_TRIGGERS = ("CELL_MISSING", "COLUMN_MISSING", "COLUMN_CLUSTER_COUNT",
-                        "TEMPLATE_COLUMNS_FALLBACK", "COLUMNS_NOT_FOUND",
-                        "ROW_LABELS_NOT_FOUND", "ROW_ANCHORS_NOT_FOUND",
-                        "VALUE_OUT_OF_RANGE", "DECIMAL_TRUNCATED")
-CELL_RESCUE_FAMILIES = ("B_AND_R", "DEMAG", "ZIZES")
-
-
-def cell_rescue_needed(ext: dict) -> bool:
-    """温度页提取结果含缺格/列结构告警（或字段全缺）时触发逐格重读救援。"""
-    if ext.get("page_type") != "temperature":
-        return False
-    if str(ext.get("controller_family") or "").upper() not in CELL_RESCUE_FAMILIES:
-        return False
-    warnings = ext.get("warnings") or []
-    return any(any(w.startswith(t) for t in CELL_RESCUE_TRIGGERS) for w in warnings)
-
-
-def cell_rescue_better(old: dict, new: dict) -> bool:
-    """救援重提取仅在字段可出且缺格/越界告警更少时采用（不放大风险）。"""
-    if new.get("fields") is None:
-        return False
-
-    def score(e: dict) -> int:
-        return sum(1 for w in (e.get("warnings") or [])
-                   if w.startswith(("CELL_MISSING", "VALUE_OUT_OF_RANGE",
-                                    "DECIMAL_TRUNCATED"))) \
-            + (1000 if e.get("fields") is None else 0)
-
-    return score(new) < score(old)
+    return dict(fields=None, heater_columns=0, warnings=["PAGE_UNSUPPORTED"], detail={})
 
 
 def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
@@ -325,13 +220,7 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     clahe_lines = None
     if clahe_path.is_file():
         clahe_lines = json.loads(clahe_path.read_text()).get("lines", [])
-    # 042 S04：模温机数码管旁车（含原图全量 OCR 行）。整机照片 rectify 可能扭曲
-    # 丢内容（mt_rear_B07_fd01ca17 矫正图主 OCR 0 行），锚文本仅存在于原图
-    # 全量行——判族兜底与页面锚点路由必须能看到它们（坐标系与主 OCR 不同，
-    # 仅取文本参与锚点匹配，不进 find_page 位置启发）。
-    mt_path = rectified_dir / f"{stem}.ocr_mt.json"
-    mt_lines = json.loads(mt_path.read_text()).get("lines", []) if mt_path.is_file() else []
-    lcd_pv_set = family == "unknown" and is_lcd_pv_set(mt_lines)
+    mt_lines = []
     if family == "unknown":
         # 伯乐 KEBA/B_AND_R 等无 record/机台先验且单图关键词分类失败的图：
         # 合并 CLAHE 变体后按各模板的 family_detect_groups 判族（不改既有路由优先级）
@@ -343,8 +232,6 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                detect_family_from_templates(det_lines + mt_lines, templates_dir))
         if fam:
             family, family_src = fam, "template_keywords"
-        elif lcd_pv_set and not any(c['evidence'] or c['conflicts'] for c in identity['candidates']):
-            family, family_src = "INDUSTRIAL_CHILLER", "mold_temp_lcd_signature"
     page, page_src, template = resolve_page_template(
         stem, lines, family, templates_dir, extra_anchor_lines=mt_lines)
     if controller_hint is not None:
@@ -365,9 +252,6 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             return result
         family, family_src = template["ui_family"], "controller_binding"
         result["compatibility"] = receipt
-    if family_src == "mold_temp_lcd_signature" and controller_hint is None:
-        page, page_src = "mold_temp", "mold_temp_lcd_signature"
-        template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
     result["page_type"] = page
     routing = route_identities(lines, family)
@@ -415,27 +299,11 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                 result['page_routing'] = route_identities(lines, family,
                     profile_ids=[template.get('profile_id')])
     if template is None:
-        # Unrecognized screens retain observations for operator review.
-        result["compatibility"] = {"status": "unknown", "code": "PAGE_UNKNOWN"}
-        generic_lines = lines
-        if clahe_lines is not None:
-            generic_lines, _ = merge_variant_lines(lines, clahe_lines)
-        ext = extract_generic({**ocr_data, "lines": generic_lines}, meta["screen_size"], page)
-        result["warnings"].append(f"GENERIC_FALLBACK({family},{page})")
-        result["warnings"].extend(ext["warnings"])
-        result["fields"] = ext["fields"]
-        result["heater_columns"] = 0
-        result["extraction_detail"] = ext["detail"]
-        result["provenance"] = {
-            "family_source": family_src,
-            "page_source": page_src,
-            "template": "generic.spatial",
-            "ocr_file": str(ocr_path),
-            "screen_size": meta["screen_size"],
-            "rectify_method": meta.get("method"),
-        }
-        attach_contract(result)
-        result["status"] = "review" if ext["fields"] else "reject"
+        result.update(page_routing={**result['page_routing'], 'status': 'unsupported', 'profile_id': None},
+                      compatibility={'status': 'unsupported', 'code': 'PAGE_UNSUPPORTED'})
+        result['warnings'].append('PAGE_UNSUPPORTED')
+        result['provenance'] = dict(family_source=family_src, page_source=page_src,
+                                    screen_size=meta['screen_size'])
         return result
 
     ui = template.get("ui_family")
@@ -445,122 +313,11 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     toks = norm_tokens(ocr_data, meta["screen_size"])
     clahe_stats = None
     rates_stats = None
-    if ui in ("TACT", "KEBA", "B_AND_R", "FANUC", "DEMAG", "TRD6") and clahe_lines is not None:
+    if ui == "B_AND_R" and clahe_lines is not None:
         # 低对比白底框（TACT 保温行/KEBA 白底框）与蓝底白字（B_AND_R 整行漏检）
         # 召回补充：合并 CLAHE 变体 OCR（只加空位/高置信替换低置信的保守规则）
         merged_lines, clahe_stats = merge_variant_lines(ocr_data.get("lines", []), clahe_lines)
         toks = norm_tokens({**ocr_data, "lines": merged_lines}, meta["screen_size"])
-    if ui == "DEMAG":
-        # 列顶速率蓝框召回补充（026 S7c）：HSV 单格识别旁车带 _src 标记直接并入，
-        # 不走 merge_variant_lines 的保守替换（速率格位置精确，由 demag 提取器优先采信）
-        # 083 S03：温度页再并入逐格重读旁车（ocr_tcells，demag_cell）——
-        # 整机照片竖向粘连格/整格漏读的补救，提取器仅在主 OCR 缺格/越界时采信。
-        extra_lines = []
-        rates_path = rectified_dir / f"{stem}.ocr_rates.json"
-        if rates_path.is_file():
-            rate_lines = json.loads(rates_path.read_text()).get("lines", [])
-            for l in rate_lines:
-                l["_src"] = "rate_cell"
-            extra_lines += rate_lines
-            rates_stats = {"rate_cells": len(rate_lines)}
-        tcells_path = rectified_dir / f"{stem}.ocr_tcells.json"
-        if page == "temperature" and tcells_path.is_file():
-            extra_lines += json.loads(tcells_path.read_text()).get("lines", [])
-        if extra_lines:
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + extra_lines},
-                               meta["screen_size"])
-    if ui == "B_AND_R" and page == "temperature":
-        # 083 S03：B&R 灰底温度表逐格重读旁车（br_cell），同 DEMAG 口径并入
-        tcells_path = rectified_dir / f"{stem}.ocr_tcells.json"
-        if tcells_path.is_file():
-            cell_lines = json.loads(tcells_path.read_text()).get("lines", [])
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + cell_lines},
-                               meta["screen_size"])
-    if ui == "ZizES" and page == "temperature":
-        # 083 S13：ZizES 温度表逐格重读旁车（zizes_cell），同 B&R 口径并入；
-        # 同格冲突由 extract_temperature 的「小数完整前缀」规则裁决
-        # （主 OCR 截尾 '290' vs 旁车 '290.2' 时采信旁车）。
-        tcells_path = rectified_dir / f"{stem}.ocr_tcells.json"
-        if tcells_path.is_file():
-            cell_lines = json.loads(tcells_path.read_text()).get("lines", [])
-            toks = norm_tokens({**ocr_data,
-                                "lines": ocr_data.get("lines", []) + cell_lines},
-                               meta["screen_size"])
-    if ui == "DEMAG" and page == "injection_metering":
-        # 037 方案①：曲线页段表列网格旁车（带 slot 标记直接并入）
-        # 033_FIX 修复3：旁车为 rec-only 重建变体，标 _src="ocr_variant"——
-        # 与主 OCR 同格异值冲突时主 OCR 值优先（rank02 '004500' 实测）
-        # 034_FIX：摩尔纹低通变体旁车（ocr_variants.moire_suppress，治段表
-        # 相邻格粘连漏读）同机制并入，同格冲突主 OCR 值优先
-        extra_lines = []
-        for sidecar in ("ocr_stage", "ocr_moire"):
-            sc_path = rectified_dir / f"{stem}.{sidecar}.json"
-            if sc_path.is_file():
-                for l in json.loads(sc_path.read_text()).get("lines", []):
-                    l["_src"] = "ocr_variant"
-                    extra_lines.append(l)
-        if extra_lines:
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + extra_lines},
-                               meta["screen_size"])
-    if ui == "FANUC":
-        # 低质图整屏放大 OCR 变体召回补充（026 S7c）
-        base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-        zoom_path = rectified_dir / f"{stem}.ocr_zoom.json"
-        if zoom_path.is_file():
-            zoom_lines = json.loads(zoom_path.read_text()).get("lines", [])
-            merged_zoom, rates_stats = merge_variant_lines(base_lines, zoom_lines)
-            base_lines = merged_zoom
-            toks = norm_tokens({**ocr_data, "lines": base_lines}, meta["screen_size"])
-        cells_path = rectified_dir / f"{stem}.ocr_cells.json"
-        if cells_path.is_file():
-            cell_lines = json.loads(cells_path.read_text()).get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + cell_lines},
-                               meta["screen_size"])
-    if ui == "ARBURG":
-        # 延迟时间灰框旁车（049 A7）：带 _src 标记直接并入
-        delay_path = rectified_dir / f"{stem}.ocr_delay.json"
-        if delay_path.is_file():
-            delay_lines = json.loads(delay_path.read_text()).get("lines", [])
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + delay_lines},
-                               meta["screen_size"])
-    if ui == "TACT":
-        # 设定行红框 HSV 旁车（033）：带 _src 标记直接并入，由 TACT 提取器定点使用；
-        # 不写 provenance（保持 Z022 既有产物零 diff）
-        setrow_path = rectified_dir / f"{stem}.ocr_setrow.json"
-        if setrow_path.is_file():
-            set_lines = json.loads(setrow_path.read_text()).get("lines", [])
-            for l in set_lines:
-                l["_src"] = "set_cell"
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + set_lines},
-                               meta["screen_size"])
-    template_page_key = template.get("page")
-    if template_page_key == "hot_runner_temp":
-        # 热流道 SV 弱读格旁车（049 B4 s64）：带 _src 标记直接并入
-        hr_path = rectified_dir / f"{stem}.ocr_hr.json"
-        if hr_path.is_file():
-            hr_lines = json.loads(hr_path.read_text()).get("lines", [])
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + hr_lines},
-                               meta["screen_size"])
-    if template_page_key == "mold_temp":
-        # 模温机数码管旁车（042 S04）：bbox 为各源图 0-1 分数坐标，换算到屏幕
-        # 框架后并入；_src 区分坐标系（mt_cell=矫正图 / mt_cell_orig=原图 /
-        # mt_full=原图全量 OCR），提取器按 src 分系聚行，不跨系混合
-        if mt_lines:
-            dst_w, dst_h = meta["screen_size"]
-            for l in mt_lines:
-                b = l["bbox"]
-                b["points"] = [[px * dst_w, py * dst_h] for px, py in b["points"]]
-                b["x_min"], b["x_max"] = b["x_min"] * dst_w, b["x_max"] * dst_w
-                b["y_min"], b["y_max"] = b["y_min"] * dst_h, b["y_max"] * dst_h
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + mt_lines},
-                               meta["screen_size"])
     png_path = rectified_dir / f"{stem}.png"
     ext = extract_page_fields(toks, template, ocr_lines=ocr_data.get("lines", []), meta=meta,
                               image_path=png_path if png_path.is_file() else None)
@@ -643,8 +400,7 @@ def main():
             import hashlib
             import cv2
             from raw_observations import (observe_temperature_time_page, select_raw_profile,
-                                          recover_temperature_time_cells, DEFINITIONS, RawPageRejected,
-                                          VERSIONED_RECOVERY)
+                                          RawPageRejected)
             try:
                 raw_profile = select_raw_profile(r.get("profile_id"), json.loads(
                     (rectified_dir / f"{stem}.ocr.json").read_text())["lines"])
@@ -660,24 +416,6 @@ def main():
                 ap.error("Original image hash disagrees with rectification evidence")
             ocr = json.loads((rectified_dir / f"{stem}.ocr.json").read_text())
             rectified = cv2.imread(str(rectified_dir / f"{stem}.png"), cv2.IMREAD_GRAYSCALE)
-            engine = None
-            if r.get("profile_id") == "demag.injection_metering.multi_stage_holding" and rectified is not None:
-                from paddleocr import PaddleOCR
-                from raw_page_ocr import engine_identity, recover_raw_cells
-                engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
-                ocr["lines"] = recover_raw_cells(engine, rectified, meta, ocr["lines"])
-            if raw_profile in DEFINITIONS and rectified is not None:
-                from paddleocr import PaddleOCR
-                from raw_page_ocr import engine_identity
-                engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
-                ocr["lines"] = recover_temperature_time_cells(engine, rectified, meta, ocr["lines"], raw_profile)
-            recovery = VERSIONED_RECOVERY.get((raw_profile, r.get("template_version", "1.0.0")))
-            if recovery is not None and rectified is not None:
-                from paddleocr import PaddleOCR
-                from raw_page_ocr import engine_identity
-                if engine is None:
-                    engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
-                ocr["lines"] = recovery(engine, rectified, meta, ocr["lines"])
             try:
                 r["page_observations"] = observe_temperature_time_page(
                     raw_profile, ocr["lines"], meta,
@@ -690,8 +428,7 @@ def main():
                 r["warnings"].append(exc.detail["code"])
             r["raw_ocr_evidence"] = ocr
             if r["page_observations"] is not None:
-                r["page_observations"]["engine"] = (engine_identity(engine) if engine is not None
-                                                      else ocr.get("engine_identity", {"library": "provided_ocr_sidecar", "version": ocr.get("model")}))
+                r["page_observations"]["engine"] = ocr.get("engine_identity", {"library": "provided_ocr_sidecar", "version": ocr.get("model")})
         counts[r["status"]] += 1
         out_path = out_dir / f"{stem}.fields.json"
         out_path.write_text(json.dumps(r, ensure_ascii=False, indent=2))

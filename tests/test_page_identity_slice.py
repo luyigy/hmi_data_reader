@@ -21,7 +21,7 @@ def real_lines(page):
     return json.loads((ROOT / 'tests/fixtures/tact5_process_ocr.json').read_text())['lines']
 
 
-@pytest.mark.parametrize('page', [BR, TACT5])
+@pytest.mark.parametrize('page', [BR])
 def test_real_pages_route_without_field_extraction(page, monkeypatch):
     import extract_fields
     monkeypatch.setattr(extract_fields, 'extract_page_fields', lambda *a, **kw: pytest.fail('routing called extraction'))
@@ -30,45 +30,15 @@ def test_real_pages_route_without_field_extraction(page, monkeypatch):
     assert result['candidates'][0]['evidence']
 
 
-def test_fill_block_only_retains_family_candidate_not_exact_generation():
-    lines = [l for l in real_lines(TACT5) if 450 < l['bbox']['y_min'] < 600 and l['bbox']['x_min'] < 960]
-    result = route_identities(lines)
-    assert result['status'] == 'unknown' and result['profile_id'] is None
-    assert result['candidates'][0]['evidence'] == ['nissei_v_sv_sm_staggered_block']
-    assert 'tact5_generation_discriminator' in result['candidates'][0]['missing']
-    assert registered_page_templates('unknown', ROOT / 'templates', lines=lines) == []
 
 
-@pytest.mark.parametrize('scale,dx,dy', [(1, 0, 0), (.7, 20, -500), (2, 300, 800)])
-def test_metering_local_block_routes_after_crop_and_scale(scale, dx, dy):
-    lines = copy.deepcopy([l for l in real_lines(TACT5)
-        if 530 < l['bbox']['y_min'] < 740 and l['bbox']['x_min'] > 980])
-    for line in lines:
-        b = line['bbox']
-        line['bbox'] = [b['x_min']*scale+dx, b['y_min']*scale+dy,
-                        b['x_max']*scale+dx, b['y_max']*scale+dy]
-    assert route_identities(lines)['profile_id'] == TACT5
-    assert [t['profile_id'] for t in registered_page_templates('unknown', ROOT / 'templates', lines=lines)] == [TACT5]
 
 
-def test_old_tact_labels_veto_tact5_even_with_text_anchors():
-    lines = copy.deepcopy(real_lines(TACT5))
-    for line in lines:
-        if line['text'].startswith('PB'):
-            line['text'] = line['text'].replace('PB', 'BP')
-    result = route_identities(lines)
-    assert result['profile_id'] is None
-    assert result['candidates'][0]['conflicts']
-    assert registered_page_templates('unknown', ROOT / 'templates', lines=lines) == []
 
 
-def test_mixed_real_pages_are_ambiguous_not_first_match_wins():
-    result = route_identities(real_lines(BR) + real_lines(TACT5))
-    assert result['status'] == 'ambiguous' and result['profile_id'] is None
-    assert {c['profile_id'] for c in result['candidates'] if c['matched']} == {BR, TACT5}
 
 
-@pytest.mark.parametrize('page', [BR, TACT5])
+@pytest.mark.parametrize('page', [BR])
 def test_numeric_values_do_not_decide_page_identity(page):
     lines = copy.deepcopy(real_lines(page))
     import re

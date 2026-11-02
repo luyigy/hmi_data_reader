@@ -34,15 +34,6 @@ def png(color='white'):
     return out.getvalue()
 
 
-def test_temperature_uses_identity_not_screen_index():
-    s = session(result())
-    original = deepcopy(s)
-    p = preview(s)
-    assert p['counts']['ready'] == 4
-    assert [r['target'] for r in p['rows']] == [
-        f'/temperature/zones/{i}/set_temperature/raw_value' for i in (0, 3, 2, 1)]
-    assert [z['set_temperature']['raw_value'] for z in p['automatic_parameter_data']['temperature']['zones'][:4]] == [350, 285, 290, 295]
-    assert s == original
 
 
 @pytest.mark.parametrize('change', ['version', 'profile', 'quality', 'count', 'unit', 'disabled', 'range'])
@@ -63,14 +54,6 @@ def test_unsafe_inputs_never_pass(change):
     assert p['automatic_parameter_data'] == s['target']
 
 
-def test_conflict_requires_explicit_resolution_and_null_does_not_erase():
-    s = session(result(), result({'barrel_temperature_set_c': [None, 296, 290, 285]}))
-    p = preview(s)
-    conflict = [r for r in p['rows'] if r['target'] == '/temperature/zones/3/set_temperature/raw_value']
-    assert len(conflict) == 2 and all(r['status'] == 'blocked' for r in conflict)
-    assert p['automatic_parameter_data']['temperature']['zones'][3]['set_temperature']['raw_value'] is None
-    s['images'][1]['excluded'] = True
-    assert preview(s)['counts']['ready'] == 4
 
 
 def test_correction_never_rewrites_raw_or_automatic_preview():
@@ -93,16 +76,6 @@ def test_manual_unit_mismatch_and_missing_path_remain_blocked():
         assert preview(s)['rows'][0]['status'] == 'blocked'
 
 
-def test_pressure_and_holding_time_semantics():
-    r = result({'stage_holding_pressure_bar': [30, 20, 10], 'stage_holding_time_s': [1, 2, 3]})
-    r.update(page_type='injection_metering', profile_id='demag.injection_metering.multi_stage_holding')
-    s = session(r)
-    r['field_meta'] = {'stage_holding_time_s': {'entity': {'order': 'physical_stage'}}}
-    p = preview(s)
-    assert all(row['status'] != 'ready' for row in p['rows'][:3])
-    assert all(row['status'] == 'ready' for row in p['rows'][3:])
-    s['target']['holding']['time_definition'] = 'cumulative_switch_time'
-    assert preview(s)['counts']['ready'] == 0
 
 
 def test_unmapped_plasticizing_and_blackout_channels_remain_visible():
@@ -126,37 +99,6 @@ def test_mold_target_explicit_and_cross_family_conflict():
     assert preview(session(a, b))['counts']['ready'] == 0
 
 
-def test_http_upload_review_restart_export_and_revision(tmp_path):
-    async def fake(data, filename, message=""): return result()
-    client = TestClient(create_app(tmp_path, fake))
-    assert client.get('/').status_code == 200
-    data = client.post('/api/sessions').json()
-    sid = data['session']['id']
-    base = f'/api/sessions/{sid}'
-    assert client.post(base + '/images', files={'file': ('bad.png', b'not an image')}).status_code == 422
-    data = client.post(base + '/images', files={'file': ('screen.png', png(), 'image/png')}).json()
-    s = data['session']
-    assert len(s['images']) == 1 and data['preview']['counts']['ready'] == 4
-    duplicate = client.post(base + '/images', files={'file': ('same.png', png())}).json()
-    assert len(duplicate['session']['images']) == 1
-    row = data['preview']['rows'][0]
-    body = {'expected_revision': s['revision'], 'target': s['target'],
-            'edits': {row['id']: {'value': 355, 'confirmed': True}}, 'note': '原值误读'}
-    saved = client.put(base + '/review', json=body)
-    assert saved.status_code == 200, saved.text
-    assert saved.json()['preview']['counts']['manual'] == 1
-    assert client.put(base + '/review', json=body).status_code == 409
-    other = TestClient(create_app(tmp_path, fake))
-    recovered = other.get(base).json()
-    assert recovered['session']['note'] == '原值误读'
-    assert recovered['session']['images'][0]['attempts'][0]['result'] == result()
-    archive = zipfile.ZipFile(io.BytesIO(other.get(base + '/export?bundle=true').content))
-    assert 'result.json' in archive.namelist() and len(archive.namelist()) == 2
-    assert json.loads(archive.read('result.json'))['session']['reviews'][0]['note'] == '原值误读'
-    iid = s['images'][0]['id']
-    rerun = other.post(base + f'/images/{iid}/recognize').json()
-    assert len(rerun['session']['images'][0]['attempts']) == 2
-    assert rerun['preview']['counts']['manual'] == 0
 
 
 def test_upstream_failure_preserves_photo_and_can_retry(tmp_path):

@@ -14,8 +14,8 @@ import cv2
 import numpy as np
 
 from export_page_package import export_page_package
-from extract_families.b_and_r_injection import extract_injection_b_and_r
-from extract_families.b_and_r_page_observations import ROWS
+from extract_families.b_and_r.injection_holding.multi_stage_position_time.extractor import extract_injection_b_and_r
+from extract_families.b_and_r.injection_holding.multi_stage_position_time.observations import ROWS
 from extract_families.coordinates import project_boxes
 from extract_families.visual_cells import cell_glyph_evidence
 from rectify import warp_to_screen

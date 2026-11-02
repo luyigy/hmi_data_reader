@@ -24,13 +24,6 @@ def _injection_result(variant, fields=None):
 
 
 class ContractProfileTest(unittest.TestCase):
-    def test_injection_variant_profile_id(self):
-        result = attach_contract(_injection_result("multi_stage_injection"))
-        self.assertEqual(result["hmi_variant"], "multi_stage_injection")
-        self.assertEqual(result["profile_id"],
-                         "demag.injection_metering.multi_stage_injection")
-        self.assertEqual(result["profile_status"], "verified")
-        self.assertEqual(result["contract_version"], "2.11.0")
 
     def test_stage_velocity_web_target(self):
         result = attach_contract(_injection_result("multi_stage_injection"))
@@ -39,21 +32,6 @@ class ContractProfileTest(unittest.TestCase):
         self.assertEqual(meta["unit"], "mm/s")
         self.assertEqual(meta["role"], "setpoint")
 
-    def test_role_override_by_profile(self):
-        back_pressure = attach_contract(_injection_result("multi_stage_back_pressure"))
-        self.assertEqual(back_pressure["profile_id"],
-                         "demag.injection_metering.multi_stage_back_pressure")
-        self.assertEqual(back_pressure["profile_status"], "candidate")
-        self.assertEqual(back_pressure["field_meta"]["stage_pressure_bar"]["role"],
-                         "setpoint")
-        # physical_semantics 目录中定义为 null 值时原样带上
-        self.assertEqual(
-            back_pressure["field_meta"]["stage_pressure_bar"]["physical_semantics"],
-            {"pressure_basis": None})
-
-        injection = attach_contract(_injection_result("multi_stage_injection"))
-        self.assertEqual(injection["field_meta"]["stage_pressure_bar"]["role"],
-                         "limit")
 
     def test_unregistered_profile_is_unknown(self):
         result = attach_contract(_injection_result("no_such_layout"))
@@ -76,53 +54,8 @@ class ContractProfileTest(unittest.TestCase):
         # 无 layout_variant 时置信度封顶 0.69（低于 candidate 门槛）
         self.assertEqual(result["profile_confidence"], 0.69)
 
-    def test_temperature_variant_from_template(self):
-        result = attach_contract({
-            "image": "sample",
-            "status": "ok",
-            "warnings": [],
-            "controller_family": "DEMAG",
-            "page_type": "temperature",
-            "fields": {},
-            "extraction_detail": {},
-        })
-        self.assertEqual(result["hmi_variant"], "screen_order_5")
-        self.assertEqual(result["profile_id"], "demag.temperature.screen_order_5")
-        self.assertEqual(result["profile_status"], "verified")
 
-    def test_keba_dynamic_zone_labels_follow_recognized_count(self):
-        for family in ("KEBA", "ZIZES"):
-            for count in (5, 6):
-                result = attach_contract({
-                    "controller_family": family,
-                    "page_type": "temperature",
-                    "fields": {"barrel_temperature_set_c": [220.0] * count},
-                })
-                self.assertEqual(
-                    result["field_meta"]["barrel_temperature_set_c"]["entity"]["columns"],
-                    [f"温区{i}" for i in range(1, count + 1)],
-                )
 
-    def test_tact_zone_labels_follow_recognized_count(self):
-        for count in (4, 5, 6):
-            result = attach_contract({
-                "controller_family": "TACT",
-                "page_type": "temperature",
-                "fields": {
-                    "barrel_temperature_set_c": [290.0] * count,
-                    "barrel_temperature_current_c": [290.1] * count,
-                },
-            })
-            expected = ["喷嘴1", *[f"区{i}" for i in range(1, count)]]
-            self.assertEqual(result["profile_id"], "tact.temperature.fixed")
-            self.assertEqual(
-                result["field_meta"]["barrel_temperature_set_c"]["entity"]["columns"],
-                expected,
-            )
-            self.assertEqual(
-                result["field_meta"]["barrel_temperature_current_c"]["entity"]["columns"],
-                expected,
-            )
 
     def test_fields_not_in_catalog_excluded(self):
         result = attach_contract(_injection_result(

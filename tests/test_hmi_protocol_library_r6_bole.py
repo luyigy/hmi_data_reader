@@ -18,11 +18,12 @@ import pytest
 import yaml
 
 import page_template_admin as admin
-from scripts.raw_bole_injection import PROFILE, VERSION, bole_injection_package, observe_bole_injection
+from scripts.extract_families.b_and_r.injection_holding.multi_stage_position_time.raw_observations import PROFILE, VERSION, bole_injection_package, observe_bole_injection
 from scripts.raw_contract import canonical_hash, import_raw_package, validate_raw_record
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = Path(os.environ["AP_GRAPH_OUTPUT_DIR"])
+OUTPUT = Path(os.environ.get("AP_GRAPH_OUTPUT_DIR", "/tmp/reader-bole-r6"))
+pytestmark = pytest.mark.skipif(not os.environ.get("AP_GRAPH_OUTPUT_DIR"), reason="opt-in live OCR and integration evidence suite")
 PREFIX = "/api/v1/page-templates"
 
 

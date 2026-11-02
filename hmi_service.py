@@ -36,8 +36,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from classify_ui import classify
 from contract import attach_contract, validate_channel_observations
-from extract_fields import (MACHINE_LABELS, RECORD_REPORT, cell_rescue_better,
-                            cell_rescue_needed, extract_one, merge_variant_lines)
+from extract_fields import MACHINE_LABELS, RECORD_REPORT, extract_one, merge_variant_lines
 from postprocess import postprocess_one
 from quality import THRESHOLD_PERSPECTIVE, assess, measure_perspective
 from rectify import DEFAULT_MAX_SIZE, rectify
@@ -301,20 +300,6 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 # 5. 分类
                 cls_res = classify(ocr_json)
 
-                # 5b. 摩尔纹抑制变体（034_FIX）：仅 DEMAG 注射/保压页生成 sidecar，
-                # 合并时主 OCR 值优先；变体失败不影响主路径。
-                if (
-                    str(cls_res.get("ui_family") or "").upper() == "DEMAG"
-                    and cls_res.get("page") in ("injection_metering", "monitor_curve")
-                ):
-                    try:
-                        from ocr_variants import generate_moire_sidecar
-                        generate_moire_sidecar(
-                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_moire.json"
-                        )
-                    except Exception as variant_error:  # noqa: BLE001
-                        logger.warning("moire variant failed: %s", variant_error)
-
                 # 5c. CLAHE 召回变体（2026-08-08）：分类器未认出家族的图片（热流道温控箱等
                 # 数码管面板常漏检），生成 CLAHE sidecar——extract 的模板指纹兜底判族与
                 # TACT/KEBA/B_AND_R 等家族的 CLAHE 合并均复用该产物，失败不影响主路径。
@@ -326,100 +311,11 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                         )
                     except Exception as variant_error:  # noqa: BLE001
                         logger.warning("clahe variant failed: %s", variant_error)
-                    # 5e. 模温机数码管旁车（042 S04）：独立设备整机照片无屏幕可矫正，
-                    # rectify 可能把机箱盖误判为屏幕扭曲丢内容，故旁车同时作用于矫正图
-                    # （mt_cell）与原图（mt_cell_orig）两个坐标系，由提取器分系聚行；
-                    # 仅 mold_temp 模板路由命中时才被 extract 合并，失败不影响主路径。
-                    try:
-                        from ocr_variants import generate_mold_temp_display_sidecar
-                        mt_sources = [(ocr_target, "mt_cell")]
-                        if ocr_target != orig_path:
-                            mt_sources.append((orig_path, "mt_cell_orig"))
-                        generate_mold_temp_display_sidecar(
-                            ocr_model, mt_sources, rect_dir / f"{stem}.ocr_mt.json"
-                        )
-                    except Exception as variant_error:  # noqa: BLE001
-                        logger.warning("mold_temp display variant failed: %s", variant_error)
-                # 三类炮筒 Profile 的专用弱读格召回；结构不匹配时 FANUC helper 返回 0，
-                # 不会把其他页面硬塞进温度提取器。
-                try:
-                    from ocr_variants import (generate_demag_rate_sidecar,
-                                              generate_fanuc_temperature_cells_sidecar)
-                    family = str(cls_res.get("ui_family") or "").upper()
-                    if family == "DEMAG" and cls_res.get("page") == "temperature":
-                        generate_demag_rate_sidecar(
-                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_rates.json")
-                    elif family == "FANUC" and cls_res.get("page") == "temperature":
-                        generate_fanuc_temperature_cells_sidecar(
-                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_cells.json",
-                            lines, rr["screen_size"])
-                except Exception as variant_error:  # noqa: BLE001
-                    logger.warning("barrel cell variant failed: %s", variant_error)
-
                 # 6. 字段提取
                 record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
                 machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
                 extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates",
                                           controller_hint=controller_hint)
-                if (extract_res.get("profile_id") == "tact5.process_settings.injection_holding_metering"
-                        and rr.get("ok")):
-                    try:
-                        from extract_families.tact5_process import recover_stage_counts
-                        counts = ((extract_res.get("extraction_detail") or {})
-                                  .get("page_observations") or {}).get("stage_counts", {})
-                        missing = {"injection", "plasticizing"} - counts.keys()
-                        extra = recover_stage_counts(ocr_model, ocr_target, lines,
-                                                     rr["screen_size"], missing)
-                    except Exception as rescue_error:  # noqa: BLE001
-                        logger.warning("TACT5 stage count rescue failed: %s", rescue_error)
-                        extra = []
-                    try:
-                        # 小字时间单位（射出/中间的 s）整屏漏检：仅在值框右侧裁出
-                        # 唯一高置信单位字符时补行，与段数补读同次重提取生效。
-                        from extract_families.tact5_process import recover_time_units
-                        observations = ((extract_res.get("extraction_detail") or {})
-                                        .get("page_observations") or {}).get("fields", [])
-                        template = json.loads(
-                            (HERE / "templates" / f"{extract_res['profile_id']}.json").read_text())
-                        extra += recover_time_units(ocr_model, ocr_target, observations,
-                                                    template, rr["screen_size"])
-                    except Exception as rescue_error:  # noqa: BLE001
-                        logger.warning("TACT5 time unit rescue failed: %s", rescue_error)
-                    if extra:
-                        lines.extend(extra)
-                        ocr_data["lines"] = lines
-                        ocr_data["line_count"] = len(lines)
-                        ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
-                        retry = extract_one(stem, rect_dir, record_report,
-                                                  machine_labels, HERE / "templates", controller_hint=controller_hint)
-                        if accepts_field_retry(extract_res, retry):
-                            extract_res = retry
-                # 6b. 083 S03 温度表逐格重读救援：B&R/DEMAG 温度页缺格/列结构失败时，
-                # 按实测网格逐格 rec 重读生成旁车（ocr_tcells）后重提取一次；
-                # 仅缺格变少才采用，网格实测失败不生成旁车、保持原结果。
-                if cell_rescue_needed(extract_res):
-                    try:
-                        from ocr_variants import generate_temperature_cells_sidecar
-                        base_lines = json.loads(ocr_json.read_text()).get("lines", [])
-                        clahe_path = rect_dir / f"{stem}.ocr_clahe.json"
-                        if clahe_path.is_file():
-                            base_lines, _ = merge_variant_lines(
-                                base_lines,
-                                json.loads(clahe_path.read_text()).get("lines", []))
-                        n_cells = generate_temperature_cells_sidecar(
-                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_tcells.json",
-                            extract_res.get("controller_family"), base_lines,
-                            rr["screen_size"],
-                            measured=extract_res.get("extraction_detail"))
-                        if n_cells:
-                            ext2 = extract_one(stem, rect_dir, record_report,
-                                               machine_labels, HERE / "templates", controller_hint=controller_hint)
-                            if accepts_field_retry(extract_res, ext2) and cell_rescue_better(extract_res, ext2):
-                                ext2.setdefault("warnings", []).append(
-                                    f"CELL_GRID_RESCUE({n_cells})")
-                                extract_res = ext2
-                    except Exception as rescue_error:  # noqa: BLE001
-                        logger.warning("temperature cell rescue failed: %s", rescue_error)
                 # 带分类置信度重算契约键（幂等，extract 内已算过一次无分类版本）
                 attach_contract(extract_res, cls_res)
                 review_image = {}
@@ -446,7 +342,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
 
             cls_res, extract_res, ocr_evidence = run_attempt(DEFAULT_MAX_SIZE)
             if extract_res.get("fields") is None and not any(
-                    "NO_TEMPLATE" in w or "RECTIF" in w or w in BLOCKED_PAGE_SOURCES.values()
+                    "NO_TEMPLATE" in w or w == "PAGE_UNSUPPORTED" or "RECTIF" in w or w in BLOCKED_PAGE_SOURCES.values()
                     for w in extract_res.get("warnings", [])):
                 # 083 S01 分辨率救援：提取失败（非路由/模板缺失）时以更高 max_size
                 # 重跑一轮——4K 原图经 2000 长边封顶后小字表格（B&R 灰底温度表等）
@@ -465,9 +361,8 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             if observations_version == "v2":
                 import hashlib
                 from raw_observations import (observe_temperature_time_page, select_raw_profile,
-                                              recover_temperature_time_cells, DEFINITIONS, RawPageRejected,
-                                              VERSIONED_RECOVERY)
-                from raw_page_ocr import engine_identity, recover_raw_cells
+                                              RawPageRejected)
+                from raw_page_ocr import engine_identity
                 try:
                     raw_profile = select_raw_profile(extract_res.get("profile_id"), ocr_evidence["lines"])
                 except ValueError:
@@ -476,15 +371,6 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                     raise HTTPException(status_code=422, detail={"code": reason,
                                                                 "profile_id": extract_res.get("profile_id")})
                 raw_gray = ocr_evidence.pop("_raw_gray", None)
-                if extract_res.get("profile_id") == "demag.injection_metering.multi_stage_holding" and raw_gray is not None:
-                    ocr_evidence["lines"] = recover_raw_cells(ocr_model, raw_gray, rectify_meta,
-                                                            ocr_evidence["lines"])
-                if raw_profile in DEFINITIONS and raw_gray is not None:
-                    ocr_evidence["lines"] = recover_temperature_time_cells(
-                        ocr_model, raw_gray, rectify_meta, ocr_evidence["lines"], raw_profile)
-                recovery = VERSIONED_RECOVERY.get((raw_profile, extract_res.get("template_version", "1.0.0")))
-                if recovery is not None and raw_gray is not None:
-                    ocr_evidence["lines"] = recovery(ocr_model, raw_gray, rectify_meta, ocr_evidence["lines"])
                 try:
                     page_observations = observe_temperature_time_page(
                         raw_profile, ocr_evidence["lines"], rectify_meta,
@@ -495,7 +381,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                     raise HTTPException(status_code=422, detail=exc.detail) from exc
                 page_observations["engine"] = engine_identity(ocr_model)
             if page_observations and page_observations.get("fields"):
-                from extract_families.tact5_process import project_boxes
+                from extract_families.coordinates import project_boxes
                 project_boxes(page_observations["fields"], rectify_meta)
                 for observation in page_observations["fields"]:
                     if observation.get("original_bbox") is None and "source_box_unavailable" not in observation["reasons"]:
@@ -503,7 +389,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             field_sources = {}
             source_rows = (extract_res.get("extraction_detail") or {}).get("field_sources", {})
             if source_rows:
-                from extract_families.tact5_process import project_boxes
+                from extract_families.coordinates import project_boxes
                 for name, sources in source_rows.items():
                     observations = []
                     for source in sources:
