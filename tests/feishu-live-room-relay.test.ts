@@ -53,19 +53,19 @@ assert.equal(shouldRelayLiveRoomMessage(message('assistant')), true);
 const assistant = message('assistant');
 assistant.content = '**Done**\n\n- one\n- two';
 assert.deepEqual(buildAssistantRelayCard(assistant), {
-  config: { wide_screen_mode: true },
+  schema: '2.0', config: { update_multi: true, width_mode: 'fill' },
   header: {
     template: 'blue',
     title: { tag: 'plain_text', content: 'codex' },
   },
-  elements: [{ tag: 'markdown', content: '**Done**\n\n- one\n- two' }],
+  body: { elements: [{ tag: 'markdown', content: '**Done**\n\n- one\n- two' }] },
 });
 
 assistant.metadata = { executionRole: 'feature:implement' };
-assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
+assert.deepEqual(buildAssistantRelayCard(assistant).body.elements, [
   {
-    tag: 'note',
-    elements: [{ tag: 'plain_text', content: '执行角色：feature:implement' }],
+    tag: 'div',
+    text: { tag: 'plain_text', content: '执行角色：feature:implement', text_size: 'notation', text_color: 'grey' },
   },
   { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
 ]);
@@ -88,34 +88,34 @@ assert.equal(buildAssistantRelayCard(assistant).header.title.content, 'codex');
 
 assistant.metadata = { deliveryIntent: 'handoff', targetMemberName: 'Claude' };
 assert.deepEqual(buildAssistantRelayCard(assistant), {
-  config: { wide_screen_mode: true },
+  schema: '2.0', config: { update_multi: true, width_mode: 'fill' },
   header: {
     template: 'blue',
     title: { tag: 'plain_text', content: 'codex' },
   },
-  elements: [
+  body: { elements: [
     { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
     {
-      tag: 'note',
-      elements: [{ tag: 'plain_text', content: '下一位：Claude' }],
+      tag: 'div',
+      text: { tag: 'plain_text', content: '下一位：Claude', text_size: 'notation', text_color: 'grey' },
     },
-  ],
+  ] },
 });
 
 assistant.metadata = { deliveryIntent: 'handoff' };
-assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
+assert.deepEqual(buildAssistantRelayCard(assistant).body.elements, [
   { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
 ]);
 
 assistant.metadata = { deliveryIntent: 'broadcast', handoffRootMessageId: 'root-message' };
-assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
+assert.deepEqual(buildAssistantRelayCard(assistant).body.elements, [
   { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
 ]);
 
 assistant.metadata = { deliveryIntent: 'broadcast', handoffRootMessageId: 'root-message', chainDepth: 1 };
-assert.deepEqual(buildAssistantRelayCard(assistant).elements.at(-1), {
-  tag: 'note',
-  elements: [{ tag: 'plain_text', content: '范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。' }],
+assert.deepEqual(buildAssistantRelayCard(assistant).body.elements.at(-1), {
+  tag: 'div',
+    text: { tag: 'plain_text', content: '范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。', text_size: 'notation', text_color: 'grey' },
 });
 assert.doesNotMatch(JSON.stringify(buildAssistantRelayCard(assistant)), /handoff-plan|审批 PLAN/);
 

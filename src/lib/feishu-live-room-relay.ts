@@ -1,3 +1,4 @@
+import { replyCardNote } from './agent-reply-card';
 import path from 'node:path';
 import { finishOwnedTurnCard } from './feishu-turn-card';
 import { prisma } from '@/lib/prisma';
@@ -80,7 +81,6 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
 
 export const buildAssistantRelayCard = (
   message: LiveRoomMessagePayload,
-  chatType: 'p2p' | 'group' = 'group',
 ) => {
   const targetMemberName =
     typeof message.metadata?.targetMemberName === 'string'
@@ -91,24 +91,16 @@ export const buildAssistantRelayCard = (
     ? message.metadata.executionRole
     : null;
   const elements: Array<Record<string, unknown>> = [
-    ...(executionRole ? [{
-      tag: 'note',
-      elements: [{ tag: 'plain_text', content: `执行角色：${executionRole}` }],
-    }] : []),
+    ...(executionRole ? [replyCardNote(`执行角色：${executionRole}`)] : []),
     { tag: 'markdown', content: message.content },
   ];
 
   if (Array.isArray(message.metadata?.footnotes)) {
-    elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content:
-      message.metadata.footnotes.filter((line): line is string => typeof line === 'string').join('\n'),
-    }] });
+    elements.push(replyCardNote(message.metadata.footnotes.filter((line): line is string => typeof line === 'string').join('\n')));
   }
 
   if (deliveryIntent === 'handoff' && targetMemberName) {
-    elements.push({
-      tag: 'note',
-      elements: [{ tag: 'plain_text', content: `下一位：${targetMemberName}` }],
-    });
+    elements.push(replyCardNote(`下一位：${targetMemberName}`));
   }
 
   const handoffRootMessageId = typeof message.metadata?.handoffRootMessageId === 'string'
@@ -118,14 +110,11 @@ export const buildAssistantRelayCard = (
     ? message.metadata.chainDepth
     : 0;
   if (handoffRootMessageId && chainDepth > 0 && deliveryIntent !== 'handoff') {
-    elements.push({
-      tag: 'note',
-      elements: [{ tag: 'plain_text', content: '范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。' }],
-    });
+    elements.push(replyCardNote('范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。'));
   }
 
   return {
-    config: { wide_screen_mode: true },
+    schema: '2.0', config: { update_multi: true, width_mode: 'fill' },
     header: {
       template: 'blue',
       title: {
@@ -135,7 +124,7 @@ export const buildAssistantRelayCard = (
           : message.senderName,
       },
     },
-    elements,
+    body: { elements },
   };
 };
 
@@ -214,7 +203,6 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
           ...target,
           card: buildAssistantRelayCard(
             { ...message, content: relay.text },
-            binding.chatType === 'p2p' ? 'p2p' : 'group',
           ),
         });
       } catch {

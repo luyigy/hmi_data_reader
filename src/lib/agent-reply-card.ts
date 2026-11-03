@@ -3,6 +3,9 @@ import { redactSensitiveText } from './redact-sensitive';
 import { latestReplyPreview } from './agent-reply-state';
 
 type Element = Record<string, unknown>;
+export const replyCardNote = (content: string) => ({
+  tag: 'div', text: { tag: 'plain_text', content, text_size: 'notation', text_color: 'grey' },
+});
 export function mergeAgentReply(progress: string, final: string) {
   if (!final) return progress;
   if (!progress || final.includes(progress)) return final;
@@ -54,7 +57,7 @@ export function turnReplyElements(args: {
       ...(args.details || []),
     ],
     footer: args.schema === '2.0'
-      ? [{ tag: 'div', text: { tag: 'plain_text', content: footer, text_size: 'notation', text_color: 'grey' } }]
+      ? [{ ...replyCardNote(footer), element_id: 'reply_footer' }]
       : [{ tag: 'note', elements: [{ tag: 'plain_text', content: footer }] }],
   });
 }

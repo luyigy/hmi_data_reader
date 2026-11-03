@@ -6,7 +6,7 @@ import { prisma } from './prisma';
 import { resolveFeishuMessageTarget, sendFeishuInteractiveMessage } from './feishu-api';
 import { updateFeishuTaskEntryCard } from './feishu-task-entry-api';
 import { safeFeishuCard } from './feishu-card-markdown';
-import { agentReplyElements, turnReplyElements } from './agent-reply-card';
+import { agentReplyElements, turnReplyElements, replyCardNote } from './agent-reply-card';
 import { graphNodeForTask } from './task-graph/task-binding';
 
 export type TurnCardIdentity = { sourceMessageId: string; memberId: string; bindingId: string };
@@ -29,9 +29,9 @@ export async function prepareRoomTurnCard(sourceMessageId: string, memberId: str
   const row = await reserveTurnCard(identity);
   if (!row.cardJson) {
     const member = await prisma.liveRoomMember.findUniqueOrThrow({ where: { id: memberId } });
-    await publishTurnCard(identity, { config: { wide_screen_mode: true },
+    await publishTurnCard(identity, { schema: '2.0', config: { update_multi: true, width_mode: 'fill' },
       header: { template: 'blue', title: { tag: 'plain_text', content: `${member.displayName} · 等待执行` } },
-      elements: turnReplyElements({ active: true, latest: '已收到消息，等待执行。', final: '', process: '', tools: '', footnotes: ['运行信息尚未提供'] }),
+      body: { elements: turnReplyElements({ schema: '2.0', active: true, latest: '已收到消息，等待执行。', final: '', process: '', tools: '', footnotes: ['运行信息尚未提供'] }) },
     }, false, true).catch(error => console.error('[TurnCard] placeholder queued:', error));
   }
   return { identity, binding };
@@ -100,11 +100,14 @@ async function finishSavedCard(identity: TurnCardIdentity, text: string, success
   const member = await prisma.liveRoomMember.findUniqueOrThrow({ where: { id: row.memberId } });
   const elements: Record<string, unknown>[] = card.body?.elements || card.elements || [];
   const body = agentReplyElements({ text })[0];
-  const rest = elements.filter(element => element.tag !== 'markdown' && (!footnotes.length || element.tag !== 'note'));
+  const rest = elements.filter(element => element.tag !== 'markdown'
+    && (!footnotes.length || element.tag !== 'note' && element.element_id !== 'reply_footer'))
+    .map(element => element.tag === 'note'
+      ? replyCardNote((element.elements as { content?: string }[] || []).map(text => text.content || '').join('\n')) : element);
   await publishTurnCard(identity, {
-    config: { wide_screen_mode: true },
+    schema: '2.0', config: { update_multi: true, width_mode: 'fill' },
     header: { template: success ? 'green' : 'red', title: { tag: 'plain_text', content: `${member.displayName} · ${success ? '执行完成' : '执行失败'}` } },
-    elements: [body, ...rest, ...(footnotes.length ? [{ tag: 'note', elements: [{ tag: 'plain_text', content: footnotes.join('\n') }] }] : [])],
+    body: { elements: [body, ...rest, ...(footnotes.length ? [{ ...replyCardNote(footnotes.join('\n')), element_id: 'reply_footer' }] : [])] },
   }, true);
 }
 

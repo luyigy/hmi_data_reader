@@ -27,9 +27,9 @@ async function runTest() {
   // Test adding system events
   tracker.onSystemEvent('开始处理消息 | codex (local_acpx)', '🚀');
   tracker.onSystemEvent('思考分析：读取 /srv/agent-platform/src/config.ts token=secret-value', '🧠');
-  assert.match((tracker as any).buildCard().elements[0].content, /思考分析：读取 src\/config\.ts/);
+  assert.match((tracker as any).buildCard().body.elements[0].content, /思考分析：读取 src\/config\.ts/);
   tracker.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
-  assert.match((tracker as any).buildCard().elements[0].content, /思考分析/);
+  assert.match((tracker as any).buildCard().body.elements[0].content, /思考分析/);
   assert.doesNotMatch(JSON.stringify((tracker as any).buildCard()), /心跳保活/);
   await (tracker as any).flushPromise;
   const flushCountBeforeDuplicateHeartbeat = flushCount;
@@ -48,13 +48,14 @@ async function runTest() {
   // Inspect internal card structure via buildCard (private method)
   const card = (tracker as any).buildCard();
 
-  assert.strictEqual(card.config.wide_screen_mode, true);
+  assert.strictEqual(card.schema, '2.0');
+  assert.strictEqual(card.config.width_mode, 'fill');
   assert.strictEqual(card.header.title.content, 'Agent · 执行中...');
-  assert.match(JSON.stringify(card.elements.at(-1)), /耗时 1分5秒/);
-  assert.ok(card.elements[0].content.length < 300);
-  assert.match(card.elements[0].content, /tool-4：private-4\.txt/);
+  assert.match(JSON.stringify(card.body.elements.at(-1)), /耗时 1分5秒/);
+  assert.ok(card.body.elements[0].content.length < 300);
+  assert.match(card.body.elements[0].content, /tool-4：private-4\.txt/);
 
-  const systemPanel = card.elements.find((el: any) =>
+  const systemPanel = card.body.elements.find((el: any) =>
     el.tag === 'collapsible_panel' && el.header?.title?.content === '思考过程'
   );
   assert.ok(systemPanel, 'System info collapsible panel should exist');
@@ -62,7 +63,7 @@ async function runTest() {
   assert.doesNotMatch(JSON.stringify(systemPanel), /secret-value/);
   assert.doesNotMatch(JSON.stringify(systemPanel), /心跳保活|💓/);
 
-  const toolPanel = card.elements.find((el: any) =>
+  const toolPanel = card.body.elements.find((el: any) =>
     el.tag === 'collapsible_panel' && el.header?.title?.content === '工具调用'
   );
   assert.ok(toolPanel, 'Tool details collapsible panel should exist');
@@ -75,8 +76,8 @@ async function runTest() {
     false,
   );
   assert.strictEqual(finalCard.header.title.content, 'Agent · 执行失败');
-  assert.match(finalCard.elements[0].content, /failed at.*private\.ts/);
-  assert.doesNotMatch(finalCard.elements[0].content, /view_file|tool-4/);
+  assert.match(finalCard.body.elements[0].content, /failed at.*private\.ts/);
+  assert.doesNotMatch(finalCard.body.elements[0].content, /view_file|tool-4/);
   assert.doesNotMatch(JSON.stringify(finalCard), /secret-value|sk-secret123/);
   assert.strictEqual((tracker as any).buildFinalCard('done', true).header.title.content, 'Agent · 执行完成');
   Date.now = originalNow;

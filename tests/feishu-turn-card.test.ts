@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { prisma } from '../src/lib/prisma';
-import { reserveTurnCard, publishTurnCard, finishOwnedTurnCard, relayPendingTurnCards, bindTurnCardRun, failRoomTurnCard } from '../src/lib/feishu-turn-card';
+import { prepareRoomTurnCard, reserveTurnCard, publishTurnCard, finishOwnedTurnCard, relayPendingTurnCards, bindTurnCardRun, failRoomTurnCard } from '../src/lib/feishu-turn-card';
 import { relayLiveRoomMessageToFeishu } from '../src/lib/feishu-live-room-relay';
 
 async function main() {
@@ -91,11 +91,16 @@ async function main() {
     await publishTurnCard(fallbackIdentity, card('waiting'), false);
     await finishOwnedTurnCard(fallbackIdentity, { text: 'Final from room ledger', footnotes: ['input 123 tokens'] });
     assert.equal(messages.size, 6);
+    const fallbackCard = Array.from(messages.values())[5].card as { schema: string; body: { elements: { element_id?: string }[] } };
+    assert.equal(fallbackCard.schema, '2.0');
+    assert.equal(fallbackCard.body.elements.filter(e => e.element_id === 'reply_footer').length, 1);
+    assert.doesNotMatch(JSON.stringify(fallbackCard), /"tag":"note"/);
     assert.match(JSON.stringify(Array.from(messages.values())[5].card), /Final from room ledger.*123/);
     const cancelled = await prisma.liveRoomMessage.create({ data: { roomId: room.id, content: 'cancelled before start' } });
     const cancelledIdentity = { ...identity, sourceMessageId: cancelled.id };
-    await reserveTurnCard(cancelledIdentity);
-    await publishTurnCard(cancelledIdentity, card('waiting'), false);
+    await prepareRoomTurnCard(cancelled.id, a.id);
+    const placeholder = Array.from(messages.values())[6].card as { schema: string };
+    assert.equal(placeholder.schema, '2.0');
     await prisma.liveRoomDelivery.create({ data: { roomMessageId: cancelled.id, targetMemberId: a.id, deliveryStatus: 'superseded', fallbackReason: 'Session changed before delivery' } });
     await relayPendingTurnCards();
     assert.equal(messages.size, 7, 'A cancelled queue entry terminates its existing placeholder');

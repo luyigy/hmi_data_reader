@@ -16,11 +16,11 @@ async function main() {
   tracker.setFootnotes(['模型：codex-fixture', '输入 123 / 输出 45 tokens']);
   await tracker.setReplyContent('早期过程。'.repeat(200) + '\n\n最新进展。', '', '');
   const running = tracker.buildCard();
-  assert.ok(running.elements[0].content.length < 300, 'Running body must stay a compact current preview');
-  assert.match(running.elements[0].content, /最新进展/);
-  assert.ok(running.elements.some((e: any) => e.tag === 'collapsible_panel' && e.header.title.content === '思考过程'));
+  assert.ok(running.body.elements[0].content.length < 300, 'Running body must stay a compact current preview');
+  assert.match(running.body.elements[0].content, /最新进展/);
+  assert.ok(running.body.elements.some((e: any) => e.tag === 'collapsible_panel' && e.header.title.content === '思考过程'));
   const completed = tracker.buildFinalCard('最终答复。', true);
-  assert.equal(completed.elements[0].content, '最终答复。');
+  assert.equal(completed.body.elements[0].content, '最终答复。');
   assert.match(JSON.stringify(completed), /123.*45/);
 
   const base = { id: 'fixture', status: 'completed', summary: '旧的混合 summary', error: null, participants: [] };

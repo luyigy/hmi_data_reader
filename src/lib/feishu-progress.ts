@@ -112,14 +112,14 @@ export class FeishuProgressTracker {
     const reply = this.replyContent;
     const process = reply ? reply.details : this.systemEntries.filter(entry => entry.emoji === '🧠').map(entry => entry.message.replace(/^思考分析[:：]\s*/, '')).join('\n');
     return {
-      config: { wide_screen_mode: true },
+      schema: '2.0', config: { update_multi: true, width_mode: 'fill' },
       header: { template: active ? 'blue' : success ? 'green' : 'red', title: { tag: 'plain_text',
         content: `${this.displayName} · ${active ? this.statusText : success ? '执行完成' : '执行失败'}` } },
-      elements: turnReplyElements({ active, latest: reply?.text || this.latestActivity, final: summary,
+      body: { elements: turnReplyElements({ schema: '2.0', active, latest: reply?.text || this.latestActivity, final: summary,
         processEntries: reply?.processEntries, processStarted: `开始处理消息 | ${this.displayName}`,
         process, tools: this.entries.map(entry => `${entry.emoji} ${entry.toolName}：${entry.preview}`).join('\n'),
         footnotes: this.footnotes.length ? this.footnotes : [`耗时 ${this.elapsedText()} · ${reply?.usage || 'Token 用量未提供'}`, ...formatSessionSize(this.sessionSize)],
-      }),
+      }) },
     };
   }
 
