@@ -392,7 +392,6 @@ async function sendFeishuWorkflowMessage(args: {
   const token = await getFeishuTenantAccessToken();
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
   url.searchParams.set('receive_id_type', 'chat_id');
-  url.searchParams.set('uuid', args.idempotencyKey);
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -402,6 +401,7 @@ async function sendFeishuWorkflowMessage(args: {
     body: JSON.stringify({
       receive_id: args.chatId,
       msg_type: args.messageType,
+      uuid: args.idempotencyKey,
       content: JSON.stringify(args.messageType === 'interactive' ? safeFeishuCard(args.content) : args.content),
     }),
   });

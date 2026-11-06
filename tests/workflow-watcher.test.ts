@@ -22,6 +22,10 @@ async function main() {
       assert.equal(body.app_id, 'local-ai-assistant');
       return { ok: true, status: 200, json: async () => ({ code: 0, tenant_access_token: 'token', expire: 3600 }) };
     }
+    if (init?.method === 'POST' && new URL(url).pathname.endsWith('/im/v1/messages')) {
+      assert.equal(new URL(url).searchParams.has('uuid'), false, 'message uuid is a body field, not a query parameter');
+      assert.match(String(body.uuid ?? ''), /^[a-f0-9]{32}$/, 'workflow messages must carry a nonempty body uuid');
+    }
     apiCalls.push({ url, body });
     if (process.env.LARK_FAIL_PROMPT === '1' && String(body.content).includes('NEXT PROMPT')) {
       return { ok: false, status: 500, json: async () => ({ code: 1, msg: 'prompt-failed' }) };
@@ -248,8 +252,8 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   const completionReceiptCalls = apiCalls.filter(({ body }) =>
     String(body.content).includes('Workflow 完成回执'));
   assert.equal(completionReceiptCalls.length, completionReceiptsBeforeWaiting + 1);
-  assert.equal(new URL(completionReceiptCalls.at(-1)!.url).searchParams.get('uuid'),
-    new URL(completionReceiptCalls.at(-2)!.url).searchParams.get('uuid'),
+  assert.equal(completionReceiptCalls.at(-1)!.body.uuid,
+    completionReceiptCalls.at(-2)!.body.uuid,
     'retry after cursor-save failure must reuse the Feishu idempotency key');
   const waitingAgain = await run(waiting.cursor);
   assert.match(waitingAgain.summary, /gate=waiting_previous_completion/);
@@ -717,7 +721,6 @@ NEXT PROMPT 004_HANDOVER_20260725_s01.md 003_PLAN_20260725_review.md 000_ROADMAP
   assert.match(workflowRuns.at(-1)?.workflowContext ?? '', /人工审批卡已批准/);
 
   await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
-  const contractPath = path.join(root, 'docs/workflow/workflow-contract.yaml');
   await writeFile(path.join(root, 'docs/branch/main/004_PLAN_20260725_approval.md'), `---
 doc_type: PLAN
 doc_status: ready
@@ -790,6 +793,13 @@ NEXT PROMPT 005_PLAN_20260725_import_failure.md 000_ROADMAP_20260725_test.md S01
     signal: new AbortController().signal,
   });
   assert.match(defaultImport.summary, /gate=plan_review document_ready=true/);
+  const importRetryNotifications = apiCalls.slice(callsBeforeImportFailure)
+    .filter(({ body }) => String(body.content).includes('workflow validator 通过'));
+  assert.equal(importRetryNotifications.length, 2);
+  assert.equal(importRetryNotifications[0].body.uuid, importRetryNotifications[1].body.uuid,
+    'retry after document import failure must deduplicate the already-sent validation notice');
+  assert.notEqual(apiCalls.at(-1)!.body.uuid, importRetryNotifications[0].body.uuid,
+    'review card and validation notice must use different deduplication keys');
   assert.match(await readFile(callsFile, 'utf8'), /docs \+create --as bot/);
 
   const beforeInvalid = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-invalid' };
