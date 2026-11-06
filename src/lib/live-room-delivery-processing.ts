@@ -25,6 +25,7 @@ import {
   normalizeLiveRoomExecutionError,
 } from '@/lib/live-room-delivery-execution';
 import {
+  claimLiveRoomHandoff,
   detectLiveRoomHandoffIntent,
   applyPlannedLiveRoomHandoff,
   recordRejectedLiveRoomHandoff,
@@ -292,6 +293,11 @@ export const processLiveRoomDelivery = async ({
     },
   });
 
+  const acknowledge = () => prisma.liveRoomDelivery.updateMany({
+    where: { id: delivery.id, deliveryStatus: 'running' },
+    data: { deliveryStatus: 'delivered', acknowledgedAt: new Date() },
+  });
+
   try {
     await prisma.liveRoomMemberSession.update({
       where: { id: session.id },
@@ -324,7 +330,7 @@ export const processLiveRoomDelivery = async ({
     });
 
     if (!acpxResult) {
-      await prisma.liveRoomDelivery.update({ where: { id: delivery.id }, data: { deliveryStatus: 'delivered', acknowledgedAt: new Date() } });
+      await acknowledge();
       return;
     }
     let output = await applyGraphControlOutput({ output: acpxResult.output, roomId: room.id, sourceContent: sourceMessage.content, sourceMetadata: sourceMessage.metadata || null });
@@ -352,14 +358,6 @@ export const processLiveRoomDelivery = async ({
         },
       });
     }
-
-    await prisma.liveRoomDelivery.update({
-      where: { id: delivery.id },
-      data: {
-        deliveryStatus: 'delivered',
-        acknowledgedAt: new Date(),
-      },
-    });
 
     await prisma.liveRoomMember.update({
       where: { id: targetMember.id },
@@ -496,7 +494,7 @@ export const processLiveRoomDelivery = async ({
       }
 
       if (handoffIntent.kind === 'target' && delivery.handoffRootMessageId) {
-        return {
+        const handoff = {
           assistantMessageId: assistantMessage.id,
           rootMessageId: delivery.handoffRootMessageId,
           targetMemberId: handoffIntent.targetMemberId,
@@ -505,9 +503,14 @@ export const processLiveRoomDelivery = async ({
           chainDepth,
           relayOrigin,
         };
+        // Keep a durable busy record across the gap before the next member is enqueued.
+        const claim = await claimLiveRoomHandoff(handoff);
+        await acknowledge();
+        return { ...handoff, claim };
       }
     }
 
+    await acknowledge();
     return null;
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Live room delivery failed';

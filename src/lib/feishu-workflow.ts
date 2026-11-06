@@ -1,3 +1,4 @@
+import { isLiveRoomBusy, SESSION_ROTATION_WAITING } from '@/lib/live-room-idle';
 import {
   getBoundLiveRoom,
   type FeishuConversationContext,
@@ -150,14 +151,9 @@ export async function runWorkflowInBoundLiveRoom(args: {
   });
   let rotationNotice = '';
 
-  // A committed HANDOVER can be visible before its agent has emitted its final reply.
-  // Keep the watcher event pending; the task-completion wakeup will retry it.
-  if (dispatch.state === 'prepared') {
-    const active = await prisma.taskRun.count({
-      where: { taskId: boundRoom.sourceTask.id, status: 'running' },
-    });
-    if (active) return false;
-  }
+  // Retry checkpoints must observe the same idle boundary as the first attempt.
+  if (['prepared', 'rotation_pending', 'rotation_confirmation_posting', 'rotation_confirmation_required'].includes(dispatch.state)
+    && await isLiveRoomBusy(boundRoom.sourceTask.id, boundRoom.id)) return false;
 
   if (['rotation_confirmation_posting', 'rotation_confirmation_required'].includes(dispatch.state)) {
     dispatch = await prisma.workflowDispatch.update({
@@ -222,7 +218,8 @@ export async function runWorkflowInBoundLiveRoom(args: {
           'rotation-key': args.eventKey,
           'workflow-event-key': args.eventKey,
         },
-      }, context);
+      }, context, { waitForIdle: true });
+      if (result === SESSION_ROTATION_WAITING) return false;
       if (!result.startsWith('✅')) throw new Error(`workflow session rotation failed: ${result}`);
       dispatch = await prisma.workflowDispatch.update({
         where: { id: dispatch.id },
@@ -255,7 +252,8 @@ export async function runWorkflowInBoundLiveRoom(args: {
         'rotation-key': args.eventKey,
         'workflow-event-key': args.eventKey,
       },
-    }, context);
+    }, context, { waitForIdle: true });
+    if (result === SESSION_ROTATION_WAITING) return false;
     if (!result.startsWith('✅')) throw new Error(`workflow session rotation failed: ${result}`);
     dispatch = await prisma.workflowDispatch.update({
       where: { id: dispatch.id },

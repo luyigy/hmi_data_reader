@@ -1,3 +1,4 @@
+import { isLiveRoomBusy, SESSION_ROTATION_WAITING } from '@/lib/live-room-idle';
 import { graphRoomMemberWriters, waitForGraphRoomMemberStop } from './task-graph/conversation-reset-stop';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -483,17 +484,21 @@ export function formatPermissionProfileLabel(profile: string) {
     : profile;
 }
 
-export async function handleNewSessionCommand(command: NewSessionCommand, context?: FeishuConversationContext) {
+export async function handleNewSessionCommand(
+  command: NewSessionCommand,
+  context?: FeishuConversationContext,
+  policy: { waitForIdle?: boolean } = {},
+) {
   const room = await getBoundLiveRoom(context);
   if (!room?.sourceTask) return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法启动 new session。';
   // Serialize callbacks across bot processes; checkpoints remain durable if a step fails.
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`session-reset:${room.id}`}, 0))::text`;
-    return rotateRoomSession(command, context);
+    return rotateRoomSession(command, context, policy.waitForIdle);
   }, { timeout: 60_000, maxWait: 10_000 });
 }
 
-async function rotateRoomSession(command: NewSessionCommand, context?: FeishuConversationContext) {
+async function rotateRoomSession(command: NewSessionCommand, context?: FeishuConversationContext, waitForIdle = false) {
   const room = await getBoundLiveRoom(context);
   if (!room || !room.sourceTask) {
     return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法启动 new session。';
@@ -614,6 +619,7 @@ async function rotateRoomSession(command: NewSessionCommand, context?: FeishuCon
   if (freshTaskSession && parseTaskSessionMetadata(freshTaskSession.metadata).rotationCheckpoint === 'completed') {
     return '✅ 此次 session 重置已完成；重复回调不会再次停止运行或清除新会话。';
   }
+  if (waitForIdle && await isLiveRoomBusy(sourceTask.id, room.id)) return SESSION_ROTATION_WAITING;
   const graphJob = await prisma.taskGraphExecution.findFirst({ where: { childTaskId: sourceTask.id }, select: { id: true } });
   const createSession = async () => {
     return rotateTaskSession(sourceTask.id, {
@@ -634,7 +640,7 @@ async function rotateRoomSession(command: NewSessionCommand, context?: FeishuCon
   if (graphJob && !freshTaskSession) freshTaskSession = await createSession();
   if (!freshTaskSession || graphJob && parseTaskSessionMetadata(freshTaskSession.metadata).rotationCheckpoint !== 'completed') {
     const graphWriters = graphJob ? await Promise.all(members.map(target => graphRoomMemberWriters(sourceTask.id, target))) : [];
-    const interruptions = await Promise.all(members.map(async (targetMember) => {
+    const interruptions = waitForIdle ? [] : await Promise.all(members.map(async (targetMember) => {
       cancelQueuedLiveRoomMemberExecutions(targetMember.id);
       return interruptLiveRoomMemberReplies({
         roomId: room.id,

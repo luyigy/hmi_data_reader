@@ -65,6 +65,9 @@ async function main() {
   let fault: 'before_session' | 'session' | 'marker' | 'live' | 'thread' | 'bootstrap' | 'complete' | null = null;
   let runningReply = true;
   let stopEffects = 0;
+  let stopCalls = 0;
+  let activeRuns = 1;
+  let activeDeliveries = 1;
   let rotations = 0;
   let resetMarkers = 0;
   let liveResets = 0;
@@ -80,9 +83,9 @@ async function main() {
   prismaModule.prisma = {
     $queryRaw: async () => [],
     $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(prismaModule.prisma),
-    taskRun: { count: async () => 1 },
+    taskRun: { count: async () => activeRuns },
     taskGraphExecution: { findFirst: async () => null },
-    liveRoomDelivery: { count: async () => 1 },
+    liveRoomDelivery: { count: async () => activeDeliveries },
     taskSession: {
       findFirst: async ({ where }: { where: { metadata: { contains: string } } }) => {
         const key = JSON.parse(where.metadata.contains.slice(where.metadata.contains.indexOf(':') + 1));
@@ -215,6 +218,7 @@ async function main() {
 
   const interrupt = await import('../src/lib/live-room-interrupt') as unknown as Record<string, unknown>;
   interrupt.interruptLiveRoomMemberReplies = async () => {
+    stopCalls += 1;
     if (!runningReply) {
       return { failedRunningCount: 0, interruptedRunningCount: 0, cancelledQueuedCount: 0 };
     }
@@ -508,6 +512,24 @@ async function main() {
   assert.equal((await runGit('rev-parse', 'HEAD')).stdout.trim(), headBeforeDefault);
   assert.deepEqual(await fs.readdir(nonGitWorkspace), ['.git'], 'no handover docs should be created');
   await fs.rm(nonGitWorkspace, { recursive: true, force: true });
+
+  room.workingDirectory = workspace;
+  const automatic = { ...command, options: { blank: 'true', 'rotation-key': 'automatic-idle' } };
+  const beforeIdleRotation = rotations;
+  const beforeIdleStops = stopCalls;
+  const { SESSION_ROTATION_WAITING } = await import('../src/lib/live-room-idle');
+  assert.equal(await handleNewSessionCommand(automatic, context, { waitForIdle: true }), SESSION_ROTATION_WAITING);
+  activeRuns = 0;
+  assert.equal(await handleNewSessionCommand(automatic, context, { waitForIdle: true }), SESSION_ROTATION_WAITING);
+  assert.equal(rotations, beforeIdleRotation, 'active delivery alone must block reset even after TaskRun completion');
+  assert.equal(stopCalls, beforeIdleStops, 'automatic rotation must never try to stop active work');
+  activeDeliveries = 0;
+  assert.match(await handleNewSessionCommand(automatic, context, { waitForIdle: true }), /^✅/);
+  assert.equal(rotations, beforeIdleRotation + 1);
+  assert.equal(stopCalls, beforeIdleStops, 'idle automatic rotation must bypass interruption, including stale PID fallback');
+  activeRuns = 1; activeDeliveries = 1;
+  assert.match(await handleNewSessionCommand(automatic, context, { waitForIdle: true }), /^✅/);
+  assert.equal(rotations, beforeIdleRotation + 1, 'completed reset replay must preserve the new session');
 
   await fs.rm(workspace, { recursive: true, force: true });
   console.log('new session rotation checks passed');

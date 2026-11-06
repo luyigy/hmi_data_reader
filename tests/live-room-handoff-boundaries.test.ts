@@ -21,14 +21,10 @@ assert.ok(
   'handoff dispatch must be deferred until the current member queue releases',
 );
 assert.ok(
-  processing.indexOf("deliveryStatus: 'delivered'") < processing.indexOf('const assistantMessage'),
-  'the current delivery must be terminal before its assistant reply can request handoff',
-);
-assert.ok(
   processing.indexOf("presenceStatus: 'online'") < processing.indexOf('const assistantMessage'),
   'the current member must be released before its assistant reply can request handoff',
 );
-assert.match(delivery, /claimLiveRoomHandoff/);
+assert.match(processing, /claimLiveRoomHandoff/);
 assert.match(delivery, /waitForCompletion: false/);
 assert.match(processing, /delivery\.handoffRootMessageId\s*\?/);
 assert.match(

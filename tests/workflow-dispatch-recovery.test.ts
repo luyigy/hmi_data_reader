@@ -24,6 +24,9 @@ async function main() {
   let rotationRuns = 0;
   let rotationAction: 'reuse' | 'prepare_checkpoint' | 'rotation_pending' | 'warning_only' = 'reuse';
   let workflowAutonomy = 'manual';
+  let resetBecameBusy = false;
+  let activeTaskStatus: string | null = null;
+  let activeDeliveryStatus: string | null = null;
   const reset = (state: string): Dispatch => (dispatch = {
     id: 'dispatch',
     projectId: 'project',
@@ -60,11 +63,19 @@ async function main() {
       },
     },
     scheduledJobState: { findUnique: async () => null },
-    taskRun: { count: async () => 0 },
+    taskRun: { count: async ({ where }: { where: { taskId: string; status: string | { in: string[] } } }) => {
+      assert.equal(where.taskId, 'task');
+      const statuses = typeof where.status === 'string' ? [where.status] : where.status.in;
+      return activeTaskStatus && statuses.includes(activeTaskStatus) ? 1 : 0;
+    } },
     liveRoomMessage: {
       findFirst: async () => messageExists ? { id: 'message-1' } : null,
     },
     liveRoomDelivery: {
+      count: async ({ where }: { where: { roomMessage: { roomId: string }; deliveryStatus: { in: string[] } } }) => {
+        assert.equal(where.roomMessage.roomId, 'room');
+        return activeDeliveryStatus && where.deliveryStatus.in.includes(activeDeliveryStatus) ? 1 : 0;
+      },
       findFirst: async () => deliveryExists ? { id: 'delivery-1' } : null,
     },
   };
@@ -163,7 +174,9 @@ async function main() {
     unfinishedPlan: null,
     head: 'head',
   });
-  newSession.handleNewSessionCommand = async () => {
+  newSession.handleNewSessionCommand = async (_command: unknown, _context: unknown, policy: { waitForIdle?: boolean }) => {
+    assert.equal(policy.waitForIdle, true);
+    if (resetBecameBusy) return (await import('../src/lib/live-room-idle')).SESSION_ROTATION_WAITING;
     rotationRuns += 1;
     if (fault === 'rotation_run') throw new Error('crash after rotation claim');
     return '✅ rotated';
@@ -181,6 +194,26 @@ async function main() {
     roleWorkflow,
     signal: new AbortController().signal,
   });
+
+  // A completed TaskRun still owns its reply until relay and handoff persistence finish.
+  for (const state of ['prepared', 'rotation_pending', 'rotation_confirmation_required']) {
+    for (const status of ['pending', 'running']) {
+      reset(state);
+      activeDeliveryStatus = status;
+      assert.equal(await run(true), false, `${state}: ${status} delivery must defer rotation`);
+      assert.equal(dispatch.state, state);
+      assert.equal(rotationRuns, 0, 'must not attempt to stop the finishing reply or txpi handoff');
+      assert.equal(feishuPosts, 0);
+    }
+    activeDeliveryStatus = null;
+    for (const status of ['pending', 'running', 'waiting_for_input']) {
+      reset(state);
+      activeTaskStatus = status;
+      assert.equal(await run(true), false, `${state}: ${status} task must defer rotation`);
+      assert.equal(rotationRuns, 0);
+    }
+    activeTaskStatus = null;
+  }
 
   reset('prepared');
   fault = 'rotation';
@@ -205,6 +238,15 @@ async function main() {
   assert.equal(await run(), true);
   assert.equal(dispatch.state, 'reply_queued');
   assert.equal(rotationRuns, 2, 'rotation_pending retry must reuse the event-keyed reset checkpoints');
+
+  reset('rotation_pending');
+  resetBecameBusy = true;
+  const runsBeforeBusyReset = rotationRuns;
+  assert.equal(await run(true), false, 'activity discovered under the reset lock is waiting, not failure');
+  assert.equal(dispatch.state, 'rotation_pending');
+  assert.equal(rotationRuns, runsBeforeBusyReset);
+  resetBecameBusy = false;
+  assert.equal(await run(true), true, 'idle retry resumes the same event');
 
   rotationAction = 'reuse';
   messageExists = false;

@@ -25,10 +25,7 @@ import {
 } from '@/lib/live-room-delivery-routing';
 import { processLiveRoomDelivery } from '@/lib/live-room-delivery-processing';
 import { dispatchLocalSteeringOnce, trySteerLocalMember } from '@/lib/live-room-steering';
-import {
-  claimLiveRoomHandoff,
-  ensureLiveRoomHandoffRoot,
-} from '@/lib/live-room-handoff';
+import { ensureLiveRoomHandoffRoot } from '@/lib/live-room-handoff';
 
 const ALL_REPLY_STAGGER_MS = 750;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -110,7 +107,7 @@ const enqueuePreparedLiveRoomDelivery = async ({
 const dispatchLiveRoomHandoff = async (handoff: NonNullable<
   Awaited<ReturnType<typeof processLiveRoomDelivery>>
 >) => {
-  const claim = await claimLiveRoomHandoff(handoff);
+  const claim = handoff.claim;
   if (claim.status === 'duplicate') return;
 
   if (claim.status !== 'accepted') {
