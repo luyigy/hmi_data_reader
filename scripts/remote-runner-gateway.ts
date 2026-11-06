@@ -37,6 +37,8 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let completed = false;
   try {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
@@ -49,11 +51,18 @@ const server = createServer(async (req, res) => {
     }
 
     res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store' });
-    const write = (event: unknown) => res.write(`${JSON.stringify(event)}\n`);
-    let completed = false;
+    const write = (event: unknown) => {
+      if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
+    };
     res.once('close', () => {
+      clearInterval(heartbeat);
       if (!completed) cancelNodeRun(nodeName, runId);
     });
+    // Keep the HTTP body alive while Pi waits for a silent tool. Runner WebSocket
+    // heartbeats and Feishu progress updates do not traverse this response.
+    write({ type: 'heartbeat' });
+    heartbeat = setInterval(() => write({ type: 'heartbeat' }), 15_000);
+    heartbeat.unref();
     const result = await executeOnNode(nodeName, {
       runId,
       taskId: body.taskId,
@@ -69,6 +78,8 @@ const server = createServer(async (req, res) => {
     write({ type: 'complete', ...result });
     res.end();
   } catch (error) {
+    completed = true;
+    if (res.destroyed || res.writableEnded) return;
     const message = error instanceof Error ? error.message : String(error);
     if (!res.headersSent) {
       res.writeHead(503, { 'content-type': 'text/plain' });
@@ -76,6 +87,8 @@ const server = createServer(async (req, res) => {
     } else {
       res.end(`${JSON.stringify({ type: 'complete', success: false, error: message })}\n`);
     }
+  } finally {
+    clearInterval(heartbeat);
   }
 });
 

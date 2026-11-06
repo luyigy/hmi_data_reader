@@ -135,6 +135,20 @@ export async function executeRemoteRunnerTask(options: {
       sessionId: typeof result.sessionDir === 'string' ? result.sessionDir : undefined,
       sessionKind: typeof result.sessionDir === 'string' ? 'pi_session_dir' : undefined,
     };
+  } catch (error) {
+    if (controller.signal.aborted) throw controller.signal.reason;
+    const cause = error instanceof Error ? error.cause : undefined;
+    const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined;
+    if (code === 'UND_ERR_BODY_TIMEOUT') {
+      throw new Error('远程 Runner 输出流空闲超时（UND_ERR_BODY_TIMEOUT）；这是连接等待超时，并非房间任务总时限。', { cause: error });
+    }
+    if (code === 'UND_ERR_HEADERS_TIMEOUT') {
+      throw new Error('远程 Runner 网关响应超时（UND_ERR_HEADERS_TIMEOUT）。', { cause: error });
+    }
+    if (typeof code === 'string' && /^[A-Z][A-Z0-9_]+$/.test(code)) {
+      throw new Error(`远程 Runner 连接失败（${code}）；请检查网关与远端连接。`, { cause: error });
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }
